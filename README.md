@@ -52,4 +52,4 @@ Restart the target profile after installation.
 
 ## License
 
-Apache-2.0. See [LICENSE](./LICENSE).
+GNU GPL-3.0-only. See [LICENSE](./LICENSE).
