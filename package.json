@@ -1,0 +1,27 @@
+{
+  "name": "dsh-yuanqi-plugin",
+  "version": "1.1.0-alpha.9",
+  "private": true,
+  "type": "module",
+  "description": "YuanQi v1.1 — DSH-hosted digital-personality evolution plugin",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "test": "node --test",
+    "check": "node --check index.js && find src -name '*.js' -type f -print0 | xargs -0 -n1 node --check && node --test"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-tools": ">=0.2.0-0 <0.3.0-0",
+    "@deepseek-ai/dsh-storage-domain": ">=0.2.0-0 <0.3.0-0",
+    "@deepseek-ai/dsh-llm": ">=0.2.0-0 <0.3.0-0"
+  },
+  "license": "Apache-2.0",
+  "main": "./index.js",
+  "exports": {
+    ".": "./index.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "dsh": { "bundle": { "patch": "./cordis.patch.yml" } },
+  "dependencies": { "zod": "^4.4.3" },
+  "files": ["index.js", "src/**", "cordis.patch.yml", "README.md"]
+}
