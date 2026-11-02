@@ -217,13 +217,15 @@ dsh plugin --profile web add ./dist/dsh-yuanqi-plugin-1.1.0-alpha.9.tgz
 7. `worldline_id` 是逻辑隔离键，不是用户身份认证或授权凭证。
 8. 未完成真实宿主验证的能力必须明确标注，不得宣称已通过宿主验收。
 
-详见 [安全与隐私约定](./docs/README.md)。
+详见 [安全与隐私约定](./docs/SECURITY.md)。
 
 ## 文档导航
 
 - [文档索引与维护规范](./docs/README.md)
 - [整体架构与自我模型](./docs/ARCHITECTURE.md)
 - [设计原则与研究边界](./docs/DESIGN-PRINCIPLES.md)
+- [安装与配置](./docs/INSTALLATION.md)
+- [安全与隐私](./docs/SECURITY.md)
 - [当前实现状态与验证边界](./docs/STATUS.md)
 - [alpha.9 发布记录](./releases/1.1.0-alpha.9.md)
 - [英文 README](./README.en.md)
