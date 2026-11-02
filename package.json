@@ -14,7 +14,7 @@
     "@deepseek-ai/dsh-storage-domain": ">=0.2.0-0 <0.3.0-0",
     "@deepseek-ai/dsh-llm": ">=0.2.0-0 <0.3.0-0"
   },
-  "license": "Apache-2.0",
+  "license": "GPL-3.0-only",
   "main": "./index.js",
   "exports": {
     ".": "./index.js",
@@ -23,5 +23,5 @@
   },
   "dsh": { "bundle": { "patch": "./cordis.patch.yml" } },
   "dependencies": { "zod": "^4.4.3" },
-  "files": ["index.js", "src/**", "cordis.patch.yml", "README.md"]
+  "files": ["LICENSE", "index.js", "src/**", "cordis.patch.yml", "README.md"]
 }
