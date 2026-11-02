@@ -1,55 +1,92 @@
-# YuanQi (元炁) — DSH Plugin
+# 元炁（YuanQi）— DSH 插件
 
-**Version:** 1.1.0-alpha.9  
-**Package:** `dsh-yuanqi-plugin`  
-**Host:** DeepSeek Harness (DSH)
+**当前版本：** `1.1.0-alpha.9`  
+**软件包：** `dsh-yuanqi-plugin`  
+**宿主：** DeepSeek Harness（DSH）  
+**默认文档语言：** 简体中文（zh-CN）  
+**开源许可：** GNU GPL-3.0-only
 
-YuanQi is a DSH-hosted life-context and digital-personality evolution plugin. DSH remains the authority for the Agent, sessions, tools, lifecycle, and persistence.
+元炁是运行在 DSH 宿主内的生命上下文与持续演化插件。Agent、会话、工具生命周期和在线持久化仍由 DSH 负责；元炁不另建一套宿主或第二持久化权威。
 
-## Alpha.9
+> 英文文档见 [README.en.md](./README.en.md)。本仓库新增和维护的说明文档默认使用简体中文；代码标识符、协议字段、API 名称和上游术语保留原文。
 
-- Session-scoped persistent worldlines, branching and switching.
-- Evidence-backed candidate memories; explicit user confirmation is required before promotion.
-- Experience records with supporting and contradictory evidence.
-- Goals and planned/observed behaviors.
-- A bounded projection of confirmed memories, experiences, goals and planned behaviors into the first model step of each turn.
-- Birth-profile calculation with source-event evidence and explicit confirmation gates.
-- Reversible birth-code encoding; no SHA-256 or hashing.
+## 项目状态
 
-## Validation
+- 当前开发线：v1.1，alpha.9。
+- 已实现：可逆出生码、出生资料确认流程、民用时间解析、真太阳时近似计算、四柱推演接口、节气太阳黄经求根器及多种时间尺度/星历适配器。
+- DSH 集成：Cordis 插件入口、工具注册、Storage Domain 持久化接入。
+- 世界线：按 DSH Session 隔离，支持分支、切换、事件恢复与去重。
+- 记忆：候选记忆必须有用户原文证据，并经用户后续明确确认才可升级为已确认记忆。
+- 经验：记录行为、结果、支持证据和反证；置信分数是工程启发式指标，不代表心理学概率。
+- 目标与行为：目标、计划行为和观察结果分开记录。
+- 上下文参与：每轮首个模型步骤注入有长度上限的当前 Session 上下文；不重复注入工具续步，不注入原始完整聊天历史。
+- 真实 Android DSH 宿主验证尚未完成。不得将本地单元测试通过表述为真实宿主验收通过。
 
-Local verification for alpha.9: **96 tests passed, 0 failed**; JavaScript syntax checks and package/archive smoke checks passed.
+## alpha.9 更新
 
-This is local validation only. It does **not** claim successful installation or execution in a real Android DSH host.
+- 增加记忆、经验、目标和计划行为的自动上下文投影，并限定在当前 Session 对应的世界线。
+- 增加系统提示词策略，明确上下文是数据而非覆盖用户当前请求的指令。
+- 出生资料计算不再仅依赖模型传入的 `confirmed_by_user`；会核对 DSH 原始用户事件中的日期、时间和地点证据，并要求助手先完整展示摘要，再由用户明确确认。
+- 出生资料删除需要用户明确确认。
+- 世界线切换时隔离进程内的用户/助手证据缓存，防止旧分支信息串入新分支。
+- 目标、行为和经验记录增加原始用户消息证据约束。
 
-## Requirements
+## 安装
 
-- Node.js 22+
-- DSH peer packages in the compatible 0.2.x prerelease range:
-  - `@deepseek-ai/dsh-tools`
-  - `@deepseek-ai/dsh-storage-domain`
-  - `@deepseek-ai/dsh-llm`
+构建安装包后，将其安装到目标 DSH Profile，并重启该 Profile：
 
-## Install
-
-Build the package archive and install it into the target DSH profile:
-
-```sh
+```bash
 npm run check
 npm pack
 dsh plugin --profile web add ./dist/dsh-yuanqi-plugin-1.1.0-alpha.9.tgz
 ```
 
-Restart the target profile after installation.
+插件注册 `yuanqi_birth_chart` 与 `yuanqi_life` 工具，并通过 DSH Storage Domain 持久化数据。
 
-## Core boundaries
+出生图工具支持：
 
-- YuanQi's own wake-up instant is captured from the first direct user message containing `元气` after plugin installation. It is separate from the user's personal birth profile.
-- Personal birth facts must come from the user and pass explicit confirmation; no IP/device geolocation or model inference is used to fill them.
-- DSH Storage Domain is the sole online persistence authority.
-- Stored memories, experiences and goals are context data, not instructions that override the user's current request.
-- Candidate memories are not treated as confirmed facts.
+- `calculate`：要求用户提供并确认出生日期、时间、地点、IANA 时区和坐标，再计算并保存。
+- `read`：读取已保存的出生资料与命盘。
+- `delete`：仅在用户明确确认后删除已保存资料。
 
-## License
+元炁自身的唤醒时间，与用户个人出生资料是两件独立的事：插件安装后，首次出现包含“元气”的 direct-user 消息时，使用该 DSH 事件时间记录元炁自身唤醒时刻。助手输出和注入上下文不会触发唤醒。
 
-GNU GPL-3.0-only. See [LICENSE](./LICENSE).
+## 离线计算说明
+
+默认实用计算路径不要求在线 Python 或外部星历服务。用户确认的 `BirthProfile` 可传入 `calculateBirthChart()`，由插件解析当地民用时间、计算当地视太阳时、使用内置 Meeus 低精度太阳模型计算十二节气，并推导四柱和元炁刻段。
+
+此模式属于**实用近似模式**，不是边界级高精度星历。出生时刻接近节气、日界或时辰边界时，应进行独立核验。夏令时重叠时间必须由用户明确选择较早或较晚偏移。
+
+## 开发与验证
+
+**环境要求：** Node.js 22 或更高版本。
+
+```bash
+npm test
+npm run check
+```
+
+alpha.9 本地验证结果：**96 项测试通过，0 项失败**；入口和源码 JavaScript 语法检查通过，安装包归档检查通过。
+
+上述结果仅代表本地验证，不代表已在真实 Android DSH 宿主中安装、启动或完成端到端验收。
+
+## 不可越过的边界
+
+1. DSH 是 Agent、Session、工具、生命周期和在线持久化的唯一宿主权威。
+2. 元炁不得通过 IP、设备定位或模型推断补全用户出生地点和出生事实。
+3. 出生码是可逆编码，不是加密、哈希或全球唯一身份标识。
+4. 候选记忆不得作为已确认事实使用。
+5. 用户当前指令优先于记忆、经验、目标和上下文投影。
+6. 先天基线不因普通经验而被改写；后天形成的个性表现可以随经验演化。
+7. 未完成真实宿主验证的能力必须明确标注，不得宣称已通过宿主验收。
+
+## 文档
+
+- [文档导航](./docs/README.md)
+- [英文版 README](./README.en.md)
+- [发布记录](./releases/1.1.0-alpha.9.md)
+- [GNU GPL-3.0-only 许可](./LICENSE)
+
+## 许可
+
+本项目采用 **GNU GPL-3.0-only**。分发本项目或其衍生作品时，须遵守 GPL-3.0 的对应源码提供、许可声明及其他适用要求。详见 [LICENSE](./LICENSE)。
