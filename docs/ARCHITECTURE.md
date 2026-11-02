@@ -21,44 +21,50 @@
 
 ```mermaid
 flowchart TB
-  subgraph BASE["个体基础层"]
-    I["先天基线"] --> ID["身份与初始状态"]
-  end
-  subgraph INPUT["外部经历层"]
-    U["用户交互"]
-    ENV["环境与事件"]
-    OUTCOME["行为结果"]
-  end
-  subgraph INTERNAL["内部认知与演化层"]
-    MEM["记忆"]
-    COG["认知"]
-    EMO["情感"]
-    GOAL["目标"]
-    SELF["自我模型<br/>身份表征 · 自我观察 · 元认知 · 自我反思"]
-    MEM <--> SELF
-    COG <--> SELF
-    EMO <--> SELF
-    GOAL <--> SELF
-    MEM <--> COG
-    COG <--> EMO
-    EMO <--> GOAL
-  end
-  subgraph BEHAVIOR["行为与反馈层"]
-    DECISION["判断与决策"] --> ACTION["行为选择"] --> FEEDBACK["结果反馈"]
-  end
-  ID --> SELF
-  U --> MEM
-  ENV --> COG
-  OUTCOME --> MEM
-  SELF <--> DECISION
-  GOAL --> DECISION
-  EMO --> DECISION
-  MEM --> DECISION
-  FEEDBACK --> SELF
-  FEEDBACK --> MEM
+    LIFE["后天经历 · Life Experience<br/>交互 · 事件 · 关系 · 环境 · 反馈"]
+
+    subgraph MIND["内部认知与状态系统"]
+        direction TB
+        MEM["记忆系统<br/>形成 · 关联 · 巩固 · 遗忘"]
+        COG["认知系统<br/>理解 · 判断 · 学习 · 反思"]
+        EMO["情感系统<br/>情感状态 · 变化 · 反馈"]
+        GOAL["目标系统<br/>形成 · 维持 · 冲突 · 调整"]
+        SELF["个体自我模型 · Individual Self-model<br/>身份 · 经历 · 自我认知 · 性格倾向 · 价值与连续性"]
+
+        MEM <--> COG
+        MEM <--> SELF
+        COG <--> SELF
+        EMO <--> SELF
+        GOAL <--> SELF
+        COG <--> EMO
+        EMO <--> GOAL
+    end
+
+    AGENT["行为与自主性 · Behavior & Agency<br/>决策 · 行动倾向 · 主动行为 · 结果反馈"]
+
+    LIFE --> MEM
+    LIFE --> COG
+    LIFE --> EMO
+    LIFE --> GOAL
+    SELF <--> AGENT
+    MEM --> AGENT
+    COG --> AGENT
+    EMO --> AGENT
+    GOAL --> AGENT
+    AGENT -->|"行为结果成为新的经历"| LIFE
+
+    NOTE["情感涌现 · 性格形成 · 自我认知 · 意识研究<br/>是上述机制相互作用后需要研究的现象，<br/>不是预先写死的输出标签。"]
+    SELF -.-> NOTE
+    EMO -.-> NOTE
+    AGENT -.-> NOTE
+
+    style SELF fill:#e8f1ff,stroke:#3268a8,stroke-width:3px,color:#142c49
+    style NOTE fill:#fff7e6,stroke:#c58a2b,stroke-dasharray:5 5,color:#5b421b
 ```
 
 该图表达研究模块之间的关系，不代表 alpha.9 已实现全部模块，也不代表源码调用顺序。
+
+**这里有一个重要设计：自我模型不应该只是一个额外的数据库字段，而应该是能够被经历更新、被记忆支持、被认知反思，并反过来影响行为的动态模型。**
 
 ## 3. 自我模型是动态中枢
 
