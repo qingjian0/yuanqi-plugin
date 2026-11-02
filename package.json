@@ -39,5 +39,5 @@
     "cordis.patch.yml",
     "README.md"
   ],
-  "x_defaultLanguage": "zh-CN"
+  "x-default-language": "zh-CN"
 }
