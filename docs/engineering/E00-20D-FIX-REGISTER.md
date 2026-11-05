@@ -7,13 +7,23 @@
 
 ## 状态语义
 
-- **OPEN**：问题已登记，尚未完成裁决。
-- **PROPOSED**：存在建议方案，但尚未获得项目级批准。
-- **ACCEPTED**：已批准并可进入规范实现。
-- **IMPLEMENTED**：已落入仓库代码或 Schema。
-- **VERIFIED**：已由自动化测试或明确证据验证。
+本登记册采用两个独立维度，表格中的“状态”列表示 **decision_status**，不是实现成熟度。
 
-本登记册中的任何建议均不自动构成 ACCEPTED。ADR 编号仅用于追踪，不代表批准。
+**决策状态（decision_status）：**
+- **OPEN**：问题已登记，尚无足够完整的方案进入正式审议。
+- **PROPOSED**：建议方案已形成，但尚未获得项目级批准。
+- **ACCEPTED**：已由明确决策者批准，成为当前有效决策。
+- **REJECTED**：已明确不采纳，保留理由与记录。
+- **SUPERSEDED**：已被后续决策替代，保留历史引用。
+- **DEPRECATED**：不再推荐，但尚无完整替代决策。
+
+**实现成熟度（implementation_maturity，独立记录）：**
+- **NOT_STARTED**：尚未开始实现。
+- **IN_PROGRESS**：正在实现。
+- **IMPLEMENTED**：已有对应代码/Schema/配置落库。
+- **VERIFIED**：实现已通过可追溯的自动化测试或明确验收证据。
+
+当前登记表只展示决策状态；所有项目的实现成熟度均未由本登记册证明。ACCEPTED 不等于 IMPLEMENTED，IMPLEMENTED 不等于 VERIFIED；不得仅凭文档建议或提交记录升级实现成熟度。
 
 ## P0：Schema 开始前必须裁决
 
