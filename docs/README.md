@@ -17,6 +17,7 @@
 - [E00-20E 工程落地执行计划](./engineering/E00-20E-EXECUTION-PLAN.md)：工程阶段、阻断项和验收标准。
 - [E00-20E 仓库基线审计](./engineering/E00-20E-BASELINE-AUDIT.md)：真实 Git Tree、入口依赖、测试与 CI 证据。
 - [E00-20E 源码恢复排查记录](./engineering/E00-20E-SOURCE-RECOVERY.md)：公开 GitHub 来源排查结果、排除依据和恢复门槛。
+- [E00-20D P0 公共契约裁决建议稿](./engineering/E00-20D-P0-DECISION-PROPOSALS.md)：FIX-001～FIX-007 的逐项方案建议；均待批准，不代表已冻结。
 - [E00-20D 契约修订登记册](./engineering/E00-20D-FIX-REGISTER.md)：Schema 冻结前的 20 项公共契约问题、优先级和待决建议。
 
 ## 文档分类
