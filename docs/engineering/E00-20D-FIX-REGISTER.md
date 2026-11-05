@@ -50,6 +50,8 @@
 | FIX-019 | Schema URI | Schema 标识符、版本路径、发布与兼容策略 | 采用稳定命名空间与不可变版本 URI | PROPOSED |
 | FIX-020 | ADR 编号治理 | ADR-001～290 候选项的重复、冲突、依赖和状态 | 建立索引和状态字段；编号不作为批准证据 | OPEN |
 
+详细建议见 [E00-20D P2 治理裁决建议稿](./E00-20D-P2-GOVERNANCE-PROPOSALS.md)。当前仓库没有 ADR 原始候选清单，ADR-001～290 的重复/冲突尚不能核实；不得据此创建空 ADR 或推断编号已占用。
+
 ## 修订顺序与依赖
 
 1. 先裁决 FIX-001～FIX-007，形成公共 Envelope、授权引用、ServiceIdentity、事件顺序/提交及 DomainCall 的规范决定。
