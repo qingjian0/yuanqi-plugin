@@ -21,6 +21,13 @@ P0/P1 建议稿总体遵循身份与授权分离、Owner 写入、事件不可�
 | CR-008 | FIX-016 不可变审计记录与数据擦除边界 | 可能保留可识别个人数据或错误承诺合规 | Event 只保留最小必要事实/引用；敏感载荷外置并可删除/加密擦除；法律适用性需专项审查 |
 | CR-009 | FIX-017 转移失败时的部分写入恢复 | 目标 Worldline 可能留下半完成数据 | 采用 staged import + commit marker；未提交转移不可见；恢复/撤销通过独立 Transfer 状态事件完成 |
 
+## 新增一致性问题（P2 审查）
+
+| CR-010 | FIX-018 统计指标的身份范围和可加性未完全定义 | event_id 唯一性范围尚未核实；不同 stream/window 的计数可能被错误相加或比较 | 在批准前明确 metric scope（tenant/stream/consumer/projection）、窗口边界、去重键唯一性和可加性；无法证明唯一性时标记估算/不完整 |
+| CR-011 | FIX-019 的 Schema 身份、解析位置与发布位置可能混淆 | 将 $id 当作可下载 URL，或将仓库路径当作稳定 Schema 身份，会导致引用解析和离线校验不一致 | 分别定义 canonical $id、$schema 方言、registry 映射、$ref 解析策略和发布 URI；测试必须在离线/锁定依赖环境可复现 |
+| CR-012 | 历史 ADR-001～290 与建议的 ADR-NNNN 编号格式尚无迁移映射 | 直接改号可能破坏历史引用；直接视为已占号又可能虚构历史记录 | 先恢复原始清单，保留 legacy_id 与来源；核验后建立 legacy_id → canonical_id 映射。四位编号仅作为待批准的新编号格式，不追溯改写历史编号 |
+| CR-013 | FIX 登记册状态字段与 ADR 决策/实现状态模型存在语义混合 | 若将 IMPLEMENTED/VERIFIED 当作决策状态，可能把实现证据误当成批准，或把已批准误认为已实现 | 将 decision_status 与 implementation_maturity 分列；OPEN 表示尚未形成可审议方案，PROPOSED 表示建议已形成但未批准；IMPLEMENTED/VERIFIED 只记录实现成熟度 |
+
 ## 重要一致性约束
 
 1. JSON Schema 不承担授权真实性、签名验证、Owner 写入、并发序号、事务原子性和外部副作用保证。
