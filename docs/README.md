@@ -16,6 +16,7 @@
 
 - [E00-20E 工程落地执行计划](./engineering/E00-20E-EXECUTION-PLAN.md)：工程阶段、阻断项和验收标准。
 - [E00-20E 仓库基线审计](./engineering/E00-20E-BASELINE-AUDIT.md)：真实 Git Tree、入口依赖、测试与 CI 证据。
+- [E00-20E 源码恢复排查记录](./engineering/E00-20E-SOURCE-RECOVERY.md)：公开 GitHub 来源排查结果、排除依据和恢复门槛。
 - [E00-20D 契约修订登记册](./engineering/E00-20D-FIX-REGISTER.md)：Schema 冻结前的 20 项公共契约问题、优先级和待决建议。
 
 ## 文档分类
@@ -41,7 +42,7 @@
 
 - 版本：`1.1.0-alpha.9`
 - 许可证：GNU GPL-3.0-only
-- 本地测试记录：96 项通过，0 项失败
+- 本地测试记录：96 项通过，0 项失败（历史发布记录；当前远端快照缺少测试源码，无法独立复核）
 - 真实 Android DSH 宿主验证：尚未完成
 
 详细信息见 [项目状态](./STATUS.md)。
