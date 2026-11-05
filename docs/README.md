@@ -18,6 +18,9 @@
 - [E00-20E 仓库基线审计](./engineering/E00-20E-BASELINE-AUDIT.md)：真实 Git Tree、入口依赖、测试与 CI 证据。
 - [E00-20E 源码恢复排查记录](./engineering/E00-20E-SOURCE-RECOVERY.md)：公开 GitHub 来源排查结果、排除依据和恢复门槛。
 - [E00-20D P0 公共契约裁决建议稿](./engineering/E00-20D-P0-DECISION-PROPOSALS.md)：FIX-001～FIX-007 的逐项方案建议；均待批准，不代表已冻结。
+- [E00-20D P0 契约验证矩阵](./engineering/E00-20D-P0-TEST-MATRIX.md)：P0 的 Schema、运行时、持久化和安全测试设计；当前未执行。
+- [E00-20D P1 公共契约裁决建议稿](./engineering/E00-20D-P1-DECISION-PROPOSALS.md)：FIX-008～FIX-017 的方案建议；FIX-015 仍待原始资料核验。
+- [E00-20D 契约一致性审查](./engineering/E00-20D-CONSISTENCY-REVIEW.md)：P0/P1 建议稿的内部一致性问题和待补充裁决项。
 - [E00-20D 契约修订登记册](./engineering/E00-20D-FIX-REGISTER.md)：Schema 冻结前的 20 项公共契约问题、优先级和待决建议。
 
 ## 文档分类
