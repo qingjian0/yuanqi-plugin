@@ -22,6 +22,8 @@
 - [E00-20D P1 公共契约裁决建议稿](./engineering/E00-20D-P1-DECISION-PROPOSALS.md)：FIX-008～FIX-017 的方案建议；FIX-015 仍待原始资料核验。
 - [E00-20D 契约一致性审查](./engineering/E00-20D-CONSISTENCY-REVIEW.md)：P0/P1 建议稿的内部一致性问题和待补充裁决项。
 - [E00-20D 契约修订登记册](./engineering/E00-20D-FIX-REGISTER.md)：Schema 冻结前的 20 项公共契约问题、优先级和待决建议。
+- [E00-20D P2 治理裁决建议稿](./engineering/E00-20D-P2-GOVERNANCE-PROPOSALS.md)：FIX-018～FIX-020 的统计去重、Schema URI 与 ADR 编号治理建议；均待批准。
+- [ADR 索引与模板治理](./adr/README.md)：正式 ADR 的建议目录、编号规则、状态模型与模板；当前尚无正式 ADR。
 
 ## 文档分类
 
