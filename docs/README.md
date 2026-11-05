@@ -16,7 +16,8 @@
 
 - [E00-20E 工程落地执行计划](./engineering/E00-20E-EXECUTION-PLAN.md)：工程阶段、阻断项和验收标准。
 - [E00-20E 仓库基线审计](./engineering/E00-20E-BASELINE-AUDIT.md)：真实 Git Tree、入口依赖、测试与 CI 证据。
-- [E00-20E 源码恢复排查记录](./engineering/E00-20E-SOURCE-RECOVERY.md)：公开 GitHub 来源排查结果、排除依据和恢复门槛。
+- [E00-20E 源码恢复排查记录](./engineering/E00-20E-SOURCE-RECOVERY.md)：公开 GitHub 来源排查结果、历史归档恢复证据和当前导入状态。
+- [E00-20E-02 alpha.9 归档恢复验证](./engineering/E00-20E-02-ARCHIVE-RECOVERY-VERIFICATION.md)：归档清单、20 个入口依赖核对、96 项测试复验与恢复包说明。
 - [E00-20D P0 公共契约裁决建议稿](./engineering/E00-20D-P0-DECISION-PROPOSALS.md)：FIX-001～FIX-007 的逐项方案建议；均待批准，不代表已冻结。
 - [E00-20D P0 契约验证矩阵](./engineering/E00-20D-P0-TEST-MATRIX.md)：P0 的 Schema、运行时、持久化和安全测试设计；当前未执行。
 - [E00-20D P1 公共契约裁决建议稿](./engineering/E00-20D-P1-DECISION-PROPOSALS.md)：FIX-008～FIX-017 的方案建议；FIX-015 仍待原始资料核验。
@@ -48,7 +49,7 @@
 
 - 版本：`1.1.0-alpha.9`
 - 许可证：GNU GPL-3.0-only
-- 本地测试记录：96 项通过，0 项失败（历史发布记录；当前远端快照缺少测试源码，无法独立复核）
-- 真实 Android DSH 宿主验证：尚未完成
+- 本地测试：历史 alpha.9 源码归档已在隔离 Node.js v22.16.0 环境复验，96 项通过、0 项失败；尚未从当前 GitHub `dev` 工作树复验。
+- 真实 Android DSH 宿主验证：尚未完成。
 
-详细信息见 [项目状态](./STATUS.md)。
+详细信息见 [项目状态](./STATUS.md) 与 [归档恢复验证](./engineering/E00-20E-02-ARCHIVE-RECOVERY-VERIFICATION.md)。
