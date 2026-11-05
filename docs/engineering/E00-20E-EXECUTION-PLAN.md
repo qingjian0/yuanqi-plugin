@@ -25,11 +25,11 @@
 | 阶段 | 任务 | 状态 | 完成标准 |
 |---|---|---|---|
 | 20E-01 | 仓库与源码基线审计 | DONE | Tree、入口依赖、测试、CI、文档状态已记录 |
-| 20E-01A | 可见分支与提交来源复核 | DONE | 已核查可见分支、提交；未找到缺失源码恢复提交 |
-| 20E-01B | 历史测试证据标注 | DONE | alpha.9 的 96 项测试声明标记为历史记录，当前快照不可复核 |
+| 20E-01A | 可见分支与提交来源复核 | DONE | 已核查可见分支、提交；未发现 Git 提交恢复源 |
+| 20E-01B | 历史测试证据标注 | DONE | alpha.9 的 96 项测试声明已从恢复归档隔离复验；Git Tree 导入仍待完成 |
 | 20E-01C | 公开来源补充排查 | DONE | PR、提交搜索、Release、代码搜索及相似仓库完成核查；结果见源码恢复记录 |
-| 20E-02 | 恢复完整源码和测试基线 | BLOCKED | 19 个入口依赖恢复；测试源码恢复；入口可导入 |
-| 20E-03 | 现有功能回归与 CI 基线 | PENDING | 真实测试执行；CI 可重复运行 |
+| 20E-02 | 恢复完整源码和测试基线 | IN_PROGRESS | 19 个入口依赖与完整测试树导入 `dev`；Git 工作树入口可导入；96 项测试与语法检查通过 |
+| 20E-03 | 现有功能回归与 CI 基线 | PENDING | 从 Git 工作树重复运行测试；建立可重复 CI |
 | 20E-04 | Common JSON Schema | PENDING | ID、时间、主体、安全引用、元数据定义通过 Draft 2020-12 校验 |
 | 20E-05 | Messaging JSON Schema | PENDING | Command、Query、Event、Error、DomainCall 通过正负向测试 |
 | 20E-06 | Domain Registry 与领域 Schema | PENDING | 已核实领域完整登记；未核实领域标记 UNVERIFIED |
@@ -46,33 +46,35 @@
 - FIX-008～FIX-017 的方案见 [P1 公共契约裁决建议稿](./E00-20D-P1-DECISION-PROPOSALS.md)；FIX-015 仍需原始领域资料核验。
 - FIX-018～FIX-020 的方案见 [P2 治理裁决建议稿](./E00-20D-P2-GOVERNANCE-PROPOSALS.md)；统计口径、Schema URI 命名空间和 ADR 候选清单仍待核验/批准。
 - ADR 流程建议见 [ADR 索引与模板治理](../adr/README.md)；该文件不是正式 ADR 索引，尚未创建正式决策记录。
-- 建议稿一致性审查见 [契约一致性审查](./E00-20D-CONSISTENCY-REVIEW.md)，CR-001～CR-009 必须纳入后续 ADR。
+- 建议稿一致性审查见 [契约一致性审查](./E00-20D-CONSISTENCY-REVIEW.md)，CR-001～CR-013 必须纳入后续 ADR。
 - 只有 ACCEPTED 项可以进入规范 Schema；建议稿和测试矩阵不构成 ADR 或冻结规范。
 - `dev` 是当前开发分支；`main` 保持稳定分支，不直接修改。
 
 ## 当前阻断
 
-详见 [E00-20E 仓库基线审计](./E00-20E-BASELINE-AUDIT.md) 和 [E00-20E 源码恢复排查记录](./E00-20E-SOURCE-RECOVERY.md)。
+详见 [E00-20E 仓库基线审计](./E00-20E-BASELINE-AUDIT.md)、[E00-20E 源码恢复排查记录](./E00-20E-SOURCE-RECOVERY.md) 和 [alpha.9 归档恢复验证](./E00-20E-02-ARCHIVE-RECOVERY-VERIFICATION.md)。
 
-最优先阻断项：
-1. 当前远端 Git Tree 中，`index.js` 的 19 个本地导入目标缺失。
-2. 当前远端 Git Tree 中没有测试文件，无法复核文档记录的 96 项测试。
-3. 当前远端 Git Tree 中没有 GitHub Actions Workflow。
-4. 当前仓库没有 E00-20D Schema 或领域契约文件；已新增 ADR 流程建议文档，但尚无正式 ADR 文件。
+当前最优先事项：
+1. alpha.9 源码归档已在历史文件库中找到，且隔离复验通过；但 19 个缺失模块和完整 `test/` 树尚未导入当前 GitHub `dev` Tree。
+2. 因此当前远端 Git Tree 仍不能完整导入入口或独立运行测试；必须将恢复包导入 `dev` 后再次从 Git 工作树复验。
+3. 当前仓库没有 GitHub Actions Workflow；本地测试通过不等于 CI 通过。
+4. 当前仓库没有 E00-20D Schema 或领域契约文件；尚无正式 ADR 文件。
 5. ADR-001～290 候选项的原始清单未在当前 Git Tree 中找到，无法完成逐项去重/冲突审查。
 6. D09～D13、D15 的领域定义尚待原始资料核验。
-7. 本轮公开来源补充排查未找到可信源码/测试恢复源；相似的 `kimi9813/yuanqi-plugins` 已确认是腾讯元器 FastAPI 插件集合，不属于本项目。Forks API 因连接器端点限制未能核实，不能据此断言不存在 Fork。
+7. 本轮公开来源排查未发现 GitHub 恢复提交；相似的 `kimi9813/yuanqi-plugins` 已确认是腾讯元器 FastAPI 插件集合，不属于本项目。Forks API 因连接器端点限制未能核实，不能据此断言不存在 Fork。
 
 ## 当前执行状态
 
 - 20E-01、20E-01A、20E-01B、20E-01C 已完成；来源排查与历史证据边界均已记录。
+- alpha.9 源码归档已恢复到隔离目录；20 个入口依赖目标全部存在，17 个测试文件和 5 个夹具文件均已找到。
+- 隔离归档中 `npm test` 为 96 passed / 0 failed；`npm run check` 通过；`npm pack --dry-run` 成功并列出 26 个发布文件。
+- 上述结果不代表 GitHub `dev` Tree 已恢复。恢复包已生成，下一步需导入 `dev` 并从 Git 工作树重新验证。
 - 20D P0：FIX-001～FIX-007 已形成逐项建议与验证矩阵，内部一致性审查已完成；所有项目仍为 PROPOSED。
 - 20D P1：FIX-008～FIX-017 已形成方案建议；FIX-015 保持 OPEN，等待原始领域资料。
 - 20D 一致性审查已扩展至 CR-001～CR-013，仍待项目裁决；新增 FIX-018～FIX-020 治理建议和 ADR 流程说明，但仍未创建正式 ADR 决策记录。
 - FIX 登记册已明确分离 decision_status 与 implementation_maturity，防止将批准与实现验证混为一谈。
-- 20E-02 仍为 BLOCKED：当前可访问仓库没有完整源码来源，不得猜写或创建空模块。
-- 本轮没有运行项目测试、没有 CI Run、没有真实 DSH 宿主验证；不得将这些项目标记为通过。
-- 下一步：优先恢复可信完整源码/测试备份；并由项目决策者批准/修订 P0/P1/P2 建议。若候选 ADR 原始清单恢复，再完成编号去重审查。Schema 草案不能替代源码基线恢复。
+- 本轮没有 CI Run、没有真实 DSH 宿主验证；不得将这些项目标记为通过。
+- 下一步：先把恢复包导入 `dev` 并从 Git 工作树复验，再建立 CI 基线；P0/P1/P2 方案仍需项目决策者批准/修订。Schema 草案不能替代源码基线恢复。
 
 ## 阶段关闭规则
 
