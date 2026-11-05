@@ -12,6 +12,11 @@
 | [设计原则与研究边界](./DESIGN-PRINCIPLES.md) | 先天、后天、记忆、情感、性格、目标、自主性与科学边界 |
 | [项目状态](./STATUS.md) | alpha.9 已有能力、测试记录、未完成验证与后续验收重点 |
 
+## 工程落地
+
+- [E00-20E 工程落地执行计划](./engineering/E00-20E-EXECUTION-PLAN.md)：工程阶段、阻断项和验收标准。
+- [E00-20E 仓库基线审计](./engineering/E00-20E-BASELINE-AUDIT.md)：真实 Git Tree、入口依赖、测试与 CI 证据。
+
 ## 文档分类
 
 - `adr/`：架构决策记录（ADR），记录决策背景、备选方案、最终选择和影响。
