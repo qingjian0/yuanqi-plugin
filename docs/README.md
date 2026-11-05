@@ -16,6 +16,7 @@
 
 - [E00-20E 工程落地执行计划](./engineering/E00-20E-EXECUTION-PLAN.md)：工程阶段、阻断项和验收标准。
 - [E00-20E 仓库基线审计](./engineering/E00-20E-BASELINE-AUDIT.md)：真实 Git Tree、入口依赖、测试与 CI 证据。
+- [E00-20D 契约修订登记册](./engineering/E00-20D-FIX-REGISTER.md)：Schema 冻结前的 20 项公共契约问题、优先级和待决建议。
 
 ## 文档分类
 
