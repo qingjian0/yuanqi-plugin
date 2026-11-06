@@ -127,7 +127,7 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - 用户已明确决定：**不恢复 alpha.9 历史源码归档**。不导入历史 19 个模块、17 个测试文件或 5 个夹具；历史归档只保留为历史证据，不作为当前代码恢复来源。
 - 当前开发基线为 `dev`，审计 Tree SHA：`36f1a2a48a85f0d406a7cf045752de9862116eb6`。该基线 Tree 有 34 个条目，旧 `index.js` 曾引用 19 个不存在的模块。PR #3 已将包根入口收敛为仅导出当前真实存在的 Subject Domain 能力；没有恢复缺失模块，也不代表 Cordis 插件已可在真实宿主安装。
 - 新实现工作位于 Draft PR #3：`work/e00-20e-05b-subject-domain-runtime`。新增 UserSubject / YuanQiSubject 独立 DSH Storage Domain、主体仓储、首次直接用户消息持久锁、唤醒记录恢复、DSH SessionEvent 来源归一化，以及 Cordis 插件入口。根入口现导出真实 `name` / `inject` / `apply`，不再引用缺失的 alpha.9 模块。
-- 根入口专项 CI：commit `1c75f69526a95baba1687084af78f8838fb05c8a`，GitHub Actions run `42221995627`，Node.js 22；包根入口导入、DSH Domain 导出、语法检查和当时已有测试通过。后续首次消息持久锁、DSH 事件归一化及其测试已追加到 PR #3；最新提交的 CI 尚待观察，不能将这些新增测试标为已通过。
+- 最新完整 CI：commit `10ef73af99ca9b32e1a63375b826d22731bf58c6`，GitHub Actions run `42223377568`（Run #50），Node.js 22；依赖安装、包根入口与 DSH Domain 导出检查、源码语法检查全部通过；13 项自动化测试通过，0 项失败。覆盖首次消息锁、跨 Session 唤醒资格、DSH 来源识别、唤醒恢复、Cordis 生命周期和 flush 屏障模拟。
 - 当前验证范围覆盖包根入口导入、领域声明、内存表适配、首次消息规则、DSH 事件来源识别和 Cordis 插件监听器测试；最新提交的 GitHub CI 尚未观察到完成结果。插件监听 `session/event`，通过 `session.id` 绑定 Session，并在 `session/flush` 等待该 Session 的待处理领域写入；没有真实 DSH 宿主后端持久化验收。
 - SelfModel 五中心、Worldline 分支隔离、Evidence Ledger、跨线授权转移、跨进程 CAS 状态提交和真实宿主验收均未完成。首次消息写入仅声明单个插件实例内串行化，不宣称跨进程 CAS。
 - PR #3 保持 Draft，不合并 `dev` 或 `main`，直至后续验收完成。
