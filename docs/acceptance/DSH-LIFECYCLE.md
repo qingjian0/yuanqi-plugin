@@ -25,12 +25,13 @@
 ### B. 首条直接用户消息与 Session flush
 
 1. 在新安装状态下发送一条普通直接用户消息。
-2. 等待该 Session 的 `session/flush` 完成。
+2. 等待该 Session 的 `session/flush` 完成；该事件是 DSH awaited parallel durability checkpoint，必须确认 YuanQi 的所有在途写入已 settle。
 3. 检查 UserSubject、YuanQiSubject、首次直接消息锁、主线 Worldline、Head 和 Session 绑定是否持久化。
+4. 验证 `user/message` 的 `source.kind === 'plugin'` 等合成 user-role context 不会创建首次直接用户消息锁；只有 `source.kind === 'user'` 的直接消息可以建立该锁。
 4. 在另一个 Session 发送消息，确认其绑定到同一主线，不重复创建主体。
 5. 只有在首次直接用户消息本身为精确命令“启动元气”或“启动元炁”时，才应创建首次唤醒记录；后续命令不得补触发首次唤醒。
 
-预期：首次记录与来源事件一致；重复事件不会重写首次记录或改变主体身份。
+预期：首次记录与来源事件一致；重复事件不会重写首次记录或改变主体身份。若任何领域写入失败，`session/flush` 必须向宿主报告失败，不能因为事件任务在 flush 开始前已快速结束就吞掉错误。
 
 ### C. 进程重启与事件重放
 
@@ -48,6 +49,7 @@
 2. 检查 Domain 句柄被关闭且再次加载不会残留旧监听器。
 3. 若测试环境支持故障注入，分别在第一个 Domain 打开成功、第二个 Domain 打开失败时验证第一个句柄关闭。
 4. 若无法注入真实后端故障，记录为未执行；不要用内存适配器结果代替。
+5. 在测试后端注入 `unknown-state`：确认插件停止处理新的 Session 消息并输出 fail-closed 警告；卸载插件时关闭旧 Domain，重新加载后由 `open()` 重新读取并验证存储记录。不得在仍持有隔离句柄时自动重试写入，也不得自动补造丢失记录。
 
 预期：部分初始化失败不泄漏已打开的 Domain；重复加载不会积累监听器。
 
@@ -61,5 +63,6 @@
 
 ## 当前自动化覆盖与未覆盖
 
-- 自动化覆盖：模拟 Storage Domain 跨 close/reopen 保留表数据、插件重载后重放同一直接用户事件、首次记录/唤醒/主线/Session 绑定/Head 不重复变化、第二个 Domain 打开失败时关闭第一个 Domain。
+- 自动化覆盖：模拟 Storage Domain 跨 close/reopen 保留表数据、插件重载后重放同一直接用户事件、首次记录/唤醒/主线/Session 绑定/Head 不重复变化、第二个 Domain 打开失败时关闭第一个 Domain、卸载等待在途写入、快失败仍被 Session flush 观察、unknown-state 后 fail-closed、合成 user-role context 排除。
+- 官方契约核对：DSH Domain 写入等待后端持久化后才更新内存；关闭排空已排队写入；`unknown-state` 隔离当前句柄。`session/event` 为 fire-and-forget，`session/flush` 为 awaited parallel checkpoint。
 - 未覆盖：真实 DSH Storage 后端的 fsync/事务语义、Android 进程被系统强杀、真实 Cordis 插件热卸载、跨进程/多进程竞争、真实设备和模型会话端到端。
