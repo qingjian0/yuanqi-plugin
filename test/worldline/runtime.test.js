@@ -30,7 +30,7 @@ function memoryDomain(names) {
 async function setup() {
   const yuanqiDomain = memoryDomain([
     'identities','worldlines','worldline_mainlines','worldline_snapshots',
-    'worldline_events','session_worldline_bindings','worldline_heads','evidence_records','evidence_revocations',
+    'worldline_events','session_worldline_bindings','worldline_heads','evidence_records','evidence_revocations','evidence_assessments','transfer_authorizations','transfer_authorization_revocations','evidence_transfers',
   ]);
   await yuanqiDomain.table('identities').put('yuanqi-1',{subject_id:'yuanqi-1',subject_kind:'yuanqi'});
   const store = createWorldlineStore({
@@ -41,6 +41,13 @@ async function setup() {
 }
 function hostEvent(id, time=1793966400000) {
   return {verified:true,event_id:id,source_event_ref:id,source_kind:'direct_user_event',occurred_at:new Date(time).toISOString()};
+}
+async function seedEvidence(store, evidenceId, worldlineId='worldline:main', statement='seeded evidence') {
+  return store.recordEvidence({
+    evidence_id:evidenceId,yuanqi_subject_id:'yuanqi-1',worldline_id:worldlineId,
+    evidence_type:'test_fixture',content:{statement},provenance:{fixture:true},
+    captured_from_event:hostEvent('seed:'+evidenceId),
+  });
 }
 async function mainline(store) {
   return store.createMainline({
@@ -133,6 +140,7 @@ test('expired leases can be taken over and increment the fencing token', async (
 test('Snapshot CAS commits atomically and rejects stale or concurrent expected versions', async () => {
   const {store}=await setup();
   await mainline(store);
+  await seedEvidence(store,'event:user-confirmation-1');
   const lease=await store.acquireRuntimeLease({worldline_id:'worldline:main',holder_id:'runtime-A',now_ms:now,ttl_ms:10000});
   const initial=store.getHead('worldline:main').current_state_payload;
   const updated=structuredClone(initial);
@@ -170,6 +178,7 @@ test('Snapshot CAS commits atomically and rejects stale or concurrent expected v
 test('five-center SelfModel stores evidence and uncertainty without treating model output as fact', async () => {
   const {store}=await setup();
   await mainline(store);
+  await seedEvidence(store,'event:conversation-1');
   const lease=await store.acquireRuntimeLease({worldline_id:'worldline:main',holder_id:'runtime-A',now_ms:now,ttl_ms:10000});
   const result=await store.updateSelfModelCenter({
     worldline_id:'worldline:main',holder_id:'runtime-A',fencing_token:lease.fencing_token,
@@ -335,4 +344,138 @@ test('concurrent conflicting evidence IDs serialize to one immutable winner', as
   assert.equal(attempts.filter(x=>x.status==='rejected').length,1);
   const stored=store.getEvidenceRecord({evidence_id:'evidence:race',worldline_id:'worldline:main'});
   assert.ok(['A','B'].includes(stored.record.content.value));
+});
+
+
+test('evidence assessments preserve evaluator, uncertainty and immutable provenance', async () => {
+  const {store}=await setup();
+  await mainline(store);
+  await seedEvidence(store,'evidence:assess:1');
+  await seedEvidence(store,'evidence:assess:2');
+  const assessment=await store.assessEvidence({
+    assessment_id:'assessment:1',evidence_id:'evidence:assess:1',worldline_id:'worldline:main',
+    outcome:'corroborated',assessor_kind:'model',rationale:'第二条独立记录提供一致支持',
+    confidence:0.72,corroborating_evidence_refs:['evidence:assess:2'],
+    assessed_from_event:hostEvent('assessment-event'),
+  });
+  assert.equal(assessment.outcome,'corroborated');
+  assert.equal(assessment.assessor_kind,'model');
+  assert.equal(store.getEvidenceAssessment({assessment_id:'assessment:1',worldline_id:'worldline:main'}).status,'active');
+  await assert.rejects(store.assessEvidence({
+    assessment_id:'assessment:1',evidence_id:'evidence:assess:1',worldline_id:'worldline:main',
+    outcome:'contradicted',assessor_kind:'model',rationale:'conflicting rewrite',
+    assessed_from_event:hostEvent('assessment-event'),
+  }),/different immutable content/);
+  await assert.rejects(store.assessEvidence({
+    assessment_id:'assessment:user-bad',evidence_id:'evidence:assess:1',worldline_id:'worldline:main',
+    outcome:'corroborated',assessor_kind:'user',rationale:'user claim',
+    assessed_from_event:{...hostEvent('host-assessment'),source_kind:'host_event'},
+  }),/direct user event/);
+  await store.revokeEvidence({
+    evidence_id:'evidence:assess:1',worldline_id:'worldline:main',reason:'撤销原证据',
+    revoked_from_event:hostEvent('assessment-source-revoked',now+1),
+  });
+  assert.equal(store.getEvidenceAssessment({assessment_id:'assessment:1',worldline_id:'worldline:main'}).status,'stale');
+});
+
+test('SelfModel commits reject missing, cross-line and revoked evidence references', async () => {
+  const {store}=await setup();
+  await mainline(store);
+  await store.forkWorldline({
+    yuanqi_subject_id:'yuanqi-1',parent_worldline_id:'worldline:main',
+    target_worldline_id:'worldline:child-evidence',base_snapshot_version:0,
+    created_from_event:hostEvent('evidence-child-fork'),
+  });
+  await seedEvidence(store,'evidence:valid');
+  await seedEvidence(store,'evidence:child-only','worldline:child-evidence');
+  const lease=await store.acquireRuntimeLease({worldline_id:'worldline:main',holder_id:'runtime-A',now_ms:now,ttl_ms:10000});
+  const state=structuredClone(store.getHead('worldline:main').current_state_payload);
+  state.self_model.centers.experience_memory.evidence_refs=['evidence:valid'];
+  await store.revokeEvidence({
+    evidence_id:'evidence:valid',worldline_id:'worldline:main',reason:'撤销测试证据',
+    revoked_from_event:hostEvent('evidence-valid-revoked',now+1),
+  });
+  await assert.rejects(store.commitSnapshot({
+    worldline_id:'worldline:main',holder_id:'runtime-A',fencing_token:lease.fencing_token,
+    expected_snapshot_version:0,state_payload:state,source_event_ref:'revoked-ref',now_ms:now+2,
+  }),/evidence reference is revoked/);
+  state.self_model.centers.experience_memory.evidence_refs=['missing-evidence'];
+  await assert.rejects(store.commitSnapshot({
+    worldline_id:'worldline:main',holder_id:'runtime-A',fencing_token:lease.fencing_token,
+    expected_snapshot_version:0,state_payload:state,source_event_ref:'missing-ref',now_ms:now+2,
+  }),/missing or outside Worldline scope/);
+  state.self_model.centers.experience_memory.evidence_refs=['evidence:child-only'];
+  await assert.rejects(store.commitSnapshot({
+    worldline_id:'worldline:main',holder_id:'runtime-A',fencing_token:lease.fencing_token,
+    expected_snapshot_version:0,state_payload:state,source_event_ref:'cross-ref',now_ms:now+2,
+  }),/missing or outside Worldline scope/);
+});
+
+test('cross-Worldline transfer requires explicit user authorization and preserves source revocation lineage', async () => {
+  const {store}=await setup();
+  await mainline(store);
+  await store.forkWorldline({
+    yuanqi_subject_id:'yuanqi-1',parent_worldline_id:'worldline:main',
+    target_worldline_id:'worldline:target',base_snapshot_version:0,
+    created_from_event:hostEvent('transfer-fork'),
+  });
+  await seedEvidence(store,'evidence:transfer:1');
+  const authorization=await store.authorizeEvidenceTransfer({
+    authorization_id:'authorization:1',yuanqi_subject_id:'yuanqi-1',
+    source_worldline_id:'worldline:main',target_worldline_id:'worldline:target',
+    evidence_ids:['evidence:transfer:1'],expires_at_ms:now+60000,
+    authorized_from_event:hostEvent('authorize-transfer'),now_ms:now,
+  });
+  assert.deepEqual(authorization.evidence_ids,['evidence:transfer:1']);
+  await assert.rejects(store.transferEvidence({
+    authorization_id:'authorization:1',evidence_id:'evidence:outside',
+    transferred_from_event:hostEvent('transfer-outside'),now_ms:now+1,
+  }),/outside the explicit transfer authorization scope/);
+  const audit=await store.transferEvidence({
+    authorization_id:'authorization:1',evidence_id:'evidence:transfer:1',
+    transferred_from_event:hostEvent('transfer-event'),now_ms:now+1,
+  });
+  assert.equal(audit.source_worldline_id,'worldline:main');
+  assert.equal(audit.target_worldline_id,'worldline:target');
+  const copied=store.getEvidenceRecord({evidence_id:audit.target_evidence_id,worldline_id:'worldline:target'});
+  assert.equal(copied.status,'active');
+  assert.equal(copied.record.transferred_from.evidence_id,'evidence:transfer:1');
+  assert.deepEqual(await store.transferEvidence({
+    authorization_id:'authorization:1',evidence_id:'evidence:transfer:1',
+    transferred_from_event:hostEvent('transfer-event'),now_ms:now+2,
+  }),audit);
+  await store.revokeEvidence({
+    evidence_id:'evidence:transfer:1',worldline_id:'worldline:main',reason:'源证据撤销',
+    revoked_from_event:hostEvent('source-evidence-revoked',now+3),
+  });
+  assert.equal(store.getEvidenceRecord({evidence_id:audit.target_evidence_id,worldline_id:'worldline:target'}).status,'revoked');
+});
+
+test('transfer authorization is revocable, time-limited and audited', async () => {
+  const {store}=await setup();
+  await mainline(store);
+  await store.forkWorldline({
+    yuanqi_subject_id:'yuanqi-1',parent_worldline_id:'worldline:main',
+    target_worldline_id:'worldline:target',base_snapshot_version:0,
+    created_from_event:hostEvent('transfer-fork-2'),
+  });
+  await seedEvidence(store,'evidence:transfer:2');
+  await store.authorizeEvidenceTransfer({
+    authorization_id:'authorization:revoked',yuanqi_subject_id:'yuanqi-1',
+    source_worldline_id:'worldline:main',target_worldline_id:'worldline:target',
+    evidence_ids:['evidence:transfer:2'],expires_at_ms:now+60000,
+    authorized_from_event:hostEvent('authorize-revoked'),now_ms:now,
+  });
+  await store.revokeTransferAuthorization({
+    authorization_id:'authorization:revoked',reason:'用户撤销跨线授权',
+    revoked_from_event:hostEvent('revoke-transfer-auth',now+1),
+  });
+  await assert.rejects(store.transferEvidence({
+    authorization_id:'authorization:revoked',evidence_id:'evidence:transfer:2',
+    transferred_from_event:hostEvent('transfer-after-revoke'),now_ms:now+2,
+  }),/authorization has been revoked/);
+  await assert.rejects(store.transferEvidence({
+    authorization_id:'authorization:revoked',evidence_id:'evidence:transfer:2',
+    transferred_from_event:hostEvent('transfer-expired'),now_ms:now+70000,
+  }),/authorization has been revoked/);
 });
