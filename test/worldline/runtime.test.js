@@ -711,3 +711,20 @@ test('fork Worldline can retain a base snapshot that has been archived', async (
   assert.equal(effective.base_snapshot.snapshot_version,1);
   assert.equal(effective.base_snapshot.created_at_event_ref,'archive-snapshot:1');
 });
+
+
+test('historical reads reject archived entries whose manifest no longer covers them', async () => {
+  const {store,yuanqiDomain}=await setup();
+  await mainline(store);
+  const runtime=await advanceSnapshots(store,2);
+  const archive=await store.compactSnapshotHistory({
+    worldline_id:'worldline:main',holder_id:runtime.holder,fencing_token:runtime.fencing_token,
+    expected_snapshot_version:runtime.version,through_version:1,
+    source_event_ref:'archive:tamper-check',now_ms:now+10,
+  });
+  const table=yuanqiDomain.table('worldline_snapshot_archive_manifests');
+  const manifest=table.get(archive.archive_id);
+  await table.put(archive.archive_id,{...manifest,through_version:0,snapshot_count:1});
+  assert.throws(()=>store.getSnapshot('worldline:main',1),/no valid matching manifest/);
+  assert.equal(store.auditWorldline({worldline_id:'worldline:main',now_ms:now+11}).status,'critical');
+});
