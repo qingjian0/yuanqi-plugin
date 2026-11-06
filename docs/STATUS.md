@@ -180,3 +180,17 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - GitHub Actions Run #152（`42238287216`）在最终代码提交 `e5a782a1903221903521ab70758406ed0fb24183` 通过：Node.js 22，31 tests passed / 0 failed；包入口、DSH Domain 导出与全部源码语法检查通过。
 - 验证边界：当前证据评估是显式、不可变的结构化评估记录，不是外部事实核验服务；模型评估仍然是模型判断。授权、转移、撤销与提交的串行保护只在单个插件实例内成立。真实 DSH 后端、跨进程并发、重启恢复和 Android 宿主验收仍未完成。
 - PR #3 保持 Draft，目标分支 `dev`；未合并 `dev` 或 `main`。
+
+
+## 12. 2026-11-06 P3 Worldline 一致性审计与恢复诊断
+
+- 在 createWorldlineStore 增加只读 auditWorldline({ worldline_id, now_ms })，用于逐条检查 Worldline，不依赖 Storage Domain 表全量枚举能力。
+- 检查 YuanQiSubject 身份、主线注册映射、父线归属与分支基准快照引用；检查 Head 身份、快照历史从版本 0 开始的连续性、当前版本/状态/证据引用与最后一条快照的一致性。
+- 检查每条历史快照中的 SelfModel 五中心结构与证据引用。缺失/跨线引用报告为 critical；已撤销证据报告为 warning，不修改历史快照。
+- 检查 Runtime Lease 元数据、fencing token 是否回退、过期 holder 残留；过期租约属于可接管的运行状态警告，不作为数据损坏。
+- 检查被引用的转移证据是否具备一致的来源、目标、授权范围与审计记录；增加循环转移来源链检测，避免损坏数据导致递归溢出。
+- 审计结果区分 healthy、degraded、critical，每项包含稳定 issue code、严重级别、说明和建议处置类型；所有结果均标记 repair_policy: manual_only。本阶段不自动重建 Head、不补造证据、不删除快照、不改写授权或撤销记录。
+- 新增测试覆盖健康主线只读审计、快照历史断裂、Head 与历史不一致、撤销证据警告、缺失 Head 和循环转移来源链。
+- 本阶段不新增表，不升级 Domain schema；快照压缩/归档仍未实现。历史快照仍随 Head 记录增长，未来归档必须先建立可验证的持久归档协议，不能直接截断数组。
+- 本阶段代码已推送至 PR #3 分支；CI 尚待本轮最新提交的实际运行结果确认。内存适配器测试仍不代表真实 DSH Storage 后端或 Android 宿主验收。
+- PR #3 保持 Draft，目标 dev；main 未修改，未合并。
