@@ -140,3 +140,16 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 3. 实现五中心 SelfModel 快照、证据引用和 CAS 状态变更。
 4. 实现 Evidence 撤销、跨线授权、最小范围转移和审计。
 5. 完成 Cordis 插件生命周期与真实 DSH 宿主验收；根入口导入专项已完成，不恢复历史源码包。
+
+## 9. 2026-11-06 P1 Worldline lease/CAS 与 SelfModel 实现进展
+
+- 已在 `src/worldline/runtime.js` 增加 Runtime Lease：获取、续租、释放、到期接管；每次新持有者接管时递增持久化 fencing token。
+- 已增加 `worldline_heads` 表，YuanQiSubject Domain schema 升级至 v4，并声明兼容 v3。Head 将当前快照版本、状态载荷、证据引用、快照历史和 Runtime Lease 放在同一记录中。
+- Snapshot 提交通过 DSH `KvTable.update` 对同一 Head 记录执行同步 read-modify-write：在一个 DSH Domain 写队列槽位内同时校验 holder/token/expiry 和 expected snapshot version，再更新状态与版本。并发相同版本提交只能有一个成功。
+- 已增加 SelfModel 五中心：`identity_continuity`、`experience_memory`、`cognition_reflection`、`emotion_appraisal`、`goals_agency`。五中心属于同一 YuanQiSubject，状态随 Worldline 快照隔离；每中心含版本、内容、证据引用、不确定性与认识状态。`hypothesis` 不得伪装为已确认事实；`evidence_supported` / `user_confirmed` 必须带证据引用。
+- 已增加主线创建中断恢复逻辑，避免 Worldline 记录已落盘但主线注册表尚未写入时无法重试。
+- 自动化测试已扩展至租约获取/续租/释放/到期接管、旧 Token 拒绝、Snapshot CAS 并发竞争、五中心结构与证据约束、主线恢复。
+- CI Run #92（`42231588769`）曾在 21 项测试中报告 15 通过、6 失败；失败原因为新增测试夹具没有等待异步 Storage 写入，导致后续测试拿到未初始化的 fixture。夹具已修正为等待写入完成，并继续增加了恢复与 fencing 测试。**修正后最新提交尚未获得新的 CI 结果，不能标记 P1 本批 CI 通过。**
+- 原子性边界：本实现依赖 DSH `KvTable.update` 的单个已打开 Domain 写队列。DSH Storage Domain 契约没有提供跨进程/多独立 Facility 的分布式 CAS 保证，因此不宣称跨进程租约互斥或分布式 fencing 已验收。
+- 快照历史目前保存在每条 Worldline Head 的单一记录中，以保证状态、版本和 fencing 校验同一记录原子提交；长期历史增长与归档/压缩策略尚待设计。
+- 真实 DSH 后端、重启恢复、并发多进程及 Android 宿主验收仍未完成。PR #3 保持 Draft；`dev` 和 `main` 均未合并。
