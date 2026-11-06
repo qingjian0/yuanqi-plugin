@@ -9,7 +9,7 @@ function deferred() {
   return { promise, resolve };
 }
 
-function persistentStorageDomain({ failOpenName, beforeWrite = async () => {} } = {}) {
+function persistentStorageDomain({ failOpenName, failTable, beforeWrite = async () => {} } = {}) {
   const tablesByDomain = new Map();
   const handles = [];
   return {
@@ -33,6 +33,7 @@ function persistentStorageDomain({ failOpenName, beforeWrite = async () => {} } 
       const handle = {
         closed: false,
         table(name) {
+          if (failTable?.domain === spec.name && failTable?.table === name) throw new Error('simulated table binding failure: ' + spec.name + '/' + name);
           const rows = tables.get(name);
           if (!rows) throw new Error('unknown table: ' + name);
           return {
@@ -220,4 +221,14 @@ test('opening the second DSH Domain failure closes the already-open first Domain
   assert.equal(storage.handles.length, 1);
   assert.equal(storage.handles[0].name, 'yuanqi_user_subject');
   assert.equal(storage.handles[0].handle.closed, true);
+});
+
+
+test('plugin initialization failure after opening both Domains closes both handles', async () => {
+  const storage = persistentStorageDomain({
+    failTable: { domain: 'yuanqi_subject', table: 'worldlines' },
+  });
+  await assert.rejects(apply(context(storage)), /simulated table binding failure: yuanqi_subject\/worldlines/);
+  assert.equal(storage.handles.length, 2);
+  assert.equal(storage.handles.every(item => item.handle.closed), true);
 });
