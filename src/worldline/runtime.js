@@ -136,6 +136,10 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
   const heads = yuanqiDomain.table('worldline_heads');
   const evidenceRecords = yuanqiDomain.table('evidence_records');
   const evidenceRevocations = yuanqiDomain.table('evidence_revocations');
+  const evidenceAssessments = yuanqiDomain.table('evidence_assessments');
+  const transferAuthorizations = yuanqiDomain.table('transfer_authorizations');
+  const transferAuthorizationRevocations = yuanqiDomain.table('transfer_authorization_revocations');
+  const evidenceTransfers = yuanqiDomain.table('evidence_transfers');
   const queues = new Map();
 
   function requireSubject(id) {
@@ -320,7 +324,159 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
     const record = evidenceRecords.get(evidence_id);
     if (!record || record.worldline_id !== scope) return undefined;
     const revocation = evidenceRevocations.get(evidence_id);
-    return { record: clone(record), revocation: revocation === undefined ? null : clone(revocation), status: revocation ? 'revoked' : 'active' };
+    if (revocation) return { record: clone(record), revocation: clone(revocation), status: 'revoked' };
+    if (record.transferred_from) {
+      const origin = getEvidenceRecord({
+        evidence_id: record.transferred_from.evidence_id,
+        worldline_id: record.transferred_from.worldline_id,
+      });
+      if (!origin || origin.status !== 'active') {
+        return {
+          record: clone(record),
+          revocation: { inherited: true, reason: 'origin evidence is unavailable or revoked' },
+          status: 'revoked',
+        };
+      }
+    }
+    return { record: clone(record), revocation: null, status: 'active' };
+  }
+
+  function assertEvidenceRefsActive(worldlineId, refs) {
+    for (const id of new Set(refs)) {
+      const evidence = getEvidenceRecord({ evidence_id: id, worldline_id: worldlineId });
+      if (!evidence) throw new Error('evidence reference is missing or outside Worldline scope: ' + id);
+      if (evidence.status !== 'active') throw new Error('evidence reference is revoked: ' + id);
+    }
+  }
+
+  async function assessEvidence({ assessment_id, evidence_id, worldline_id, outcome, assessor_kind, rationale, confidence = null, corroborating_evidence_refs = [], assessed_from_event }) {
+    requiredText(assessment_id, 'assessment_id');
+    requiredText(rationale, 'rationale');
+    if (!['corroborated', 'contradicted', 'insufficient'].includes(outcome)) throw new TypeError('invalid evidence assessment outcome');
+    if (!['user', 'model', 'system'].includes(assessor_kind)) throw new TypeError('invalid assessor_kind');
+    if (confidence !== null && (typeof confidence !== 'number' || !Number.isFinite(confidence) || confidence < 0 || confidence > 1)) {
+      throw new TypeError('confidence must be null or a number from 0 to 1');
+    }
+    if (!Array.isArray(corroborating_evidence_refs) || !corroborating_evidence_refs.every(x => typeof x === 'string' && x.length > 0)) {
+      throw new TypeError('corroborating_evidence_refs must be non-empty strings');
+    }
+    const source = verifiedEvent(verifyHostEvent, assessed_from_event, 'evidence-assessed');
+    if (assessor_kind === 'user' && source.source_kind !== 'direct_user_event') {
+      throw new Error('user assessment requires a verified direct user event');
+    }
+    const evidence = getEvidenceRecord({ evidence_id, worldline_id });
+    if (!evidence || evidence.status !== 'active') throw new Error('active evidence in the requested Worldline is required');
+    assertEvidenceRefsActive(worldline_id, corroborating_evidence_refs);
+    const assessment = {
+      assessment_id, evidence_id, worldline_id, outcome, assessor_kind, rationale,
+      confidence, corroborating_evidence_refs: [...new Set(corroborating_evidence_refs)],
+      assessed_from_event_ref: source.source_event_ref, assessed_at: source.occurred_at,
+      schema_version: 1,
+    };
+    return serializeByKey(queues, 'assessment:' + assessment_id, () =>
+      putOnce(evidenceAssessments, assessment_id, assessment, 'assessment id is already bound to different immutable content'));
+  }
+
+  function getEvidenceAssessment({ assessment_id, worldline_id }) {
+    requiredText(assessment_id, 'assessment_id');
+    const item = evidenceAssessments.get(assessment_id);
+    if (!item || item.worldline_id !== requiredText(worldline_id, 'worldline_id')) return undefined;
+    const evidence = getEvidenceRecord({ evidence_id: item.evidence_id, worldline_id });
+    return { assessment: clone(item), status: evidence?.status === 'active' ? 'active' : 'stale' };
+  }
+
+  async function authorizeEvidenceTransfer({ authorization_id, yuanqi_subject_id, source_worldline_id, target_worldline_id, evidence_ids, expires_at_ms, authorized_from_event, now_ms = Date.now() }) {
+    requiredText(authorization_id, 'authorization_id');
+    safeTime(now_ms);
+    if (!Array.isArray(evidence_ids) || evidence_ids.length === 0 || !evidence_ids.every(x => typeof x === 'string' && x.length > 0)) {
+      throw new TypeError('explicit evidence_ids are required');
+    }
+    if (new Set(evidence_ids).size !== evidence_ids.length) throw new TypeError('evidence_ids must be unique');
+    if (!Number.isSafeInteger(expires_at_ms) || expires_at_ms <= now_ms || expires_at_ms - now_ms > 30 * 24 * 60 * 60 * 1000) {
+      throw new TypeError('transfer authorization expiry must be within 30 days');
+    }
+    requireSubject(yuanqi_subject_id);
+    const sourceLine = worldlines.get(requiredText(source_worldline_id, 'source_worldline_id'));
+    const targetLine = worldlines.get(requiredText(target_worldline_id, 'target_worldline_id'));
+    if (!sourceLine || !targetLine || sourceLine.status !== 'active' || targetLine.status !== 'active' ||
+        sourceLine.yuanqi_subject_id !== yuanqi_subject_id || targetLine.yuanqi_subject_id !== yuanqi_subject_id ||
+        source_worldline_id === target_worldline_id) {
+      throw new Error('active source and distinct target Worldlines for the same YuanQiSubject are required');
+    }
+    assertEvidenceRefsActive(source_worldline_id, evidence_ids);
+    const source = verifiedEvent(verifyHostEvent, authorized_from_event, 'evidence-transfer-authorized');
+    if (source.source_kind !== 'direct_user_event') throw new Error('transfer authorization requires a verified direct user event');
+    const authorization = {
+      authorization_id, yuanqi_subject_id, source_worldline_id, target_worldline_id,
+      evidence_ids: [...evidence_ids], authorized_from_event_ref: source.source_event_ref,
+      authorized_at: source.occurred_at, expires_at_ms, schema_version: 1,
+    };
+    return serializeByKey(queues, 'transfer-auth:' + authorization_id, () =>
+      putOnce(transferAuthorizations, authorization_id, authorization, 'authorization id is already bound to different scope'));
+  }
+
+  async function revokeTransferAuthorization({ authorization_id, reason, revoked_from_event }) {
+    requiredText(authorization_id, 'authorization_id');
+    requiredText(reason, 'reason');
+    const source = verifiedEvent(verifyHostEvent, revoked_from_event, 'evidence-transfer-authorization-revoked');
+    if (source.source_kind !== 'direct_user_event') throw new Error('authorization revocation requires a verified direct user event');
+    if (!transferAuthorizations.get(authorization_id)) throw new Error('transfer authorization does not exist');
+    const revocation = {
+      authorization_id, reason, revoked_from_event_ref: source.source_event_ref,
+      revoked_at: source.occurred_at, schema_version: 1,
+    };
+    return serializeByKey(queues, 'transfer-auth-revoke:' + authorization_id, () =>
+      putOnce(transferAuthorizationRevocations, authorization_id, revocation, 'authorization already has a different revocation'));
+  }
+
+  async function transferEvidence({ authorization_id, evidence_id, transferred_from_event, now_ms = Date.now() }) {
+    safeTime(now_ms);
+    const authorization = transferAuthorizations.get(requiredText(authorization_id, 'authorization_id'));
+    if (!authorization || !authorization.evidence_ids.includes(requiredText(evidence_id, 'evidence_id'))) {
+      throw new Error('evidence is outside the explicit transfer authorization scope');
+    }
+    if (transferAuthorizationRevocations.get(authorization_id)) throw new Error('transfer authorization has been revoked');
+    if (now_ms >= authorization.expires_at_ms) throw new Error('transfer authorization has expired');
+    const source = verifiedEvent(verifyHostEvent, transferred_from_event, 'evidence-transferred');
+    if (source.source_kind !== 'direct_user_event') throw new Error('evidence transfer requires a verified direct user event');
+    const original = getEvidenceRecord({ evidence_id, worldline_id: authorization.source_worldline_id });
+    if (!original || original.status !== 'active') throw new Error('source evidence is unavailable or revoked');
+    const transferId = 'transfer:' + authorization_id + ':' + evidence_id;
+    const targetEvidenceId = 'transferred:' + authorization_id + ':' + evidence_id;
+    return serializeByKey(queues, 'transfer:' + transferId, async () => {
+      const old = evidenceTransfers.get(transferId);
+      if (old) return clone(old);
+      const transferredRecord = {
+        ...clone(original.record),
+        evidence_id: targetEvidenceId,
+        worldline_id: authorization.target_worldline_id,
+        provenance: {
+          ...clone(original.record.provenance),
+          transfer_authorization_id: authorization_id,
+          transferred_from_worldline_id: authorization.source_worldline_id,
+        },
+        transferred_from: {
+          evidence_id, worldline_id: authorization.source_worldline_id,
+          authorization_id,
+        },
+      };
+      await putOnce(evidenceRecords, targetEvidenceId, transferredRecord, 'target evidence ID conflicts with existing evidence');
+      const audit = {
+        transfer_id: transferId, authorization_id, source_evidence_id: evidence_id,
+        target_evidence_id: targetEvidenceId, source_worldline_id: authorization.source_worldline_id,
+        target_worldline_id: authorization.target_worldline_id,
+        transferred_from_event_ref: source.source_event_ref, transferred_at: source.occurred_at,
+        schema_version: 1,
+      };
+      await putOnce(evidenceTransfers, transferId, audit, 'evidence transfer audit conflict');
+      return clone(audit);
+    });
+  }
+
+  function getEvidenceTransfer({ transfer_id }) {
+    requiredText(transfer_id, 'transfer_id');
+    const value = evidenceTransfers.get(transfer_id);
+    return value === undefined ? undefined : clone(value);
   }
 
   // KvTable.update is an atomic read-modify-write on this open DSH Domain's write chain.
@@ -386,6 +542,8 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
       throw new TypeError('evidence_refs must be non-empty strings');
     }
     validateSelfModel(state_payload);
+    const allRefs = [...evidence_refs, ...SELF_MODEL_CENTERS.flatMap(center => state_payload.self_model.centers[center].evidence_refs)];
+    assertEvidenceRefsActive(worldline_id, allRefs);
     let committed;
     await heads.update(requiredText(worldline_id, 'worldline_id'), current => {
       assertLease(current, holder_id, fencing_token, now_ms);
@@ -425,6 +583,7 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
     }
     requiredText(source_event_ref, 'source_event_ref');
     safeTime(now_ms);
+    assertEvidenceRefsActive(worldline_id, evidence_refs);
     let result;
     await heads.update(requiredText(worldline_id, 'worldline_id'), current => {
       assertLease(current, holder_id, fencing_token, now_ms);
@@ -497,6 +656,8 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
   return Object.freeze({
     createMainline, forkWorldline, bindSession,
     recordEvidence, revokeEvidence, getEvidenceRecord,
+    assessEvidence, getEvidenceAssessment,
+    authorizeEvidenceTransfer, revokeTransferAuthorization, transferEvidence, getEvidenceTransfer,
     acquireRuntimeLease, renewRuntimeLease, releaseRuntimeLease,
     commitSnapshot, updateSelfModelCenter,
     getHead, getSnapshot, getWorldline(id) {
