@@ -173,8 +173,13 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
         await ensureHead(existing, existing.created_from_event_ref);
         return clone(existing);
       }
-      if (worldlines.get(worldline_id)) throw new Error('requested mainline id is already used by another Worldline');
-      const record = {
+      const existingLine = worldlines.get(worldline_id);
+      if (existingLine && (
+        existingLine.yuanqi_subject_id !== yuanqi_subject_id ||
+        existingLine.parent_worldline_id !== undefined ||
+        existingLine.created_from_event_ref !== source.source_event_ref
+      )) throw new Error('requested mainline id is already used by another Worldline or creation event');
+      const record = existingLine ?? {
         worldline_id, yuanqi_subject_id, status: 'active',
         created_from_event_ref: source.source_event_ref,
       };
@@ -185,7 +190,7 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
       };
       await putOnce(snapshots, snapshotKey(worldline_id, 0), initial, 'mainline snapshot conflict');
       await putOnce(worldlines, worldline_id, record, 'mainline Worldline conflict');
-      await putOnce(heads, worldline_id, initialHead(worldline_id, yuanqi_subject_id, source.source_event_ref), 'mainline head conflict');
+      await ensureHead(record, source.source_event_ref);
       await recordEvent({
         event_id: 'worldline.created:' + worldline_id, event_type: 'worldline.created',
         subject_id: yuanqi_subject_id, worldline_id, occurred_at: source.occurred_at,
