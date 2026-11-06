@@ -119,6 +119,7 @@ function validateSelfModel(state) {
     if (['evidence_supported', 'user_confirmed'].includes(item.epistemic_status) && item.evidence_refs.length === 0) {
       throw new TypeError('evidence references are required for ' + item.epistemic_status + ': ' + center);
     }
+    if (item.epistemic_status === 'user_confirmed') requiredText(item.confirmation_event_ref, 'confirmation_event_ref');
     requiredText(item.updated_from_event_ref, 'updated_from_event_ref');
   }
 }
@@ -558,6 +559,12 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
       throw new TypeError('evidence_refs must be non-empty strings');
     }
     validateSelfModel(state_payload);
+    for (const center of SELF_MODEL_CENTERS) {
+      const nextCenter = state_payload.self_model.centers[center];
+      if (nextCenter.epistemic_status === 'user_confirmed') {
+        throw new Error('user_confirmed SelfModel state must be written through the direct-user confirmation path');
+      }
+    }
     const allRefs = [...evidence_refs, ...SELF_MODEL_CENTERS.flatMap(center => state_payload.self_model.centers[center].evidence_refs)];
     assertEvidenceRefsActive(worldline_id, allRefs);
     let committed;
@@ -591,7 +598,7 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
     return committed;
   }
 
-  async function updateSelfModelCenter({ worldline_id, holder_id, fencing_token, expected_snapshot_version, center_id, content, evidence_refs = [], uncertainty = [], epistemic_status = 'hypothesis', source_event_ref, now_ms = Date.now() }) {
+  async function updateSelfModelCenter({ worldline_id, holder_id, fencing_token, expected_snapshot_version, center_id, content, evidence_refs = [], uncertainty = [], epistemic_status = 'hypothesis', source_event_ref, confirmation_event, now_ms = Date.now() }) {
     if (!SELF_MODEL_CENTERS.includes(center_id)) throw new TypeError('unknown SelfModel center');
     if (!content || typeof content !== 'object' || Array.isArray(content)) throw new TypeError('center content must be an object');
     if (!Array.isArray(evidence_refs) || !evidence_refs.every(x => typeof x === 'string' && x.length > 0)) throw new TypeError('invalid evidence_refs');
@@ -602,6 +609,12 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
     }
     requiredText(source_event_ref, 'source_event_ref');
     safeTime(now_ms);
+    let confirmationEventRef;
+    if (epistemic_status === 'user_confirmed') {
+      const confirmation = verifiedEvent(verifyHostEvent, confirmation_event, 'self-model-user-confirmed');
+      if (confirmation.source_kind !== 'direct_user_event') throw new Error('user_confirmed SelfModel state requires a verified direct user event');
+      confirmationEventRef = confirmation.source_event_ref;
+    }
     assertEvidenceRefsActive(worldline_id, evidence_refs);
     let result;
     const observed = getHead(worldline_id);
@@ -623,6 +636,7 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
           evidence_refs: [...new Set(evidence_refs)],
           uncertainty: [...uncertainty],
           epistemic_status,
+          ...(epistemic_status === 'user_confirmed' ? { confirmation_event_ref: confirmationEventRef } : {}),
           updated_from_event_ref: source_event_ref,
         };
         const nextVersion = current.current_snapshot_version + 1;
