@@ -1,0 +1,22 @@
+name: YuanQi CI
+on:
+  push:
+    branches:
+      - dev
+      - 'work/**'
+  pull_request:
+    branches:
+      - dev
+      - 'work/**'
+permissions:
+  contents: read
+jobs:
+  node-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Verify syntax and tests
+        run: npm run check
