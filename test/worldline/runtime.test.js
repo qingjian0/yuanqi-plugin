@@ -690,3 +690,24 @@ test('snapshot archive retries safely after archive persistence but before Head 
   assert.deepEqual(store.getHead('worldline:main').snapshot_history.map(x=>x.snapshot_version),[2,3]);
   assert.equal(store.auditWorldline({worldline_id:'worldline:main',now_ms:now+11}).status,'healthy');
 });
+
+
+test('fork Worldline can retain a base snapshot that has been archived', async () => {
+  const {store}=await setup();
+  await mainline(store);
+  const runtime=await advanceSnapshots(store,3);
+  await store.compactSnapshotHistory({
+    worldline_id:'worldline:main',holder_id:runtime.holder,fencing_token:runtime.fencing_token,
+    expected_snapshot_version:runtime.version,through_version:1,
+    source_event_ref:'archive:fork-base',now_ms:now+10,
+  });
+  const child=await store.forkWorldline({
+    yuanqi_subject_id:'yuanqi-1',parent_worldline_id:'worldline:main',
+    target_worldline_id:'worldline:child-archived-base',base_snapshot_version:1,
+    created_from_event:hostEvent('fork-from-archived-base',now+11),
+  });
+  assert.equal(child.parent_worldline_id,'worldline:main');
+  const effective=store.getEffectiveSnapshot('worldline:child-archived-base');
+  assert.equal(effective.base_snapshot.snapshot_version,1);
+  assert.equal(effective.base_snapshot.created_at_event_ref,'archive-snapshot:1');
+});
