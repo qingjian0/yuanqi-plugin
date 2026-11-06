@@ -18,5 +18,9 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+      - name: Install declared runtime dependencies
+        run: npm install --ignore-scripts --no-package-lock
+      - name: Validate DSH Storage Domain declarations
+        run: node --input-type=module -e "const m = await import('./src/domain/subject-domain.js'); if (m.userSubjectDomainSpec.name !== 'yuanqi-user-subject' || m.yuanqiSubjectDomainSpec.name !== 'yuanqi-subject') process.exit(1)"
       - name: Verify syntax and tests
         run: npm run check
