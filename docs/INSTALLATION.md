@@ -15,6 +15,7 @@
 
 - `@deepseek-ai/dsh-tools`：`>=0.2.2-rc.1 <0.3.0-0`
 - `@deepseek-ai/dsh-storage-domain`：`>=0.2.2-rc.1 <0.3.0-0`
+- `@deepseek-ai/dsh-session`：`>=0.2.2-rc.1 <0.3.0-0`
 - `@deepseek-ai/dsh-llm`：`>=0.2.2-rc.1 <0.3.0-0`
 
 本项目当前核对的 DSH API 基线为 `0.2.2-rc.1`；DSH 仓库根包声明 Node.js `>=24.9.0`。依赖范围是兼容性声明，不代表范围内所有 DSH 版本均已完成真实运行验证。
