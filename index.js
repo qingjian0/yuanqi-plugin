@@ -9,3 +9,4 @@ export {
   userSubjectDomainSpec,
   yuanqiSubjectDomainSpec,
 } from './src/domain/index.js';
+export { name, inject, apply } from './src/dsh/plugin.js';
