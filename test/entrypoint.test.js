@@ -3,6 +3,9 @@ import assert from 'node:assert/strict';
 import * as entry from '../index.js';
 
 test('package root imports and exposes only implemented subject-domain capabilities', () => {
+  assert.equal(typeof entry.apply, 'function');
+  assert.equal(entry.name, 'dsh-yuanqi-plugin');
+  assert.deepEqual(entry.inject, ['storageDomain', 'sessions']);
   assert.equal(typeof entry.createSubjectStore, 'function');
   assert.equal(typeof entry.openSubjectDomains, 'function');
   assert.equal(entry.userSubjectDomainSpec.name, 'yuanqi_user_subject');
