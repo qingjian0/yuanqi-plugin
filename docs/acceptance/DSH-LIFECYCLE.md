@@ -71,8 +71,8 @@
 
 ## 当前自动化覆盖与未覆盖
 
-- P7 GitHub Actions Run #233（`42267042954`）在提交 `3125819e8676c00ab5a9038e99954a02e907987c` 上通过：Node.js 24.9.0；四个 peer packages 均解析为 `0.2.2-rc.1`；真实 Storage Domain API 导出、包根入口、语法检查均通过；48 tests passed / 0 failed。后续仅有 README/安装文档更新，未改运行时代码。此 CI 结果只证明仓库自动化测试，不代表真实 DSH 宿主验收。
+- P7 GitHub Actions Run #244（`42267482824`）在提交 `f96c3f4893dd3ed808516dde277f5699475bc7bf` 上通过：Node.js 24.9.0；四个 peer packages 均解析为 `0.2.2-rc.1`；真实 Storage Domain API 导出、包根入口、语法检查均通过；50 tests passed / 0 failed。新增两项测试直接调用 DSH `DomainFacility` / `DomainImpl`，覆盖 write/update、change event、close/reopen、unknown-state quarantine。测试使用模拟 `KvUnit` backend，不代表生产 JSON/SQLite 磁盘持久化。后续只有文档更新，未改运行时代码。此 CI 结果只证明仓库自动化测试，不代表真实 DSH 宿主验收。
 
-- 自动化覆盖：模拟 Storage Domain 跨 close/reopen 保留表数据、插件重载后重放同一直接用户事件、首次记录/唤醒/主线/Session 绑定/Head 不重复变化、第二个 Domain 打开失败时关闭第一个 Domain、插件初始化中途失败时关闭两个已打开 Domain、卸载等待在途写入、快失败仍被 Session flush 观察、unknown-state 后 fail-closed、合成 user-role context 排除。
+- 自动化覆盖：真实 DSH `DomainFacility` / `DomainImpl` 在模拟 KV backend 上执行 put/update、change event、close/reopen 与 unknown-state quarantine；另覆盖 YuanQi 插件层的模拟 Storage Domain 跨 close/reopen 保留表数据、插件重载后重放同一直接用户事件、首次记录/唤醒/主线/Session 绑定/Head 不重复变化、第二个 Domain 打开失败时关闭第一个 Domain、插件初始化中途失败时关闭两个已打开 Domain、卸载等待在途写入、快失败仍被 Session flush 观察、unknown-state 后 fail-closed、合成 user-role context 排除。
 - 官方契约核对：DSH Domain 写入等待后端持久化后才更新内存；关闭排空已排队写入；`unknown-state` 隔离当前句柄。`session/event` 为 fire-and-forget，`session/flush` 为 awaited parallel checkpoint。
 - 未覆盖：真实 DSH Storage 后端的 fsync/事务语义、Android 进程被系统强杀、真实 Cordis 插件热卸载、跨进程/多进程竞争、真实设备和模型会话端到端。
