@@ -17,19 +17,31 @@ jobs:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: 24.9.0
       - name: Install declared runtime dependencies
         run: npm install --ignore-scripts --no-package-lock
+      - name: Verify Node and resolved DSH peer packages
+        run: |
+          node --input-type=module -e "
+          const [major, minor] = process.versions.node.split('.').map(Number);
+          if (major < 24 || (major === 24 && minor < 9)) throw new Error('YuanQi requires Node.js >=24.9.0');
+          console.log('Node.js runtime:', process.versions.node);
+          "
+          npm ls --depth=0 @deepseek-ai/dsh-tools @deepseek-ai/dsh-storage-domain @deepseek-ai/dsh-session @deepseek-ai/dsh-llm
       - name: Validate package root and DSH Storage Domain exports
         run: >-
           node --input-type=module -e "
           const root = await import('./index.js');
           const domain = await import('./src/domain/index.js');
+          const storage = await import('@deepseek-ai/dsh-storage-domain');
           for (const key of ['createSubjectStore', 'openSubjectDomains', 'userSubjectDomainSpec', 'yuanqiSubjectDomainSpec']) {
             if (!(key in root) || !(key in domain)) throw new Error('missing package export: ' + key);
           }
+          for (const key of ['defineDomain', 'domainTable', 'DomainError']) {
+            if (!(key in storage)) throw new Error('missing DSH Storage Domain API: ' + key);
+          }
           if (root.userSubjectDomainSpec.name !== 'yuanqi_user_subject' || root.yuanqiSubjectDomainSpec.name !== 'yuanqi_subject') process.exit(1);
-          console.log('package root import and DSH domain exports verified');
+          console.log('package root import and real DSH Storage Domain exports verified');
           "
       - name: Verify syntax and tests
         run: npm run check
