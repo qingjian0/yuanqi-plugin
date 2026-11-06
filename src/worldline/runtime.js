@@ -652,17 +652,25 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
       const manifest = {
         archive_id, worldline_id, yuanqi_subject_id: line.yuanqi_subject_id,
         from_version, through_version, snapshot_count: selected.length,
+        previous_archive_id: observed.snapshot_archive_checkpoint?.archive_id ?? null,
         created_from_event_ref: source_event_ref, schema_version: 1,
       };
       const existingManifest = snapshotArchiveManifests.get(archive_id);
-      if (existingManifest && JSON.stringify(existingManifest) !== JSON.stringify(manifest)) {
+      if (existingManifest && (
+        existingManifest.worldline_id !== manifest.worldline_id ||
+        existingManifest.yuanqi_subject_id !== manifest.yuanqi_subject_id ||
+        existingManifest.from_version !== manifest.from_version ||
+        existingManifest.through_version !== manifest.through_version ||
+        existingManifest.snapshot_count !== manifest.snapshot_count ||
+        existingManifest.previous_archive_id !== manifest.previous_archive_id
+      )) {
         throw new Error('snapshot archive manifest conflicts with an existing archive');
       }
       for (const snapshot of selected) {
         const entry = { archive_id, worldline_id, yuanqi_subject_id: line.yuanqi_subject_id, snapshot: clone(snapshot) };
         await putOnce(snapshotArchiveEntries, snapshotKey(worldline_id, snapshot.snapshot_version), entry, 'snapshot archive entry conflict');
       }
-      await putOnce(snapshotArchiveManifests, archive_id, manifest, 'snapshot archive manifest conflict');
+      if (!existingManifest) await putOnce(snapshotArchiveManifests, archive_id, manifest, 'snapshot archive manifest conflict');
       let compacted = false;
       await heads.update(worldline_id, current => {
         assertLease(current, holder_id, fencing_token, now_ms);
@@ -840,17 +848,41 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
       const checkpoint = head.snapshot_archive_checkpoint ?? null;
       const auditHistory = [];
       if (checkpoint) {
-        const manifest = snapshotArchiveManifests.get(checkpoint.archive_id);
-        if (!manifest || manifest.worldline_id !== worldline_id ||
-            manifest.yuanqi_subject_id !== line.yuanqi_subject_id ||
-            manifest.through_version !== checkpoint.through_version ||
-            manifest.from_version !== 0 ||
-            manifest.snapshot_count !== checkpoint.through_version + 1) {
-          add('snapshot.archive_manifest_invalid', 'critical', 'Snapshot archive manifest is missing or inconsistent');
+        const manifests = [];
+        const seenArchives = new Set();
+        let cursor = checkpoint.archive_id;
+        let expectedThrough = checkpoint.through_version;
+        while (cursor) {
+          if (seenArchives.has(cursor)) {
+            add('snapshot.archive_manifest_cycle', 'critical', 'Snapshot archive manifest chain contains a cycle');
+            break;
+          }
+          seenArchives.add(cursor);
+          const manifest = snapshotArchiveManifests.get(cursor);
+          if (!manifest || manifest.worldline_id !== worldline_id ||
+              manifest.yuanqi_subject_id !== line.yuanqi_subject_id ||
+              manifest.through_version !== expectedThrough ||
+              manifest.snapshot_count !== manifest.through_version - manifest.from_version + 1) {
+            add('snapshot.archive_manifest_invalid', 'critical', 'Snapshot archive manifest is missing or inconsistent');
+            break;
+          }
+          manifests.push(manifest);
+          expectedThrough = manifest.from_version - 1;
+          cursor = manifest.previous_archive_id;
+        }
+        if (manifests.length && manifests[manifests.length - 1].from_version !== 0) {
+          add('snapshot.archive_chain_incomplete', 'critical', 'Snapshot archive chain does not reach version 0');
+        }
+        const manifestByVersion = new Map();
+        for (const manifest of manifests) {
+          for (let version = manifest.from_version; version <= manifest.through_version; version += 1) {
+            manifestByVersion.set(version, manifest);
+          }
         }
         for (let version = 0; version <= checkpoint.through_version; version += 1) {
+          const manifest = manifestByVersion.get(version);
           const entry = snapshotArchiveEntries.get(snapshotKey(worldline_id, version));
-          if (!entry || entry.archive_id !== checkpoint.archive_id ||
+          if (!manifest || !entry || entry.archive_id !== manifest.archive_id ||
               entry.worldline_id !== worldline_id || entry.yuanqi_subject_id !== line.yuanqi_subject_id ||
               entry.snapshot?.snapshot_version !== version) {
             add('snapshot.archive_entry_missing_or_invalid', 'critical', 'Archived snapshot entry is missing or invalid at version ' + version);
