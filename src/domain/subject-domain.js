@@ -18,11 +18,34 @@ const evidenceRecord=z.object({
  evidence_id:z.string().min(1), yuanqi_subject_id:z.string().min(1), worldline_id:z.string().min(1),
  evidence_type:z.string().min(1), content:z.record(z.string(),z.unknown()), provenance:z.record(z.string(),z.unknown()),
  source_kind:z.enum(['direct_user_event','host_event']), source_event_ref:z.string().min(1),
- captured_at:z.string().datetime(), schema_version:z.literal(1),
+ captured_at:z.string().datetime(), transferred_from:z.object({evidence_id:z.string().min(1),worldline_id:z.string().min(1),authorization_id:z.string().min(1)}).strict().optional(), schema_version:z.literal(1),
 }).strict();
 const evidenceRevocation=z.object({
  evidence_id:z.string().min(1), worldline_id:z.string().min(1), reason:z.string().min(1),
  revoked_from_event_ref:z.string().min(1), revoked_at:z.string().datetime(), schema_version:z.literal(1),
+}).strict();
+const evidenceAssessment=z.object({
+ assessment_id:z.string().min(1), evidence_id:z.string().min(1), worldline_id:z.string().min(1),
+ outcome:z.enum(['corroborated','contradicted','insufficient']), assessor_kind:z.enum(['user','model','system']),
+ rationale:z.string().min(1), confidence:z.number().min(0).max(1).nullable(),
+ corroborating_evidence_refs:z.array(z.string().min(1)), assessed_from_event_ref:z.string().min(1),
+ assessed_at:z.string().datetime(), schema_version:z.literal(1),
+}).strict();
+const transferAuthorization=z.object({
+ authorization_id:z.string().min(1), yuanqi_subject_id:z.string().min(1),
+ source_worldline_id:z.string().min(1), target_worldline_id:z.string().min(1),
+ evidence_ids:z.array(z.string().min(1)).min(1), authorized_from_event_ref:z.string().min(1),
+ authorized_at:z.string().datetime(), expires_at_ms:z.number().int().nonnegative(), schema_version:z.literal(1),
+}).strict();
+const transferAuthorizationRevocation=z.object({
+ authorization_id:z.string().min(1), reason:z.string().min(1),
+ revoked_from_event_ref:z.string().min(1), revoked_at:z.string().datetime(), schema_version:z.literal(1),
+}).strict();
+const evidenceTransfer=z.object({
+ transfer_id:z.string().min(1), authorization_id:z.string().min(1),
+ source_evidence_id:z.string().min(1), target_evidence_id:z.string().min(1),
+ source_worldline_id:z.string().min(1), target_worldline_id:z.string().min(1),
+ transferred_from_event_ref:z.string().min(1), transferred_at:z.string().datetime(), schema_version:z.literal(1),
 }).strict();
 const headSnapshot=z.object({ snapshot_version:z.number().int().nonnegative(), state_payload:z.record(z.string(),z.unknown()), evidence_refs:z.array(z.string().min(1)), created_at_event_ref:z.string().min(1), fencing_token:z.number().int().nonnegative() }).strict();
 const worldlineHead=z.object({
@@ -39,7 +62,7 @@ const wakeRecord=z.object({
  wake_event_ref:z.string().min(1), trigger_command:z.enum(['启动元气','启动元炁']), occurred_at:z.string().datetime(), schema_version:z.literal(3),
 }).strict();
 export const userSubjectDomainSpec=defineDomain({name:'yuanqi_user_subject',version:1,tables:{identities:domainTable(identitySchema('user')),birth_profiles:domainTable(birthProfile)}});
-export const yuanqiSubjectDomainSpec=defineDomain({name:'yuanqi_subject',version:5,compatibleVersions:[3,4],tables:{identities:domainTable(identitySchema('yuanqi')),first_user_messages:domainTable(firstUserMessage),wake_records:domainTable(wakeRecord),worldlines:domainTable(worldline),worldline_mainlines:domainTable(worldlineMainline),worldline_snapshots:domainTable(worldlineSnapshot),worldline_heads:domainTable(worldlineHead),evidence_records:domainTable(evidenceRecord),evidence_revocations:domainTable(evidenceRevocation),worldline_events:domainTable(worldlineEvent),session_worldline_bindings:domainTable(sessionWorldlineBinding)}});
+export const yuanqiSubjectDomainSpec=defineDomain({name:'yuanqi_subject',version:6,compatibleVersions:[3,4,5],tables:{identities:domainTable(identitySchema('yuanqi')),first_user_messages:domainTable(firstUserMessage),wake_records:domainTable(wakeRecord),worldlines:domainTable(worldline),worldline_mainlines:domainTable(worldlineMainline),worldline_snapshots:domainTable(worldlineSnapshot),worldline_heads:domainTable(worldlineHead),evidence_records:domainTable(evidenceRecord),evidence_revocations:domainTable(evidenceRevocation),evidence_assessments:domainTable(evidenceAssessment),transfer_authorizations:domainTable(transferAuthorization),transfer_authorization_revocations:domainTable(transferAuthorizationRevocation),evidence_transfers:domainTable(evidenceTransfer),worldline_events:domainTable(worldlineEvent),session_worldline_bindings:domainTable(sessionWorldlineBinding)}});
 export async function openSubjectDomains(storageDomain) {
  if(!storageDomain||typeof storageDomain.open!=='function') throw new TypeError('DSH storageDomain is required');
  const userDomain=await storageDomain.open(userSubjectDomainSpec);
