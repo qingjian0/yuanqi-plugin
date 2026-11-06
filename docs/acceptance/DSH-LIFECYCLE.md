@@ -7,7 +7,7 @@
 - DSH 仓库当前版本：`0.2.2-rc.1`。
 - DSH 根包 `engines.node`：`>=24.9.0`。
 - YuanQi peer dependencies 的最低声明基线：`0.2.2-rc.1`，上限 `<0.3.0-0`。
-- CI 应在 Node.js `24.9.0` 上安装并解析四个 peer packages，再执行包入口、Storage Domain API、语法和自动化测试。
+- CI 已在 Node.js `24.9.0` 上安装并解析四个 peer packages，均为 `0.2.2-rc.1`，并通过包入口、Storage Domain API、语法和自动化测试。
 - 以上是包/API 兼容性验证基线，不等同于真实 Android DSH 宿主验收。
 
 ## 验收前必须记录
@@ -36,8 +36,8 @@
 2. 等待该 Session 的 `session/flush` 完成；该事件是 DSH awaited parallel durability checkpoint，必须确认 YuanQi 的所有在途写入已 settle。
 3. 检查 UserSubject、YuanQiSubject、首次直接消息锁、主线 Worldline、Head 和 Session 绑定是否持久化。
 4. 验证 `user/message` 的 `source.kind === 'plugin'` 等合成 user-role context 不会创建首次直接用户消息锁；只有 `source.kind === 'user'` 的直接消息可以建立该锁。
-4. 在另一个 Session 发送消息，确认其绑定到同一主线，不重复创建主体。
-5. 只有在首次直接用户消息本身为精确命令“启动元气”或“启动元炁”时，才应创建首次唤醒记录；后续命令不得补触发首次唤醒。
+5. 在另一个 Session 发送消息，确认其绑定到同一主线，不重复创建主体。
+6. 只有在首次直接用户消息本身为精确命令“启动元气”或“启动元炁”时，才应创建首次唤醒记录；后续命令不得补触发首次唤醒。
 
 预期：首次记录与来源事件一致；重复事件不会重写首次记录或改变主体身份。若任何领域写入失败，`session/flush` 必须向宿主报告失败，不能因为事件任务在 flush 开始前已快速结束就吞掉错误。
 
@@ -71,7 +71,7 @@
 
 ## 当前自动化覆盖与未覆盖
 
-- PR #4 当前代码提交 `12bad3bbffaa755b1df330c3f3bd6baf3018f9b1` 已由 GitHub Actions Run #220（`42256698714`）通过：Node.js 22，48 tests passed / 0 failed（历史 P6 Run #220；P7 Node.js 24.9.0 新运行结果待 CI 确认）；包根入口、DSH Domain 导出和源码语法检查均通过。此 CI 结果只证明仓库自动化测试，不代表真实 DSH 宿主验收。
+- P7 GitHub Actions Run #233（`42267042954`）在提交 `3125819e8676c00ab5a9038e99954a02e907987c` 上通过：Node.js 24.9.0；四个 peer packages 均解析为 `0.2.2-rc.1`；真实 Storage Domain API 导出、包根入口、语法检查均通过；48 tests passed / 0 failed。后续仅有 README/安装文档更新，未改运行时代码。此 CI 结果只证明仓库自动化测试，不代表真实 DSH 宿主验收。
 
 - 自动化覆盖：模拟 Storage Domain 跨 close/reopen 保留表数据、插件重载后重放同一直接用户事件、首次记录/唤醒/主线/Session 绑定/Head 不重复变化、第二个 Domain 打开失败时关闭第一个 Domain、插件初始化中途失败时关闭两个已打开 Domain、卸载等待在途写入、快失败仍被 Session flush 观察、unknown-state 后 fail-closed、合成 user-role context 排除。
 - 官方契约核对：DSH Domain 写入等待后端持久化后才更新内存；关闭排空已排队写入；`unknown-state` 隔离当前句柄。`session/event` 为 fire-and-forget，`session/flush` 为 awaited parallel checkpoint。
