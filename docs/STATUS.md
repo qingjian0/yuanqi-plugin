@@ -9,11 +9,11 @@
 
 | 项目 | 状态 | 说明 |
 |---|---|---|
-| 自动化测试 | P4 基线通过；P5/P6 待 CI | P4 代码提交 `eb992ac38288e34bb38b7f7052c18cffe0c0f370`：41 passed / 0 failed（Run #193）；PR #4 新增的生命周期/恢复测试尚未观察到 CI 结果 |
-| JavaScript 语法检查 | P4 基线通过；P5/P6 待 CI | Run #193 的 `npm run check` 通过；PR #4 最新代码尚未确认 |
+| 自动化测试 | P5/P6 CI 通过 | PR #4 head `12bad3bbffaa755b1df330c3f3bd6baf3018f9b1`：48 passed / 0 failed（Run #220，Node.js 22） |
+| JavaScript 语法检查 | P5/P6 CI 通过 | Run #220 的 `npm run check` 通过，包含包根入口/DSH Domain 导出检查与源码语法检查 |
 | npm 安装包构建与归档检查 | 归档隔离复验通过 | 历史隔离复验 `npm pack --dry-run` 成功，26 个发布文件；不代表当前分支重新构建通过 |
 | 解压后入口导入检查 | 归档隔离复验通过 | 20/20 个本地导入目标存在；GitHub `dev` 导入待完成 |
-| GitHub Actions CI | P4 已验证；P5/P6 待验证 | PR #4 分支 `work/e00-20-06-p5-dsh-lifecycle-recovery`；当前提交尚无可确认的 Actions run/status |
+| GitHub Actions CI | P5/P6 已验证 | PR #4 分支 `work/e00-20-06-p5-dsh-lifecycle-recovery`；Run #220（`42256698714`）成功，PR 仍为 Draft |
 | 真实 Android DSH 宿主安装与运行 | 待验收 | 尚无真实宿主验收结论 |
 | 真实模型会话端到端 | 待验收 | 不以模拟宿主测试代替 |
 | Android/iOS 端到端 | 待验收 | 尚未完成 |
@@ -217,6 +217,7 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - 修复 flush 错误可能丢失的问题：此前任务一旦快速 settle 就从 `pendingBySession` 删除，若它在 `session/flush` 开始前失败，后续 flush 可能看不到失败。现在保留任务直到 flush drain 消费，使用 `Promise.allSettled` 收集失败，并由 flush 返回 `AggregateError`；任务在后台先附加 rejection handler，避免 fire-and-forget 事件产生未处理拒绝。
 - 增加 `unknown-state` fail-closed：一旦任一 Storage Domain 写入报告稳定错误码 `unknown-state`，插件停止处理后续消息并记录要求 unload/reload 的警告。不会在旧句柄仍被隔离时自动继续写入，也不会尝试在同一插件实例内偷偷重开 Domain。卸载时等待在途任务结束后关闭两个 Domain。
 - P6 自动化测试新增/扩展覆盖：真实契约形状的 per-Domain write queue、插件初始化中途失败时关闭两个已打开 Domain、插件卸载等待在途写入、快失败仍被后续 Session flush 观察、unknown-state 后停止新写入、合成 user-role context 不被认作直接人类消息、重启重放幂等和第二个 Domain 打开失败时清理第一个 Domain。
-- P6 代码提交已推送到 PR #4 分支；**尚未观察到该提交的 GitHub Actions 运行结果**。本执行环境无法连接目标 Android/DSH 设备，不能执行真实后端 fsync、系统强杀、真实热卸载或多进程竞争。P4 的 41 项 CI 结果不代表 P5/P6 新增测试已通过。
-- P5/P6 当前仍是模拟 Storage Domain 契约测试，不宣称真实宿主验收完成。若真实后端返回 `unknown-state`，恢复流程是插件卸载/释放旧 Domain，再重新加载并让 Storage Domain 在 open 时重新读取、校验全部记录；不进行自动数据修补，不重建缺失证据。
+- P6 最新代码提交 `12bad3bbffaa755b1df330c3f3bd6baf3018f9b1` 已由 GitHub Actions Run #220（`42256698714`）验证：Node.js 22，48 tests passed / 0 failed；包根入口与 DSH Domain 导出检查、全部源码语法检查均通过。该结果覆盖 P5/P6 新增测试。本执行环境仍无法连接目标 Android/DSH 设备，不能执行真实后端 fsync、系统强杀、真实热卸载或多进程竞争。
+- P5/P6 自动化测试已通过，但仍是模拟 Storage Domain 契约测试，不宣称真实宿主验收完成。若真实后端返回 `unknown-state`，恢复流程是插件卸载/释放旧 Domain，再重新加载并让 Storage Domain 在 open 时重新读取、校验全部记录；不进行自动数据修补，不重建缺失证据。
+- CI 日志有一条非阻断提示：`actions/checkout@v4` 与 `actions/setup-node@v4` 所使用的 Node.js 20 运行环境已弃用，当前 runner 强制切换到 Node.js 24；后续可单独升级 Actions 主版本并复验。
 - PR #4 保持 Draft、base 为 `dev`；PR #3 未修改；未合并 `dev` 或 `main`。
