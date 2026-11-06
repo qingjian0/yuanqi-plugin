@@ -49,7 +49,7 @@ const evidenceTransfer=z.object({
 }).strict();
 const headSnapshot=z.object({ snapshot_version:z.number().int().nonnegative(), state_payload:z.record(z.string(),z.unknown()), evidence_refs:z.array(z.string().min(1)), created_at_event_ref:z.string().min(1), fencing_token:z.number().int().nonnegative() }).strict();
 const snapshotArchiveEntry=z.object({ archive_id:z.string().min(1), worldline_id:z.string().min(1), yuanqi_subject_id:z.string().min(1), snapshot:headSnapshot }).strict();
-const snapshotArchiveManifest=z.object({ archive_id:z.string().min(1), worldline_id:z.string().min(1), yuanqi_subject_id:z.string().min(1), from_version:z.number().int().nonnegative(), through_version:z.number().int().nonnegative(), snapshot_count:z.number().int().positive(), created_from_event_ref:z.string().min(1), schema_version:z.literal(1) }).strict();
+const snapshotArchiveManifest=z.object({ archive_id:z.string().min(1), worldline_id:z.string().min(1), yuanqi_subject_id:z.string().min(1), from_version:z.number().int().nonnegative(), through_version:z.number().int().nonnegative(), snapshot_count:z.number().int().positive(), previous_archive_id:z.string().min(1).nullable(), created_from_event_ref:z.string().min(1), schema_version:z.literal(1) }).strict();
 const worldlineHead=z.object({
  worldline_id:z.string().min(1), yuanqi_subject_id:z.string().min(1),
  current_snapshot_version:z.number().int().nonnegative(),
