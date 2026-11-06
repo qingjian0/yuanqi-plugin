@@ -45,7 +45,7 @@ export function createWorldlineStore({yuanqiDomain,verifyHostEvent}){
    const base=snapshots.get(snapshotKey(parent_worldline_id,base_snapshot_version));
    if(!base)throw new Error('parent snapshot does not exist');
    const existing=worldlines.get(target_worldline_id);
-   if(existing&&(existing.yuanqi_subject_id!==yuanqi_subject_id||existing.parent_worldline_id!==parent_worldline_id||existing.base_snapshot_version!==base_snapshot_version))throw new Error('target Worldline already exists with different lineage');
+   if(existing&&(existing.yuanqi_subject_id!==yuanqi_subject_id||existing.parent_worldline_id!==parent_worldline_id||existing.base_snapshot_version!==base_snapshot_version||existing.created_from_event_ref!==source.source_event_ref))throw new Error('target Worldline already exists with different lineage or creation event');
    const record=existing??{worldline_id:target_worldline_id,yuanqi_subject_id,parent_worldline_id,base_snapshot_version,status:'active',created_from_event_ref:source.source_event_ref};
    const local={snapshot_id:snapshotKey(target_worldline_id,0),worldline_id:target_worldline_id,yuanqi_subject_id,snapshot_version:0,state_payload:{},evidence_refs:[],created_at_event_ref:record.created_from_event_ref};
    await putOnce(snapshots,snapshotKey(target_worldline_id,0),local,'fork local snapshot conflict');
