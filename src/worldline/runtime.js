@@ -837,11 +837,35 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
       add('snapshot.history_missing', 'critical', 'Snapshot history is absent or empty');
     } else {
       const history = head.snapshot_history;
-      for (let index = 0; index < history.length; index += 1) {
-        const snapshot = history[index];
+      const checkpoint = head.snapshot_archive_checkpoint ?? null;
+      const auditHistory = [];
+      if (checkpoint) {
+        const manifest = snapshotArchiveManifests.get(checkpoint.archive_id);
+        if (!manifest || manifest.worldline_id !== worldline_id ||
+            manifest.yuanqi_subject_id !== line.yuanqi_subject_id ||
+            manifest.through_version !== checkpoint.through_version ||
+            manifest.from_version !== 0 ||
+            manifest.snapshot_count !== checkpoint.through_version + 1) {
+          add('snapshot.archive_manifest_invalid', 'critical', 'Snapshot archive manifest is missing or inconsistent');
+        }
+        for (let version = 0; version <= checkpoint.through_version; version += 1) {
+          const entry = snapshotArchiveEntries.get(snapshotKey(worldline_id, version));
+          if (!entry || entry.archive_id !== checkpoint.archive_id ||
+              entry.worldline_id !== worldline_id || entry.yuanqi_subject_id !== line.yuanqi_subject_id ||
+              entry.snapshot?.snapshot_version !== version) {
+            add('snapshot.archive_entry_missing_or_invalid', 'critical', 'Archived snapshot entry is missing or invalid at version ' + version);
+            auditHistory.push(null);
+          } else {
+            auditHistory.push(entry.snapshot);
+          }
+        }
+      }
+      auditHistory.push(...history);
+      for (let index = 0; index < auditHistory.length; index += 1) {
+        const snapshot = auditHistory[index];
         if (!snapshot || snapshot.snapshot_version !== index) {
-          add('snapshot.history_gap_or_reorder', 'critical', 'Snapshot history must be contiguous from version 0; mismatch at index ' + index);
-          break;
+          add('snapshot.history_gap_or_reorder', 'critical', 'Archived and active snapshot history must be contiguous from version 0; mismatch at version ' + index);
+          continue;
         }
         if (!Number.isSafeInteger(snapshot.fencing_token) || snapshot.fencing_token < 0) {
           add('snapshot.invalid_fencing_token', 'critical', 'Snapshot ' + index + ' has an invalid fencing token');
