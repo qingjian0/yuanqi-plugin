@@ -327,23 +327,32 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
       putOnce(evidenceRevocations, evidence_id, revocation, 'evidence already has a different revocation record'));
   }
 
-  function getEvidenceRecord({ evidence_id, worldline_id }) {
+  function getEvidenceRecord({ evidence_id, worldline_id }, visited = new Set()) {
     requiredText(evidence_id, 'evidence_id');
     const scope = requiredText(worldline_id, 'worldline_id');
     const record = evidenceRecords.get(evidence_id);
     if (!record || record.worldline_id !== scope) return undefined;
+    const lineageKey = scope + ':' + evidence_id;
+    if (visited.has(lineageKey)) {
+      return {
+        record: clone(record),
+        revocation: { inherited: true, reason: 'cyclic transferred evidence lineage' },
+        status: 'invalid_lineage',
+      };
+    }
+    visited.add(lineageKey);
     const revocation = evidenceRevocations.get(evidence_id);
     if (revocation) return { record: clone(record), revocation: clone(revocation), status: 'revoked' };
     if (record.transferred_from) {
       const origin = getEvidenceRecord({
         evidence_id: record.transferred_from.evidence_id,
         worldline_id: record.transferred_from.worldline_id,
-      });
+      }, visited);
       if (!origin || origin.status !== 'active') {
         return {
           record: clone(record),
-          revocation: { inherited: true, reason: 'origin evidence is unavailable or revoked' },
-          status: 'revoked',
+          revocation: { inherited: true, reason: origin?.status === 'invalid_lineage' ? 'origin evidence lineage is cyclic or invalid' : 'origin evidence is unavailable or revoked' },
+          status: origin?.status === 'invalid_lineage' ? 'invalid_lineage' : 'revoked',
         };
       }
     }
@@ -764,6 +773,8 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
           const evidence = getEvidenceRecord({ evidence_id: evidenceId, worldline_id });
           if (!evidence) {
             add('evidence.reference_missing_or_out_of_scope', 'critical', 'Snapshot ' + index + ' references unavailable or cross-Worldline evidence: ' + evidenceId);
+          } else if (evidence.status === 'invalid_lineage') {
+            add('evidence.transfer_lineage_invalid', 'critical', 'Snapshot ' + index + ' references cyclic or invalid transferred evidence: ' + evidenceId);
           } else if (evidence.status !== 'active') {
             add('evidence.reference_revoked', 'warning', 'Snapshot ' + index + ' references revoked evidence: ' + evidenceId, 'preserve_history_and_review');
           }
@@ -805,7 +816,7 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
       add('lease.metadata_invalid', 'critical', 'Runtime Lease metadata is malformed');
     } else {
       if (head.snapshot_history?.length) {
-        const maxSnapshotFence = Math.max(...head.snapshot_history.map(item => Number.isSafeInteger(item?.fencing_token) ? item.fencing_token : 0));
+        const maxSnapshotFence = head.snapshot_history.reduce((maximum, item) => Math.max(maximum, Number.isSafeInteger(item?.fencing_token) ? item.fencing_token : 0), 0);
         if (head.runtime_lease.fencing_token < maxSnapshotFence) {
           add('lease.fencing_regressed', 'critical', 'Head fencing token is lower than a committed snapshot token');
         }
