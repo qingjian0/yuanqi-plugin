@@ -26,13 +26,14 @@ function dshEvent(text, id, seq, time) {
   return { type: 'user/message', seq, time, data: { id, role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text }] } };
 }
 function context(storageDomain) {
-  let listener, disposer;
+  let listener, flushListener, disposer;
   return {
     storageDomain,
     logger: { warn(message) { throw new Error(message); } },
-    on(name, callback) { assert.equal(name, 'session/event'); listener = callback; },
+    on(name, callback) { if (name === 'session/event') listener = callback; else if (name === 'session/flush') flushListener = callback; else throw new Error('unexpected event ' + name); },
     effect(register) { disposer = register(); },
     get listener() { return listener; },
+    get flushListener() { return flushListener; },
     get disposer() { return disposer; },
   };
 }
@@ -40,6 +41,7 @@ test('Cordis plugin persists first direct message and does not wake on a later c
   const storage = fakeStorageDomain(), ctx = context(storage);
   await apply(ctx);
   await ctx.listener({ id: 'session-a' }, dshEvent('你好', 'm1', 0, 1793966400000));
+  await ctx.flushListener({ id: 'session-a' });
   await ctx.listener({ id: 'session-b' }, dshEvent('启动元炁', 'm2', 0, 1794052800000));
   const tables = storage.opened.get('yuanqi_subject').tables;
   assert.equal(tables.get('first_user_messages').get('yuanqi:primary').first_event_id, 'm1');
