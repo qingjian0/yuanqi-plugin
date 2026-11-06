@@ -559,12 +559,6 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
       throw new TypeError('evidence_refs must be non-empty strings');
     }
     validateSelfModel(state_payload);
-    for (const center of SELF_MODEL_CENTERS) {
-      const nextCenter = state_payload.self_model.centers[center];
-      if (nextCenter.epistemic_status === 'user_confirmed') {
-        throw new Error('user_confirmed SelfModel state must be written through the direct-user confirmation path');
-      }
-    }
     const allRefs = [...evidence_refs, ...SELF_MODEL_CENTERS.flatMap(center => state_payload.self_model.centers[center].evidence_refs)];
     assertEvidenceRefsActive(worldline_id, allRefs);
     let committed;
@@ -572,6 +566,13 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
       assertEvidenceRefsActive(worldline_id, allRefs);
       await heads.update(requiredText(worldline_id, 'worldline_id'), current => {
         assertLease(current, holder_id, fencing_token, now_ms);
+        for (const center of SELF_MODEL_CENTERS) {
+          const nextCenter = state_payload.self_model.centers[center];
+          const currentCenter = current.current_state_payload.self_model.centers[center];
+          if (nextCenter.epistemic_status === 'user_confirmed' && JSON.stringify(nextCenter) !== JSON.stringify(currentCenter)) {
+            throw new Error('user_confirmed SelfModel state must be changed through the direct-user confirmation path');
+          }
+        }
         if (current.current_snapshot_version !== expected_snapshot_version) {
           throw new Error('snapshot CAS conflict: expected ' + expected_snapshot_version + ', current ' + current.current_snapshot_version);
         }
