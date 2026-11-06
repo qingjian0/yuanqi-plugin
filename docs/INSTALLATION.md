@@ -2,22 +2,23 @@
 
 > 对应版本：`1.1.0-alpha.9`  
 > 运行环境：DeepSeek Harness（DSH）  
-> Node.js：`>=22`
+> Node.js：`>=24.9.0`
 
 ## 1. 安装前检查
 
 1. 确认目标 DSH Profile 可正常运行。
 2. 确认目标环境使用的 DSH peer packages 与插件声明的范围兼容。
-3. 确认 Node.js 版本满足 `>=22`。
+3. 确认 Node.js 版本满足 `>=24.9.0`。
 4. 阅读当前版本的 [项目状态](./STATUS.md)，不要将本地测试记录视为真实宿主验收结论。
 
 当前声明的 peer dependency 范围：
 
-- `@deepseek-ai/dsh-tools`：`>=0.2.0-0 <0.3.0-0`
-- `@deepseek-ai/dsh-storage-domain`：`>=0.2.0-0 <0.3.0-0`
-- `@deepseek-ai/dsh-llm`：`>=0.2.0-0 <0.3.0-0`
+- `@deepseek-ai/dsh-tools`：`>=0.2.2-rc.1 <0.3.0-0`
+- `@deepseek-ai/dsh-storage-domain`：`>=0.2.2-rc.1 <0.3.0-0`
+- `@deepseek-ai/dsh-session`：`>=0.2.2-rc.1 <0.3.0-0`
+- `@deepseek-ai/dsh-llm`：`>=0.2.2-rc.1 <0.3.0-0`
 
-依赖范围是兼容性声明，不代表范围内所有 DSH 版本均已完成真实运行验证。
+本项目当前核对的 DSH API 基线为 `0.2.2-rc.1`；DSH 仓库根包声明 Node.js `>=24.9.0`。依赖范围是兼容性声明，不代表范围内所有 DSH 版本均已完成真实运行验证。
 
 ## 2. 本地检查与打包
 
