@@ -555,8 +555,6 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
     let committed;
     await heads.update(requiredText(worldline_id, 'worldline_id'), current => {
       assertLease(current, holder_id, fencing_token, now_ms);
-      const retainedRefs = SELF_MODEL_CENTERS.filter(id => id !== center_id).flatMap(id => current.current_state_payload.self_model.centers[id].evidence_refs);
-      assertEvidenceRefsActive(worldline_id, [...retainedRefs, ...evidence_refs]);
       if (current.current_snapshot_version !== expected_snapshot_version) {
         throw new Error('snapshot CAS conflict: expected ' + expected_snapshot_version + ', current ' + current.current_snapshot_version);
       }
@@ -597,6 +595,8 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
     let result;
     await heads.update(requiredText(worldline_id, 'worldline_id'), current => {
       assertLease(current, holder_id, fencing_token, now_ms);
+      const retainedRefs = SELF_MODEL_CENTERS.filter(id => id !== center_id).flatMap(id => current.current_state_payload.self_model.centers[id].evidence_refs);
+      assertEvidenceRefsActive(worldline_id, [...retainedRefs, ...evidence_refs]);
       if (current.current_snapshot_version !== expected_snapshot_version) {
         throw new Error('snapshot CAS conflict: expected ' + expected_snapshot_version + ', current ' + current.current_snapshot_version);
       }
