@@ -194,3 +194,17 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - 本阶段不新增表，不升级 Domain schema；快照压缩/归档仍未实现。历史快照仍随 Head 记录增长，未来归档必须先建立可验证的持久归档协议，不能直接截断数组。
 - 本阶段代码已推送至 PR #3 分支；CI 尚待本轮最新提交的实际运行结果确认。内存适配器测试仍不代表真实 DSH Storage 后端或 Android 宿主验收。
 - PR #3 保持 Draft，目标 dev；main 未修改，未合并。
+
+
+## 13. 2026-11-06 P4 快照归档与可重入压缩
+
+- YuanQiSubject Storage Domain 升级至 v7，兼容 v3、v4、v5、v6；新增 `worldline_snapshot_archive_entries` 与 `worldline_snapshot_archive_manifests` 两张表。旧 Head 的归档检查点字段为可选/可空，兼容未执行归档的历史记录。
+- 新增 `compactSnapshotHistory`：调用方必须提供 Worldline、持有中的 Runtime Lease/fencing token、预期当前快照版本、归档截止版本和来源事件引用。不能归档当前快照，至少保留一个活动快照。
+- 归档采用先写逐条不可变快照记录、再写归档清单、最后通过 Head CAS 更新归档检查点和活动历史的顺序。不会先截断 Head，也不删除归档记录。
+- 归档清单通过 `previous_archive_id` 链接前一段归档；归档快照以 Worldline + snapshot version 定位。`getSnapshot` 对调用方透明地读取活动历史、归档历史或旧版快照表，旧分支基准引用继续可解析。
+- 重试行为：相同归档请求幂等；若归档记录/清单已写入但 Head CAS 前发生中断，Head 历史保持完整，重试复用已持久化归档并完成 CAS。归档清单冲突、Head 版本变化、租约失效或归档范围缺失均拒绝压缩。
+- `auditWorldline` 扩展为验证归档清单链、版本范围、每条归档快照、归档与活动历史连续性，并继续校验归档快照中的 SelfModel 和证据引用。缺失/损坏归档不会被静默跳过。
+- 新增测试覆盖历史读取保持、分段归档链、重复请求幂等、Head CAS 过期拒绝、模拟归档完成但 Head 更新中断后的重试恢复。
+- 本阶段不使用 SHA-256，不声称归档内容具有密码学防篡改能力；当前保证是基于 Storage Domain 不可变写入约束、确定性键、清单链与一致性审计。真实后端的持久化与故障语义仍需宿主验收。
+- 快照归档目前是显式 API，不会在后台自动触发；归档保留策略、容量阈值和后台维护调度仍未定义。
+- P4 代码和测试已推送至 PR #3 分支；CI 最新提交结果待确认。PR #3 保持 Draft，目标 `dev`；`main` 未修改、未合并。
