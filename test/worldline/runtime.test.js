@@ -567,3 +567,25 @@ test('Worldline integrity audit distinguishes revoked evidence and a missing Hea
   assert.equal(orphanReport.status,'critical');
   assert.ok(orphanReport.issues.some(issue=>issue.code==='worldline.head_missing'));
 });
+
+
+test('Worldline integrity audit safely identifies cyclic transferred evidence lineage', async () => {
+  const {store,yuanqiDomain}=await setup();
+  await mainline(store);
+  await seedEvidence(store,'evidence:cycle');
+  const lease=await store.acquireRuntimeLease({worldline_id:'worldline:main',holder_id:'cycle-audit',now_ms:now,ttl_ms:10000});
+  await store.commitSnapshot({
+    worldline_id:'worldline:main',holder_id:'cycle-audit',fencing_token:lease.fencing_token,
+    expected_snapshot_version:0,state_payload:store.getHead('worldline:main').current_state_payload,
+    evidence_refs:['evidence:cycle'],source_event_ref:'cycle-snapshot',now_ms:now+1,
+  });
+  const record=yuanqiDomain.table('evidence_records').get('evidence:cycle');
+  await yuanqiDomain.table('evidence_records').put('evidence:cycle',{
+    ...record,
+    transferred_from:{evidence_id:'evidence:cycle',worldline_id:'worldline:main',authorization_id:'missing-auth'},
+  });
+  const report=store.auditWorldline({worldline_id:'worldline:main',now_ms:now+2});
+  assert.equal(report.status,'critical');
+  assert.ok(report.issues.some(issue=>issue.code==='evidence.transfer_lineage_invalid'));
+  assert.ok(report.issues.some(issue=>issue.code==='transfer.lineage_inconsistent'));
+});
