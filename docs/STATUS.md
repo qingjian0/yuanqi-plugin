@@ -127,8 +127,9 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - 用户已明确决定：**不恢复 alpha.9 历史源码归档**。不导入历史 19 个模块、17 个测试文件或 5 个夹具；历史归档只保留为历史证据，不作为当前代码恢复来源。
 - 当前开发基线为 `dev`，审计 Tree SHA：`36f1a2a48a85f0d406a7cf045752de9862116eb6`。该基线 Tree 有 34 个条目，旧 `index.js` 曾引用 19 个不存在的模块。PR #3 已将包根入口收敛为仅导出当前真实存在的 Subject Domain 能力；没有恢复缺失模块，也不代表 Cordis 插件已可在真实宿主安装。
 - 新实现工作位于 Draft PR #3：`work/e00-20e-05b-subject-domain-runtime`。新增 UserSubject / YuanQiSubject 独立 DSH Storage Domain、主体仓储、首次直接用户消息持久锁、唤醒记录恢复、DSH SessionEvent 来源归一化，以及 Cordis 插件入口。根入口现导出真实 `name` / `inject` / `apply`，不再引用缺失的 alpha.9 模块。
-- 最新完整 CI：commit `10ef73af99ca9b32e1a63375b826d22731bf58c6`，GitHub Actions run `42223377568`（Run #50），Node.js 22；依赖安装、包根入口与 DSH Domain 导出检查、源码语法检查全部通过；13 项自动化测试通过，0 项失败。覆盖首次消息锁、跨 Session 唤醒资格、DSH 来源识别、唤醒恢复、Cordis 生命周期和 flush 屏障模拟。
+- 最近一次完整 CI：commit `10ef73af99ca9b32e1a63375b826d22731bf58c6`，GitHub Actions run `42223377568`（Run #50），Node.js 22；依赖安装、包根入口与 DSH Domain 导出检查、源码语法检查全部通过；13 项自动化测试通过，0 项失败。该 Run 覆盖 P0 首次消息锁、唤醒恢复和 Cordis 事件/flush 集成，不包含后续新增的 Worldline 代码。
 - 当前验证范围覆盖包根入口导入、领域声明、内存表适配、首次消息规则、DSH 事件来源识别和 Cordis 插件监听器测试；最新提交的 GitHub CI 尚未观察到完成结果。插件监听 `session/event`，通过 `session.id` 绑定 Session，并在 `session/flush` 等待该 Session 的待处理领域写入；没有真实 DSH 宿主后端持久化验收。
+- P1 Worldline 第一阶段已新增主线注册、父快照引用、子线独立初始快照和 Session→Worldline 持久绑定；多个 Session 可以绑定同一 Worldline，Session 不等于 Worldline。Worldline 代码与新增测试尚未经过下一轮 CI。当前仅完成创建/分支元数据与初始快照引用，没有开放状态写入、跨线切换或自动数据迁移。
 - SelfModel 五中心、Worldline 分支隔离、Evidence Ledger、跨线授权转移、跨进程 CAS 状态提交和真实宿主验收均未完成。首次消息写入仅声明单个插件实例内串行化，不宣称跨进程 CAS。
 - PR #3 保持 Draft，不合并 `dev` 或 `main`，直至后续验收完成。
 
