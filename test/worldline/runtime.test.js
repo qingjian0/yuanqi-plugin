@@ -515,3 +515,55 @@ test('user-confirmed SelfModel state requires a verified direct-user event', asy
     expected_snapshot_version:2,state_payload:forged,source_event_ref:'forged-confirmation-change',now_ms:now+4,
   }),/direct-user confirmation path/);
 });
+
+
+test('Worldline integrity audit is read-only and reports a healthy mainline', async () => {
+  const {store,yuanqiDomain}=await setup();
+  await mainline(store);
+  const before=structuredClone(yuanqiDomain.table('worldline_heads').get('worldline:main'));
+  const first=store.auditWorldline({worldline_id:'worldline:main',now_ms:now});
+  const second=store.auditWorldline({worldline_id:'worldline:main',now_ms:now});
+  assert.equal(first.status,'healthy');
+  assert.deepEqual(first.issues,[]);
+  assert.deepEqual(second,first);
+  assert.deepEqual(yuanqiDomain.table('worldline_heads').get('worldline:main'),before);
+});
+
+test('Worldline integrity audit detects snapshot history gaps and head divergence', async () => {
+  const {store,yuanqiDomain}=await setup();
+  await mainline(store);
+  const head=structuredClone(store.getHead('worldline:main'));
+  head.snapshot_history[0].snapshot_version=3;
+  await yuanqiDomain.table('worldline_heads').put('worldline:main',head);
+  const report=store.auditWorldline({worldline_id:'worldline:main',now_ms:now});
+  assert.equal(report.status,'critical');
+  assert.ok(report.issues.some(issue=>issue.code==='snapshot.history_gap_or_reorder'));
+  assert.ok(report.issues.some(issue=>issue.code==='snapshot.head_version_mismatch'));
+  assert.equal(report.repair_policy,'manual_only');
+});
+
+test('Worldline integrity audit distinguishes revoked evidence and a missing Head', async () => {
+  const {store,yuanqiDomain}=await setup();
+  await mainline(store);
+  await seedEvidence(store,'evidence:audit');
+  const lease=await store.acquireRuntimeLease({worldline_id:'worldline:main',holder_id:'audit-runtime',now_ms:now,ttl_ms:10000});
+  await store.commitSnapshot({
+    worldline_id:'worldline:main',holder_id:'audit-runtime',fencing_token:lease.fencing_token,
+    expected_snapshot_version:0,state_payload:store.getHead('worldline:main').current_state_payload,
+    evidence_refs:['evidence:audit'],source_event_ref:'audit-snapshot',now_ms:now+1,
+  });
+  await store.revokeEvidence({
+    evidence_id:'evidence:audit',worldline_id:'worldline:main',reason:'audit fixture revoked',
+    revoked_from_event:hostEvent('audit-revocation',now+2),
+  });
+  const revokedReport=store.auditWorldline({worldline_id:'worldline:main',now_ms:now+3});
+  assert.equal(revokedReport.status,'degraded');
+  assert.ok(revokedReport.issues.some(issue=>issue.code==='evidence.reference_revoked'));
+  await yuanqiDomain.table('worldlines').put('worldline:orphan', {
+    worldline_id:'worldline:orphan',yuanqi_subject_id:'yuanqi-1',status:'active',
+    created_from_event_ref:'orphan-created',
+  });
+  const orphanReport=store.auditWorldline({worldline_id:'worldline:orphan',now_ms:now+4});
+  assert.equal(orphanReport.status,'critical');
+  assert.ok(orphanReport.issues.some(issue=>issue.code==='worldline.head_missing'));
+});
