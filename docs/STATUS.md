@@ -216,7 +216,7 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - 核对 `@deepseek-ai/dsh-session`：`session/event` 是 post-commit、fire-and-forget feed；`session/flush` 是 awaited parallel durability checkpoint。`user/message` 事件不等于直接人类输入；注入上下文同样使用 user-role 消息，必须通过 `event.data.source.kind === 'user'` 区分。YuanQi 的归一化器只接受该直接来源，新增回归测试覆盖 `source.kind === 'plugin'` 的合成上下文不会锁定首次用户消息。
 - 修复 flush 错误可能丢失的问题：此前任务一旦快速 settle 就从 `pendingBySession` 删除，若它在 `session/flush` 开始前失败，后续 flush 可能看不到失败。现在保留任务直到 flush drain 消费，使用 `Promise.allSettled` 收集失败，并由 flush 返回 `AggregateError`；任务在后台先附加 rejection handler，避免 fire-and-forget 事件产生未处理拒绝。
 - 增加 `unknown-state` fail-closed：一旦任一 Storage Domain 写入报告稳定错误码 `unknown-state`，插件停止处理后续消息并记录要求 unload/reload 的警告。不会在旧句柄仍被隔离时自动继续写入，也不会尝试在同一插件实例内偷偷重开 Domain。卸载时等待在途任务结束后关闭两个 Domain。
-- P6 自动化测试新增/扩展覆盖：真实契约形状的 per-Domain write queue、插件卸载等待在途写入、快失败仍被后续 Session flush 观察、unknown-state 后停止新写入、合成 user-role context 不被认作直接人类消息、重启重放幂等和第二个 Domain 打开失败时清理第一个 Domain。
+- P6 自动化测试新增/扩展覆盖：真实契约形状的 per-Domain write queue、插件初始化中途失败时关闭两个已打开 Domain、插件卸载等待在途写入、快失败仍被后续 Session flush 观察、unknown-state 后停止新写入、合成 user-role context 不被认作直接人类消息、重启重放幂等和第二个 Domain 打开失败时清理第一个 Domain。
 - P6 代码提交已推送到 PR #4 分支；**尚未观察到该提交的 GitHub Actions 运行结果**。本执行环境无法连接目标 Android/DSH 设备，不能执行真实后端 fsync、系统强杀、真实热卸载或多进程竞争。P4 的 41 项 CI 结果不代表 P5/P6 新增测试已通过。
 - P5/P6 当前仍是模拟 Storage Domain 契约测试，不宣称真实宿主验收完成。若真实后端返回 `unknown-state`，恢复流程是插件卸载/释放旧 Domain，再重新加载并让 Storage Domain 在 open 时重新读取、校验全部记录；不进行自动数据修补，不重建缺失证据。
 - PR #4 保持 Draft、base 为 `dev`；PR #3 未修改；未合并 `dev` 或 `main`。
