@@ -693,6 +693,147 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
     };
   }
 
+
+  // Read-only integrity diagnostics. Recovery never guesses or mutates persisted state.
+  function auditWorldline({ worldline_id, now_ms = Date.now() }) {
+    requiredText(worldline_id, 'worldline_id');
+    safeTime(now_ms);
+    const issues = [];
+    const add = (code, severity, detail, repair = 'manual_review') => issues.push({ code, severity, detail, repair });
+    const line = worldlines.get(worldline_id);
+    if (!line) {
+      add('worldline.missing', 'critical', 'Worldline record is missing');
+      return { worldline_id, checked_at_ms: now_ms, status: 'critical', issues, repair_policy: 'manual_only' };
+    }
+    const subject = identities.get(line.yuanqi_subject_id);
+    if (!subject || subject.subject_kind !== 'yuanqi') {
+      add('subject.missing_or_invalid', 'critical', 'Worldline does not resolve to a YuanQiSubject identity');
+    }
+    if (line.status !== 'active' && line.status !== 'archived' && line.status !== 'suspended') {
+      add('worldline.invalid_status', 'critical', 'Worldline status is not recognized');
+    }
+    if (line.parent_worldline_id) {
+      const parent = worldlines.get(line.parent_worldline_id);
+      if (!parent || parent.yuanqi_subject_id !== line.yuanqi_subject_id) {
+        add('worldline.parent_missing_or_cross_subject', 'critical', 'Parent Worldline is missing or belongs to another YuanQiSubject');
+      } else {
+        const base = getSnapshot(line.parent_worldline_id, line.base_snapshot_version);
+        if (!base) add('worldline.base_snapshot_missing', 'critical', 'Fork base snapshot reference cannot be resolved');
+      }
+    } else {
+      const registered = mainlines.get(line.yuanqi_subject_id);
+      if (!registered || registered.worldline_id !== worldline_id) {
+        add('worldline.mainline_registry_mismatch', 'critical', 'Mainline registry does not point back to this Worldline');
+      }
+    }
+
+    const head = heads.get(worldline_id);
+    if (!head) {
+      add('worldline.head_missing', 'critical', 'Worldline Head is missing; no automatic head reconstruction is attempted');
+      return {
+        worldline_id, yuanqi_subject_id: line.yuanqi_subject_id, checked_at_ms: now_ms,
+        status: 'critical', issues, repair_policy: 'manual_only',
+      };
+    }
+    if (head.worldline_id !== worldline_id || head.yuanqi_subject_id !== line.yuanqi_subject_id) {
+      add('worldline.head_identity_mismatch', 'critical', 'Head identity does not match the Worldline record');
+    }
+    if (!Array.isArray(head.snapshot_history) || head.snapshot_history.length === 0) {
+      add('snapshot.history_missing', 'critical', 'Snapshot history is absent or empty');
+    } else {
+      const history = head.snapshot_history;
+      for (let index = 0; index < history.length; index += 1) {
+        const snapshot = history[index];
+        if (!snapshot || snapshot.snapshot_version !== index) {
+          add('snapshot.history_gap_or_reorder', 'critical', 'Snapshot history must be contiguous from version 0; mismatch at index ' + index);
+          break;
+        }
+        if (!Number.isSafeInteger(snapshot.fencing_token) || snapshot.fencing_token < 0) {
+          add('snapshot.invalid_fencing_token', 'critical', 'Snapshot ' + index + ' has an invalid fencing token');
+        }
+        try {
+          validateSelfModel(snapshot.state_payload);
+        } catch (error) {
+          add('snapshot.invalid_self_model', 'critical', 'Snapshot ' + index + ': ' + error.message);
+        }
+        const refs = [
+          ...(Array.isArray(snapshot.evidence_refs) ? snapshot.evidence_refs : []),
+          ...SELF_MODEL_CENTERS.flatMap(center => snapshot.state_payload?.self_model?.centers?.[center]?.evidence_refs ?? []),
+        ];
+        for (const evidenceId of new Set(refs)) {
+          const evidence = getEvidenceRecord({ evidence_id: evidenceId, worldline_id });
+          if (!evidence) {
+            add('evidence.reference_missing_or_out_of_scope', 'critical', 'Snapshot ' + index + ' references unavailable or cross-Worldline evidence: ' + evidenceId);
+          } else if (evidence.status !== 'active') {
+            add('evidence.reference_revoked', 'warning', 'Snapshot ' + index + ' references revoked evidence: ' + evidenceId, 'preserve_history_and_review');
+          }
+          const record = evidence?.record;
+          if (record?.transferred_from) {
+            const origin = record.transferred_from;
+            const auth = transferAuthorizations.get(origin.authorization_id);
+            const transferId = 'transfer:' + origin.authorization_id + ':' + origin.evidence_id;
+            const audit = evidenceTransfers.get(transferId);
+            if (
+              origin.worldline_id !== (auth?.source_worldline_id ?? null) ||
+              worldline_id !== (auth?.target_worldline_id ?? null) ||
+              !auth?.evidence_ids?.includes(origin.evidence_id) ||
+              !audit || audit.target_evidence_id !== evidenceId ||
+              audit.source_evidence_id !== origin.evidence_id ||
+              audit.source_worldline_id !== origin.worldline_id ||
+              audit.target_worldline_id !== worldline_id
+            ) {
+              add('transfer.lineage_inconsistent', 'critical', 'Transferred evidence lineage or audit does not match: ' + evidenceId);
+            }
+          }
+        }
+      }
+      const latest = history[history.length - 1];
+      if (head.current_snapshot_version !== latest.snapshot_version) {
+        add('snapshot.head_version_mismatch', 'critical', 'Current snapshot version does not match the final history entry');
+      }
+      if (JSON.stringify(head.current_state_payload) !== JSON.stringify(latest.state_payload)) {
+        add('snapshot.head_payload_mismatch', 'critical', 'Current state payload differs from the final history entry');
+      }
+      if (JSON.stringify(head.current_evidence_refs) !== JSON.stringify(latest.evidence_refs)) {
+        add('snapshot.head_evidence_refs_mismatch', 'critical', 'Current evidence references differ from the final history entry');
+      }
+    }
+    if (!head.runtime_lease || !Number.isSafeInteger(head.runtime_lease.fencing_token) ||
+        head.runtime_lease.fencing_token < 0 || !Number.isSafeInteger(head.runtime_lease.expires_at_ms) ||
+        head.runtime_lease.expires_at_ms < 0 ||
+        !(head.runtime_lease.holder_id === null || (typeof head.runtime_lease.holder_id === 'string' && head.runtime_lease.holder_id.length > 0))) {
+      add('lease.metadata_invalid', 'critical', 'Runtime Lease metadata is malformed');
+    } else {
+      if (head.snapshot_history?.length) {
+        const maxSnapshotFence = Math.max(...head.snapshot_history.map(item => Number.isSafeInteger(item?.fencing_token) ? item.fencing_token : 0));
+        if (head.runtime_lease.fencing_token < maxSnapshotFence) {
+          add('lease.fencing_regressed', 'critical', 'Head fencing token is lower than a committed snapshot token');
+        }
+      }
+      if (head.runtime_lease.holder_id && head.runtime_lease.expires_at_ms <= now_ms) {
+        add('lease.expired_holder', 'warning', 'Runtime Lease holder remains recorded after expiry', 'allow_normal_lease_takeover');
+      }
+      if (!head.runtime_lease.holder_id && head.runtime_lease.expires_at_ms !== 0) {
+        add('lease.released_expiry_nonzero', 'warning', 'Released Runtime Lease has a non-zero expiry');
+      }
+    }
+    if (head.base_snapshot_ref) {
+      if (head.base_snapshot_ref.worldline_id !== line.parent_worldline_id ||
+          head.base_snapshot_ref.snapshot_version !== line.base_snapshot_version) {
+        add('worldline.head_base_reference_mismatch', 'critical', 'Head base snapshot reference differs from Worldline lineage');
+      }
+    } else if (line.parent_worldline_id) {
+      add('worldline.head_base_reference_missing', 'critical', 'Fork Head has no parent snapshot reference');
+    }
+    const critical = issues.some(item => item.severity === 'critical');
+    const warning = issues.some(item => item.severity === 'warning');
+    return {
+      worldline_id, yuanqi_subject_id: line.yuanqi_subject_id, checked_at_ms: now_ms,
+      status: critical ? 'critical' : warning ? 'degraded' : 'healthy',
+      issue_count: issues.length, issues, repair_policy: 'manual_only',
+    };
+  }
+
   return Object.freeze({
     createMainline, forkWorldline, bindSession,
     recordEvidence, revokeEvidence, getEvidenceRecord,
@@ -700,7 +841,7 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
     authorizeEvidenceTransfer, revokeTransferAuthorization, transferEvidence, getEvidenceTransfer,
     acquireRuntimeLease, renewRuntimeLease, releaseRuntimeLease,
     commitSnapshot, updateSelfModelCenter,
-    getHead, getSnapshot, getWorldline(id) {
+    getHead, getSnapshot, auditWorldline, getWorldline(id) {
       requiredText(id, 'worldline_id');
       const value = worldlines.get(id);
       return value === undefined ? undefined : clone(value);
