@@ -4,7 +4,9 @@
   "private": true,
   "type": "module",
   "description": "元炁（YuanQi）— DeepSeek Harness（DSH）生命上下文与持续演化插件",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "test": "node --test",
     "check": "node --check index.js && find src -name '*.js' -type f -print0 | xargs -0 -n1 node --check && node --test"
@@ -22,8 +24,21 @@
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"
   },
-  "dsh": { "bundle": { "patch": "./cordis.patch.yml" }, "defaultLocale": "zh-CN" },
-  "dependencies": { "zod": "^4.4.3" },
-  "files": ["LICENSE", "index.js", "src/**", "cordis.patch.yml", "README.md"],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "defaultLocale": "zh-CN"
+  },
+  "dependencies": {
+    "zod": "^4.4.3"
+  },
+  "files": [
+    "LICENSE",
+    "index.js",
+    "src/**",
+    "cordis.patch.yml",
+    "README.md"
+  ],
   "x-default-language": "zh-CN"
 }
