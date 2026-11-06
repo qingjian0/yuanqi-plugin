@@ -47,6 +47,9 @@ test('Cordis plugin persists first direct message and does not wake on a later c
   assert.equal(tables.get('first_user_messages').get('yuanqi:primary').first_event_id, 'm1');
   assert.equal(tables.get('first_user_messages').get('yuanqi:primary').trigger_command, null);
   assert.equal(tables.get('wake_records').has('yuanqi:primary'), false);
+  assert.equal(tables.get('worldlines').get('worldline:main').status, 'active');
+  assert.equal(tables.get('session_worldline_bindings').get('session-a').worldline_id, 'worldline:main');
+  assert.equal(tables.get('session_worldline_bindings').get('session-b').worldline_id, 'worldline:main');
   await ctx.disposer();
   assert.equal(storage.opened.get('yuanqi_subject').domain.closed, true);
   assert.equal(storage.opened.get('yuanqi_user_subject').domain.closed, true);
@@ -59,5 +62,6 @@ test('Cordis plugin wakes only from the exact first direct user command', async 
   assert.equal(wake.wake_event_ref, 'm1');
   assert.equal(wake.first_session_id, 'session-a');
   assert.equal(wake.occurred_at, new Date(1793966400000).toISOString());
+  assert.equal(storage.opened.get('yuanqi_subject').tables.get('session_worldline_bindings').get('session-a').worldline_id, 'worldline:main');
   await ctx.disposer();
 });
