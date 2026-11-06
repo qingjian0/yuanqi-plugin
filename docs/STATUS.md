@@ -221,3 +221,13 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - P5/P6 自动化测试已通过，但仍是模拟 Storage Domain 契约测试，不宣称真实宿主验收完成。若真实后端返回 `unknown-state`，恢复流程是插件卸载/释放旧 Domain，再重新加载并让 Storage Domain 在 open 时重新读取、校验全部记录；不进行自动数据修补，不重建缺失证据。
 - CI 日志有一条非阻断提示：`actions/checkout@v4` 与 `actions/setup-node@v4` 所使用的 Node.js 20 运行环境已弃用，当前 runner 强制切换到 Node.js 24；后续可单独升级 Actions 主版本并复验。
 - PR #4 保持 Draft、base 为 `dev`；PR #3 未修改；未合并 `dev` 或 `main`。
+
+## 15. 2026-11-07 P7 DSH 运行时与 peer API 基线对齐（CI 待验证）
+
+- 核对 DSH 官方仓库当前 `master` 根 `package.json`：版本 `0.2.2-rc.1`，`engines.node` 为 `>=24.9.0`。因此旧 YuanQi `>=22` 声明不足以代表当前 DSH 目标运行时；P7 将 YuanQi Node 要求调整为 `>=24.9.0`，CI Node 调整为 `24.9.0`。
+- 核对 DSH 官方包清单：`@deepseek-ai/dsh-storage-domain`、`@deepseek-ai/dsh-session`、`@deepseek-ai/dsh-tools`、`@deepseek-ai/dsh-llm` 当前源码版本均为 `0.2.2-rc.1`。peer dependency 下限由 `>=0.2.0-0` 提升为 `>=0.2.2-rc.1`，上限保持 `<0.3.0-0`，避免把未核对的早期 0.2.x 版本宣称为兼容目标。
+- 核对 Storage Domain 实际公开 API：`defineDomain`、`domainTable`、`DomainError`；`Domain.table()` 返回同步读/异步写的 KV 表，支持 `put`、`update`，`Domain.close()` 是异步幂等关闭。现有 YuanQi schema 声明与 `defineDomain` / `domainTable` 用法匹配官方 `0.2.2-rc.1` 源码。
+- 核对 Session API：`session/flush` 是 `SessionStore.flush(session)` 调度的 awaited durability barrier；当前事件监听器必须保持异步任务排空行为。宿主真实调用链仍需实际集成验收。
+- CI 已改为 Node.js `24.9.0`，安装后执行四个 peer package 的 `npm ls`，并检查真实 Storage Domain 导出；上述改动已提交，但本节在 CI 成功前只标记为“待验证”。
+- 仍未执行真实 Android DSH 安装、Cordis Loader 插件生命周期、真实 JSON/SQLite backend 重启与强杀恢复；不得将 package import 或模拟适配器测试标记为宿主验收。
+- 不涉及 SHA-256；PR #4 继续 Draft，base `dev`，不合并 PR #3、`dev` 或 `main`。
