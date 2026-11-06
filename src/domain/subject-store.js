@@ -1,167 +1,51 @@
-const COMMANDS = new Set(['启动元气', '启动元炁']);
-
-function requiredText(value, field) {
-  if (typeof value !== 'string' || value.trim() === '') {
-    throw new TypeError(field + ' is required');
-  }
-  return value;
+const COMMANDS=new Set(['启动元气','启动元炁']);
+function requiredText(v,f){if(typeof v!=='string'||v.trim()==='')throw new TypeError(f+' is required');return v;}
+function clone(v){return structuredClone(v);}
+function serializeByKey(q,k,op){const p=q.get(k)??Promise.resolve();const r=p.then(op);const s=r.then(()=>undefined,()=>undefined);q.set(k,s);return r.finally(()=>{if(q.get(k)===s)q.delete(k);});}
+async function putOnce(t,k,v,msg){const old=t.get(k);if(old!==undefined){if(JSON.stringify(old)!==JSON.stringify(v))throw new Error(msg);return clone(old);}await t.put(k,v);return clone(t.get(k)??v);}
+function verified(fn,event,purpose){const v=fn(event,purpose);if(!v||v.verified!==true)throw new Error('unverified DSH event: '+purpose);return v;}
+function firstMessageFields(e){
+ if(e.event_type!=='user/message'||e.source_kind!=='user')throw new Error('only direct DSH user/message events may establish the first-message lock');
+ requiredText(e.session_id,'session_id');requiredText(e.event_id,'event_id');
+ if(!Number.isSafeInteger(e.event_seq)||e.event_seq<0)throw new TypeError('valid DSH event sequence is required');
+ if(!Number.isSafeInteger(e.event_time)||e.event_time<0)throw new TypeError('valid DSH event time is required');
+ if(typeof e.text!=='string')throw new TypeError('direct user message text is required');
+ const text=e.text.trim();
+ return {first_session_id:e.session_id,first_event_id:e.event_id,first_event_seq:e.event_seq,first_event_time:e.event_time,source_kind:'user',event_type:'user/message',trigger_command:COMMANDS.has(text)?text:null};
 }
-
-function clone(value) {
-  return structuredClone(value);
-}
-
-function serializeByKey(queues, key, operation) {
-  const previous = queues.get(key) ?? Promise.resolve();
-  const result = previous.then(operation);
-  const settled = result.then(() => undefined, () => undefined);
-  queues.set(key, settled);
-  return result.finally(() => {
-    if (queues.get(key) === settled) queues.delete(key);
+export function createSubjectStore({userDomain,yuanqiDomain,verifyDirectUserEvent,verifyBirthProfileConfirmation}){
+ if(!userDomain||!yuanqiDomain)throw new TypeError('both DSH subject domains are required');
+ if(typeof verifyDirectUserEvent!=='function'||typeof verifyBirthProfileConfirmation!=='function')throw new TypeError('host event verifiers are required');
+ const users=userDomain.table('identities'),births=userDomain.table('birth_profiles'),yuanqis=yuanqiDomain.table('identities');
+ const firstMessages=yuanqiDomain.table('first_user_messages'),wakes=yuanqiDomain.table('wake_records'),queues=new Map();
+ async function identity(table,kind,id,ref){requiredText(id,'subject_id');requiredText(ref,'created_from_event_ref');const v={subject_id:id,subject_kind:kind,identity_version:1,status:'active',created_from_event_ref:ref};return serializeByKey(queues,kind+':'+id,()=>putOnce(table,id,v,kind+' identity conflict'));}
+ async function recordFirstUserMessage({subject_id,direct_user_event}){
+  requiredText(subject_id,'subject_id');if(!yuanqis.get(subject_id))throw new Error('YuanQiSubject does not exist');
+  const e=verified(verifyDirectUserEvent,direct_user_event,'first-user-message'),fields=firstMessageFields(e);
+  return serializeByKey(queues,'first-user:'+subject_id,async()=>{const old=firstMessages.get(subject_id);if(old!==undefined)return clone(old);return putOnce(firstMessages,subject_id,{subject_id,subject_kind:'yuanqi',...fields,schema_version:1},'first user message lock conflict');});
+ }
+ async function recoverInitialWake({subject_id}){
+  requiredText(subject_id,'subject_id');if(!yuanqis.get(subject_id))throw new Error('YuanQiSubject does not exist');
+  const first=firstMessages.get(subject_id);if(!first||first.trigger_command===null)return undefined;
+  return serializeByKey(queues,'wake:'+subject_id,async()=>{const old=wakes.get(subject_id);if(old!==undefined)return clone(old);
+   const date=new Date(first.first_event_time);if(!Number.isFinite(date.getTime()))throw new TypeError('valid persisted DSH event time is required');
+   return putOnce(wakes,subject_id,{wake_record_id:'wake:'+subject_id,subject_id,subject_kind:'yuanqi',first_conversation_event_ref:first.first_event_id,first_session_id:first.first_session_id,first_event_seq:first.first_event_seq,wake_event_ref:first.first_event_id,trigger_command:first.trigger_command,occurred_at:date.toISOString(),schema_version:3},'wake record conflict');
   });
-}
-
-async function putOnce(table, key, value, conflictMessage) {
-  const existing = table.get(key);
-  if (existing !== undefined) {
-    if (JSON.stringify(existing) !== JSON.stringify(value)) throw new Error(conflictMessage);
-    return clone(existing);
-  }
-  await table.put(key, value);
-  return clone(table.get(key) ?? value);
-}
-
-function requireVerifiedEvent(verifier, event, purpose) {
-  const result = verifier(event, purpose);
-  if (!result || result.verified !== true) {
-    throw new Error('unverified DSH event: ' + purpose);
-  }
-  return result;
-}
-
-/**
- * Creates the YuanQi subject repository over two independently opened DSH
- * Storage Domain handles. Event verifiers must be supplied by the trusted
- * DSH integration layer; model-provided identifiers and claims are not proof.
- */
-export function createSubjectStore({
-  userDomain,
-  yuanqiDomain,
-  verifyDirectUserEvent,
-  verifyBirthProfileConfirmation,
-}) {
-  if (!userDomain || !yuanqiDomain) throw new TypeError('both DSH subject domains are required');
-  if (typeof verifyDirectUserEvent !== 'function' || typeof verifyBirthProfileConfirmation !== 'function') {
-    throw new TypeError('host event verifiers are required');
-  }
-
-  const users = userDomain.table('identities');
-  const births = userDomain.table('birth_profiles');
-  const yuanqis = yuanqiDomain.table('identities');
-  const wakes = yuanqiDomain.table('wake_records');
-  const queues = new Map();
-
-  async function createIdentity(table, kind, subjectId, eventRef) {
-    requiredText(subjectId, 'subject_id');
-    requiredText(eventRef, 'created_from_event_ref');
-    const record = {
-      subject_id: subjectId,
-      subject_kind: kind,
-      identity_version: 1,
-      status: 'active',
-      created_from_event_ref: eventRef,
-    };
-    return serializeByKey(queues, kind + ':' + subjectId, () =>
-      putOnce(table, subjectId, record, kind + ' identity conflict'));
-  }
-
-  return Object.freeze({
-    createUserSubject({ subject_id, created_from_event_ref }) {
-      return createIdentity(users, 'user', subject_id, created_from_event_ref);
-    },
-    createYuanQiSubject({ subject_id, created_from_event_ref }) {
-      return createIdentity(yuanqis, 'yuanqi', subject_id, created_from_event_ref);
-    },
-    getUserSubject(subjectId) {
-      requiredText(subjectId, 'subject_id');
-      const record = users.get(subjectId);
-      return record === undefined ? undefined : clone(record);
-    },
-    getYuanQiSubject(subjectId) {
-      requiredText(subjectId, 'subject_id');
-      const record = yuanqis.get(subjectId);
-      return record === undefined ? undefined : clone(record);
-    },
-    async confirmUserBirthProfile({ profile_id, subject_id, facts, confirmation_event }) {
-      requiredText(profile_id, 'profile_id');
-      requiredText(subject_id, 'subject_id');
-      if (!facts || typeof facts !== 'object' || Array.isArray(facts)) {
-        throw new TypeError('facts must be an object');
-      }
-      if (!users.get(subject_id)) throw new Error('UserSubject does not exist');
-
-      const event = requireVerifiedEvent(
-        verifyBirthProfileConfirmation,
-        confirmation_event,
-        'birth-profile-confirmation',
-      );
-      requiredText(event.event_id, 'confirmation_event.event_id');
-      const record = {
-        profile_id,
-        subject_id,
-        subject_kind: 'user',
-        facts: clone(facts),
-        confirmation_event_ref: event.event_id,
-        status: 'confirmed',
-      };
-      return serializeByKey(queues, 'birth:' + profile_id, () =>
-        putOnce(births, profile_id, record, 'birth profile conflict'));
-    },
-    async recordInitialWake({ subject_id, direct_user_event }) {
-      requiredText(subject_id, 'subject_id');
-      if (!yuanqis.get(subject_id)) throw new Error('YuanQiSubject does not exist');
-
-      const event = requireVerifiedEvent(verifyDirectUserEvent, direct_user_event, 'initial-wake');
-      if (event.is_first_conversation_user_message !== true) {
-        throw new Error('wake requires the first conversation user message');
-      }
-      const command = typeof event.text === 'string' ? event.text.trim() : '';
-      if (!COMMANDS.has(command)) {
-        throw new Error('wake command must exactly match 启动元气 or 启动元炁');
-      }
-      requiredText(event.event_id, 'wake event id');
-      requiredText(event.first_conversation_event_ref, 'first conversation event ref');
-      const occurredAt = new Date(event.occurred_at);
-      if (!Number.isFinite(occurredAt.getTime())) {
-        throw new TypeError('valid DSH event time is required');
-      }
-
-      const record = {
-        wake_record_id: 'wake:' + subject_id,
-        subject_id,
-        subject_kind: 'yuanqi',
-        first_conversation_event_ref: event.first_conversation_event_ref,
-        wake_event_ref: event.event_id,
-        trigger_command: command,
-        occurred_at: occurredAt.toISOString(),
-        schema_version: 2,
-      };
-      return serializeByKey(queues, 'wake:' + subject_id, async () => {
-        const existing = wakes.get(subject_id);
-        return existing === undefined
-          ? putOnce(wakes, subject_id, record, 'wake record conflict')
-          : clone(existing);
-      });
-    },
-    getUserBirthProfile(profileId) {
-      requiredText(profileId, 'profile_id');
-      const record = births.get(profileId);
-      return record === undefined ? undefined : clone(record);
-    },
-    getWakeRecord(subjectId) {
-      requiredText(subjectId, 'subject_id');
-      const record = wakes.get(subjectId);
-      return record === undefined ? undefined : clone(record);
-    },
-  });
+ }
+ return Object.freeze({
+  createUserSubject({subject_id,created_from_event_ref}){return identity(users,'user',subject_id,created_from_event_ref);},
+  createYuanQiSubject({subject_id,created_from_event_ref}){return identity(yuanqis,'yuanqi',subject_id,created_from_event_ref);},
+  getUserSubject(id){requiredText(id,'subject_id');const v=users.get(id);return v===undefined?undefined:clone(v);},
+  getYuanQiSubject(id){requiredText(id,'subject_id');const v=yuanqis.get(id);return v===undefined?undefined:clone(v);},
+  async confirmUserBirthProfile({profile_id,subject_id,facts,confirmation_event}){
+   requiredText(profile_id,'profile_id');requiredText(subject_id,'subject_id');if(!facts||typeof facts!=='object'||Array.isArray(facts))throw new TypeError('facts must be an object');
+   if(!users.get(subject_id))throw new Error('UserSubject does not exist');const e=verified(verifyBirthProfileConfirmation,confirmation_event,'birth-profile-confirmation');requiredText(e.event_id,'confirmation_event.event_id');
+   return serializeByKey(queues,'birth:'+profile_id,()=>putOnce(births,profile_id,{profile_id,subject_id,subject_kind:'user',facts:clone(facts),confirmation_event_ref:e.event_id,status:'confirmed'},'birth profile conflict'));
+  },
+  recordFirstUserMessage,recoverInitialWake,
+  async recordInitialWake(input){await recordFirstUserMessage(input);return recoverInitialWake({subject_id:input.subject_id});},
+  getFirstUserMessage(id){requiredText(id,'subject_id');const v=firstMessages.get(id);return v===undefined?undefined:clone(v);},
+  getUserBirthProfile(id){requiredText(id,'profile_id');const v=births.get(id);return v===undefined?undefined:clone(v);},
+  getWakeRecord(id){requiredText(id,'subject_id');const v=wakes.get(id);return v===undefined?undefined:clone(v);}
+ });
 }
