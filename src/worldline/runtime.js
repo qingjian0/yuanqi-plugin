@@ -308,7 +308,7 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
     let renewed;
     await heads.update(requiredText(worldline_id, 'worldline_id'), current => {
       assertLease(current, holder_id, fencing_token, now_ms);
-      renewed = { holder_id, fencing_token, expires_at_ms: now_ms + ttl_ms };
+      renewed = { holder_id, fencing_token, expires_at_ms: leaseExpiry(now_ms, ttl_ms) };
       return { ...current, runtime_lease: renewed };
     });
     return clone(renewed);
