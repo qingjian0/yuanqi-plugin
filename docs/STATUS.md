@@ -164,3 +164,19 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - 当前阶段不含证据自动可信度评分、冲突自动裁决、跨 Worldline 授权转移、转移回滚/审计，也没有将证据自动提升为事实。SelfModel 的证据引用目前仍由调用方提供；后续应在证据评估/状态提交边界校验引用有效性和撤销状态。
 - 本轮 CI 使用内存 Storage 适配器进行领域行为测试；不代表真实 DSH Storage 后端持久化、重启恢复、跨进程并发或 Android 宿主验收已经完成。
 - PR #3 仍为 Draft，目标分支 `dev`；`main` 未改动，未执行合并。
+
+
+## 11. 2026-11-06 P2 Evidence Evaluation / Transfer Authorization 阶段交付
+
+- YuanQiSubject Domain schema 升级至 v6，声明兼容 v3、v4、v5；新增 `evidence_assessments`、`transfer_authorizations`、`transfer_authorization_revocations`、`evidence_transfers`。
+- 新增 Evidence Assessment：支持 `corroborated`、`contradicted`、`insufficient` 三种评估结果，区分 `user`、`model`、`system` 评估者，保存理由、可选置信度、交叉证据引用和来源事件。评估记录不可覆盖；评估不自动把 SelfModel 状态升级为事实。
+- 评估记录读取时重新检查主证据与交叉证据是否仍有效；任一证据撤销或失效，评估状态返回 `stale`。
+- Snapshot CAS 与 SelfModel 更新现在校验全部相关证据引用必须属于当前 Worldline 且处于 active 状态。引用缺失、跨线或已撤销时拒绝提交。
+- 证据撤销与 Snapshot 提交/证据转移使用同一进程内证据状态串行队列，避免单实例并发窗口导致已撤销证据刚好被提交或转移。此保证不扩展为跨进程分布式锁。
+- 新增显式跨线转移授权：必须由直接用户事件授权，绑定同一 YuanQiSubject 的源线、目标线、明确 evidence ID 列表和最长 30 天的有效期；源线与目标线必须不同且均为 active。
+- 授权可由直接用户事件撤销。转移执行必须再次检查授权、有效期、授权范围和源证据状态；每个授权/evidence 组合形成确定性转移记录与审计事件。
+- 转移证据保留源证据引用链，不与源记录共享可变状态。源证据后续撤销时，目标线副本通过来源链动态呈现为 revoked；不会因为已复制而绕过源撤销。
+- 自动化新增评估、不可变评估、评估失效、缺失/跨线/撤销引用拒绝、明确授权、超范围拒绝、授权撤销、幂等转移、转移审计与源撤销传播测试。
+- GitHub Actions Run #142（`42237979374`）在代码提交 `4ebe43f968497d41823fe08625cd228410dc1ac4` 通过：Node.js 22，30 tests passed / 0 failed；包入口、DSH Domain 导出与全部源码语法检查通过。
+- 验证边界：当前证据评估是显式、不可变的结构化评估记录，不是外部事实核验服务；模型评估仍然是模型判断。授权、转移、撤销与提交的串行保护只在单个插件实例内成立。真实 DSH 后端、跨进程并发、重启恢复和 Android 宿主验收仍未完成。
+- PR #3 保持 Draft，目标分支 `dev`；未合并 `dev` 或 `main`。
