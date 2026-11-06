@@ -204,6 +204,7 @@ dsh plugin --profile web add ./dist/dsh-yuanqi-plugin-1.1.0-alpha.9.tgz
 
 - `@deepseek-ai/dsh-tools`：`>=0.2.2-rc.1 <0.3.0-0`
 - `@deepseek-ai/dsh-storage-domain`：`>=0.2.2-rc.1 <0.3.0-0`
+- `@deepseek-ai/dsh-session`：`>=0.2.2-rc.1 <0.3.0-0`
 - `@deepseek-ai/dsh-llm`：`>=0.2.2-rc.1 <0.3.0-0`
 
 这是与 DSH 0.2.2-rc.1 API 基线对齐的 peer dependency 范围，不代表范围内所有宿主版本均已通过真实运行验证。
