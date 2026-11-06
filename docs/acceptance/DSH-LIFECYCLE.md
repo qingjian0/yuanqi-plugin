@@ -63,6 +63,8 @@
 
 ## 当前自动化覆盖与未覆盖
 
+- PR #4 当前代码提交 `12bad3bbffaa755b1df330c3f3bd6baf3018f9b1` 已由 GitHub Actions Run #220（`42256698714`）通过：Node.js 22，48 tests passed / 0 failed；包根入口、DSH Domain 导出和源码语法检查均通过。此 CI 结果只证明仓库自动化测试，不代表真实 DSH 宿主验收。
+
 - 自动化覆盖：模拟 Storage Domain 跨 close/reopen 保留表数据、插件重载后重放同一直接用户事件、首次记录/唤醒/主线/Session 绑定/Head 不重复变化、第二个 Domain 打开失败时关闭第一个 Domain、插件初始化中途失败时关闭两个已打开 Domain、卸载等待在途写入、快失败仍被 Session flush 观察、unknown-state 后 fail-closed、合成 user-role context 排除。
 - 官方契约核对：DSH Domain 写入等待后端持久化后才更新内存；关闭排空已排队写入；`unknown-state` 隔离当前句柄。`session/event` 为 fire-and-forget，`session/flush` 为 awaited parallel checkpoint。
 - 未覆盖：真实 DSH Storage 后端的 fsync/事务语义、Android 进程被系统强杀、真实 Cordis 插件热卸载、跨进程/多进程竞争、真实设备和模型会话端到端。
