@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://yuanqi.invalid/contracts/domain/subject-and-self-model.schema.json",
+  "$id": "https://raw.githubusercontent.com/qingjian0/yuanqi-plugin/work/e00-20e-04-dual-subject-contracts/contracts/domain/subject-and-self-model.schema.json",
   "title": "YuanQi Subject and Self Model Domain Contracts",
   "description": "Logical domain contracts for UserSubject, YuanQiSubject, internal centers, isolated worldlines and evidence-backed state. Not yet a runtime implementation.",
   "$defs": {
@@ -581,7 +581,9 @@
         "target_worldline_id",
         "issued_at_event_ref",
         "expires_at_event_ref",
-        "status"
+        "status",
+        "grantor_subject_kind",
+        "grantee_subject_kind"
       ],
       "properties": {
         "authorization_id": {
@@ -627,6 +629,12 @@
             "revoked",
             "expired"
           ]
+        },
+        "grantor_subject_kind": {
+          "const": "user"
+        },
+        "grantee_subject_kind": {
+          "const": "yuanqi"
         }
       }
     },
