@@ -9,9 +9,9 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
   if (!userDomain || !yuanqiDomain) throw new TypeError('both DSH subject domains are required');
   if (typeof verifyDirectUserEvent !== 'function' || typeof verifyBirthProfileConfirmation !== 'function') throw new TypeError('host event verifiers are required');
   const users = userDomain.table('identities');
-  const births = userDomain.table('birth-profiles');
+  const births = userDomain.table('birth_profiles');
   const yuanqis = yuanqiDomain.table('identities');
-  const wakes = yuanqiDomain.table('wake-records');
+  const wakes = yuanqiDomain.table('wake_records');
   async function create(table, kind, id, eventRef) {
     text(id, 'subject_id'); text(eventRef, 'created_from_event_ref');
     const record = { subject_id: id, subject_kind: kind, identity_version: 1, status: 'active', created_from_event_ref: eventRef };

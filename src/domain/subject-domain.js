@@ -10,7 +10,6 @@ function identitySchema(kind) {
     created_from_event_ref: z.string().min(1),
   }).strict();
 }
-
 const userIdentity = identitySchema('user');
 const yuanqiIdentity = identitySchema('yuanqi');
 
@@ -35,15 +34,14 @@ const wakeRecord = z.object({
 }).strict();
 
 export const userSubjectDomainSpec = defineDomain({
-  name: 'yuanqi-user-subject',
+  name: 'yuanqi_user_subject',
   version: 1,
-  tables: { identities: domainTable(userIdentity), 'birth-profiles': domainTable(birthProfile) },
+  tables: { identities: domainTable(userIdentity), birth_profiles: domainTable(birthProfile) },
 });
-
 export const yuanqiSubjectDomainSpec = defineDomain({
-  name: 'yuanqi-subject',
+  name: 'yuanqi_subject',
   version: 1,
-  tables: { identities: domainTable(yuanqiIdentity), 'wake-records': domainTable(wakeRecord) },
+  tables: { identities: domainTable(yuanqiIdentity), wake_records: domainTable(wakeRecord) },
 });
 
 export async function openSubjectDomains(storageDomain) {
@@ -51,11 +49,7 @@ export async function openSubjectDomains(storageDomain) {
   const userDomain = await storageDomain.open(userSubjectDomainSpec);
   try {
     const yuanqiDomain = await storageDomain.open(yuanqiSubjectDomainSpec);
-    return {
-      userDomain,
-      yuanqiDomain,
-      async close() { await Promise.all([userDomain.close(), yuanqiDomain.close()]); },
-    };
+    return { userDomain, yuanqiDomain, async close() { await Promise.all([userDomain.close(), yuanqiDomain.close()]); } };
   } catch (error) {
     await userDomain.close();
     throw error;
