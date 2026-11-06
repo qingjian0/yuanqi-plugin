@@ -479,3 +479,39 @@ test('transfer authorization is revocable, time-limited and audited', async () =
     transferred_from_event:hostEvent('transfer-expired'),now_ms:now+70000,
   }),/authorization has been revoked/);
 });
+
+
+test('user-confirmed SelfModel state requires a verified direct-user event', async () => {
+  const {store}=await setup();
+  await mainline(store);
+  await seedEvidence(store,'evidence:user-confirmed');
+  const lease=await store.acquireRuntimeLease({worldline_id:'worldline:main',holder_id:'runtime-confirm',now_ms:now,ttl_ms:10000});
+  await assert.rejects(store.updateSelfModelCenter({
+    worldline_id:'worldline:main',holder_id:'runtime-confirm',fencing_token:lease.fencing_token,
+    expected_snapshot_version:0,center_id:'identity_continuity',content:{statement:'confirmed'},
+    evidence_refs:['evidence:user-confirmed'],epistemic_status:'user_confirmed',
+    source_event_ref:'model-generated-event',
+    confirmation_event:{...hostEvent('not-a-user-confirmation'),source_kind:'host_event'},now_ms:now+1,
+  }),/verified direct user event/);
+  const result=await store.updateSelfModelCenter({
+    worldline_id:'worldline:main',holder_id:'runtime-confirm',fencing_token:lease.fencing_token,
+    expected_snapshot_version:0,center_id:'identity_continuity',content:{statement:'confirmed'},
+    evidence_refs:['evidence:user-confirmed'],epistemic_status:'user_confirmed',
+    source_event_ref:'self-model-update',
+    confirmation_event:hostEvent('actual-user-confirmation'),now_ms:now+2,
+  });
+  assert.equal(result.center.epistemic_status,'user_confirmed');
+  assert.equal(result.center.confirmation_event_ref,'actual-user-confirmation');
+  const next=structuredClone(store.getHead('worldline:main').current_state_payload);
+  next.self_model.centers.cognition_reflection.content={note:'unrelated change'};
+  await store.commitSnapshot({
+    worldline_id:'worldline:main',holder_id:'runtime-confirm',fencing_token:lease.fencing_token,
+    expected_snapshot_version:1,state_payload:next,source_event_ref:'unrelated-snapshot',now_ms:now+3,
+  });
+  const forged=structuredClone(store.getHead('worldline:main').current_state_payload);
+  forged.self_model.centers.identity_continuity.content={statement:'silently changed'};
+  await assert.rejects(store.commitSnapshot({
+    worldline_id:'worldline:main',holder_id:'runtime-confirm',fencing_token:lease.fencing_token,
+    expected_snapshot_version:2,state_payload:forged,source_event_ref:'forged-confirmation-change',now_ms:now+4,
+  }),/direct-user confirmation path/);
+});
