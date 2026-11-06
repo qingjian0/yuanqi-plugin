@@ -15,7 +15,7 @@ const wakeRecord=z.object({
  wake_event_ref:z.string().min(1), trigger_command:z.enum(['启动元气','启动元炁']), occurred_at:z.string().datetime(), schema_version:z.literal(3),
 }).strict();
 export const userSubjectDomainSpec=defineDomain({name:'yuanqi_user_subject',version:1,tables:{identities:domainTable(identitySchema('user')),birth_profiles:domainTable(birthProfile)}});
-export const yuanqiSubjectDomainSpec=defineDomain({name:'yuanqi_subject',version:1,tables:{identities:domainTable(identitySchema('yuanqi')),first_user_messages:domainTable(firstUserMessage),wake_records:domainTable(wakeRecord)}});
+export const yuanqiSubjectDomainSpec=defineDomain({name:'yuanqi_subject',version:2,tables:{identities:domainTable(identitySchema('yuanqi')),first_user_messages:domainTable(firstUserMessage),wake_records:domainTable(wakeRecord)}});
 export async function openSubjectDomains(storageDomain) {
  if(!storageDomain||typeof storageDomain.open!=='function') throw new TypeError('DSH storageDomain is required');
  const userDomain=await storageDomain.open(userSubjectDomainSpec);
