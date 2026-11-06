@@ -30,7 +30,7 @@ function memoryDomain(names) {
 async function setup() {
   const yuanqiDomain = memoryDomain([
     'identities','worldlines','worldline_mainlines','worldline_snapshots',
-    'worldline_events','session_worldline_bindings','worldline_heads',
+    'worldline_events','session_worldline_bindings','worldline_heads','evidence_records','evidence_revocations',
   ]);
   await yuanqiDomain.table('identities').put('yuanqi-1',{subject_id:'yuanqi-1',subject_kind:'yuanqi'});
   const store = createWorldlineStore({
@@ -227,4 +227,88 @@ test('a fenced-out runtime cannot commit after a new holder acquires the lease',
     expected_snapshot_version:0,state_payload:state,source_event_ref:'stale-writer',now_ms:now+1001,
   }),/expired, or fenced/);
   assert.equal(store.getHead('worldline:main').runtime_lease.fencing_token,newLease.fencing_token);
+});
+
+
+test('Evidence Ledger is immutable, Worldline-scoped, and revocation is append-only', async () => {
+  const {store}=await setup();
+  await mainline(store);
+  await store.forkWorldline({
+    yuanqi_subject_id:'yuanqi-1',parent_worldline_id:'worldline:main',
+    target_worldline_id:'worldline:child',base_snapshot_version:0,
+    created_from_event:hostEvent('evidence-fork'),
+  });
+  const captured=await store.recordEvidence({
+    evidence_id:'evidence:main:1',yuanqi_subject_id:'yuanqi-1',
+    worldline_id:'worldline:main',evidence_type:'user_statement',
+    content:{statement:'用户明确表达的一条陈述'},
+    provenance:{channel:'dsh-session-event',event_sequence:17},
+    captured_from_event:hostEvent('evidence-source'),
+  });
+  assert.equal(captured.evidence_id,'evidence:main:1');
+  assert.equal(store.getEvidenceRecord({evidence_id:'evidence:main:1',worldline_id:'worldline:main'}).status,'active');
+  assert.equal(store.getEvidenceRecord({evidence_id:'evidence:main:1',worldline_id:'worldline:child'}),undefined);
+  assert.deepEqual(await store.recordEvidence({
+    evidence_id:'evidence:main:1',yuanqi_subject_id:'yuanqi-1',
+    worldline_id:'worldline:main',evidence_type:'user_statement',
+    content:{statement:'用户明确表达的一条陈述'},
+    provenance:{channel:'dsh-session-event',event_sequence:17},
+    captured_from_event:hostEvent('evidence-source'),
+  }),captured);
+  await assert.rejects(store.recordEvidence({
+    evidence_id:'evidence:main:1',yuanqi_subject_id:'yuanqi-1',
+    worldline_id:'worldline:main',evidence_type:'user_statement',
+    content:{statement:'被篡改的内容'},
+    provenance:{channel:'dsh-session-event',event_sequence:17},
+    captured_from_event:hostEvent('evidence-source'),
+  }),/immutable provenance/);
+  await assert.rejects(store.revokeEvidence({
+    evidence_id:'evidence:main:1',worldline_id:'worldline:main',
+    reason:'用户要求撤销',revoked_from_event:hostEvent('host-revoke',now+1),
+  }),/direct user event/);
+  const revoked=await store.revokeEvidence({
+    evidence_id:'evidence:main:1',worldline_id:'worldline:main',
+    reason:'用户要求撤销',revoked_from_event:hostEvent('user-revoke',now+2),
+  });
+  assert.equal(revoked.revoked_from_event_ref,'user-revoke');
+  const view=store.getEvidenceRecord({evidence_id:'evidence:main:1',worldline_id:'worldline:main'});
+  assert.equal(view.status,'revoked');
+  assert.equal(view.record.content.statement,'用户明确表达的一条陈述');
+  assert.equal(view.revocation.reason,'用户要求撤销');
+  assert.deepEqual(await store.revokeEvidence({
+    evidence_id:'evidence:main:1',worldline_id:'worldline:main',
+    reason:'用户要求撤销',revoked_from_event:hostEvent('user-revoke',now+2),
+  }),revoked);
+  await assert.rejects(store.revokeEvidence({
+    evidence_id:'evidence:main:1',worldline_id:'worldline:main',
+    reason:'另一个撤销原因',revoked_from_event:hostEvent('user-revoke-2',now+3),
+  }),/different revocation record/);
+  await assert.rejects(store.revokeEvidence({
+    evidence_id:'evidence:main:1',worldline_id:'worldline:child',
+    reason:'跨线撤销',revoked_from_event:hostEvent('user-revoke-3',now+4),
+  }),/requested Worldline scope/);
+});
+
+test('Evidence Ledger rejects inactive or cross-subject Worldline writes', async () => {
+  const {store,yuanqiDomain}=await setup();
+  await mainline(store);
+  await yuanqiDomain.table('worldlines').put('worldline:archived',{
+    worldline_id:'worldline:archived',yuanqi_subject_id:'yuanqi-1',
+    status:'archived',created_from_event_ref:'archive-event',
+  });
+  await assert.rejects(store.recordEvidence({
+    evidence_id:'evidence:archived',yuanqi_subject_id:'yuanqi-1',
+    worldline_id:'worldline:archived',evidence_type:'observation',
+    content:{value:1},captured_from_event:hostEvent('archived-evidence'),
+  }),/active Worldline/);
+  await assert.rejects(store.recordEvidence({
+    evidence_id:'evidence:wrong-subject',yuanqi_subject_id:'other-subject',
+    worldline_id:'worldline:main',evidence_type:'observation',
+    content:{value:1},captured_from_event:hostEvent('wrong-subject-evidence'),
+  }),/does not exist/);
+  await assert.rejects(store.recordEvidence({
+    evidence_id:'evidence:bad-content',yuanqi_subject_id:'yuanqi-1',
+    worldline_id:'worldline:main',evidence_type:'observation',
+    content:'not-an-object',captured_from_event:hostEvent('bad-content'),
+  }),/must be an object/);
 });
