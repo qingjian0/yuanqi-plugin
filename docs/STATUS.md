@@ -9,11 +9,11 @@
 
 | 项目 | 状态 | 说明 |
 |---|---|---|
-| 自动化测试 | GitHub Actions 通过 | PR #3 当前工作分支 40 passed / 0 failed（Run #185）；测试使用内存 Storage Domain 适配器 |
-| JavaScript 语法检查 | GitHub Actions 通过 | Run #185 的 `npm run check` 通过 |
-| npm 安装包构建与归档检查 | 归档隔离复验通过 | `npm pack --dry-run` 成功，26 个发布文件 |
+| 自动化测试 | P4 基线通过；P5/P6 待 CI | P4 代码提交 `eb992ac38288e34bb38b7f7052c18cffe0c0f370`：41 passed / 0 failed（Run #193）；PR #4 新增的生命周期/恢复测试尚未观察到 CI 结果 |
+| JavaScript 语法检查 | P4 基线通过；P5/P6 待 CI | Run #193 的 `npm run check` 通过；PR #4 最新代码尚未确认 |
+| npm 安装包构建与归档检查 | 归档隔离复验通过 | 历史隔离复验 `npm pack --dry-run` 成功，26 个发布文件；不代表当前分支重新构建通过 |
 | 解压后入口导入检查 | 归档隔离复验通过 | 20/20 个本地导入目标存在；GitHub `dev` 导入待完成 |
-| GitHub Actions CI | 已建立并通过 | `work/e00-20-05b-subject-domain-runtime` 分支 Run #185 通过；PR #3 仍为 Draft |
+| GitHub Actions CI | P4 已验证；P5/P6 待验证 | PR #4 分支 `work/e00-20-06-p5-dsh-lifecycle-recovery`；当前提交尚无可确认的 Actions run/status |
 | 真实 Android DSH 宿主安装与运行 | 待验收 | 尚无真实宿主验收结论 |
 | 真实模型会话端到端 | 待验收 | 不以模拟宿主测试代替 |
 | Android/iOS 端到端 | 待验收 | 尚未完成 |
@@ -208,3 +208,15 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - 本阶段不使用 SHA-256，不声称归档内容具有密码学防篡改能力；当前保证是基于 Storage Domain 不可变写入约束、确定性键、清单链与一致性审计。真实后端的持久化与故障语义仍需宿主验收。
 - 快照归档目前是显式 API，不会在后台自动触发；归档保留策略、容量阈值和后台维护调度仍未定义。
 - P4 代码和测试已推送至 PR #3 分支；CI 最新提交结果待确认。PR #3 保持 Draft，目标 `dev`；`main` 未修改、未合并。
+
+
+## 14. 2026-11-07 P6 DSH Storage 契约核对与故障关闭
+
+- 对照 DeepSeek Harness 官方当前源码与文档核对 `@deepseek-ai/dsh-storage-domain`：每个 Domain 具有单独写队列；写入先等待后端持久化，再更新内存并发出 `domain/changed`；关闭会立即拒绝新写入、排空已排队写入、关闭后端单元；关闭操作幂等。`unknown-state` 会隔离 Domain 的读取和后续写入，必须关闭并重新打开。参考官方仓库：`packages/storage/storage-domain/src/domain.ts`、`packages/storage/storage-domain/src/index.ts`、`packages/storage/storage/src/error.ts`。
+- 核对 `@deepseek-ai/dsh-session`：`session/event` 是 post-commit、fire-and-forget feed；`session/flush` 是 awaited parallel durability checkpoint。`user/message` 事件不等于直接人类输入；注入上下文同样使用 user-role 消息，必须通过 `event.data.source.kind === 'user'` 区分。YuanQi 的归一化器只接受该直接来源，新增回归测试覆盖 `source.kind === 'plugin'` 的合成上下文不会锁定首次用户消息。
+- 修复 flush 错误可能丢失的问题：此前任务一旦快速 settle 就从 `pendingBySession` 删除，若它在 `session/flush` 开始前失败，后续 flush 可能看不到失败。现在保留任务直到 flush drain 消费，使用 `Promise.allSettled` 收集失败，并由 flush 返回 `AggregateError`；任务在后台先附加 rejection handler，避免 fire-and-forget 事件产生未处理拒绝。
+- 增加 `unknown-state` fail-closed：一旦任一 Storage Domain 写入报告稳定错误码 `unknown-state`，插件停止处理后续消息并记录要求 unload/reload 的警告。不会在旧句柄仍被隔离时自动继续写入，也不会尝试在同一插件实例内偷偷重开 Domain。卸载时等待在途任务结束后关闭两个 Domain。
+- P6 自动化测试新增/扩展覆盖：真实契约形状的 per-Domain write queue、插件卸载等待在途写入、快失败仍被后续 Session flush 观察、unknown-state 后停止新写入、合成 user-role context 不被认作直接人类消息、重启重放幂等和第二个 Domain 打开失败时清理第一个 Domain。
+- P6 代码提交已推送到 PR #4 分支；**尚未观察到该提交的 GitHub Actions 运行结果**。本执行环境无法连接目标 Android/DSH 设备，不能执行真实后端 fsync、系统强杀、真实热卸载或多进程竞争。P4 的 41 项 CI 结果不代表 P5/P6 新增测试已通过。
+- P5/P6 当前仍是模拟 Storage Domain 契约测试，不宣称真实宿主验收完成。若真实后端返回 `unknown-state`，恢复流程是插件卸载/释放旧 Domain，再重新加载并让 Storage Domain 在 open 时重新读取、校验全部记录；不进行自动数据修补，不重建缺失证据。
+- PR #4 保持 Draft、base 为 `dev`；PR #3 未修改；未合并 `dev` 或 `main`。
