@@ -2,6 +2,7 @@
 export {
   createSubjectStore,
   createWorldlineStore,
+  SELF_MODEL_CENTER_IDS,
   openSubjectDomains,
   userSubjectDomainSpec,
   yuanqiSubjectDomainSpec,
