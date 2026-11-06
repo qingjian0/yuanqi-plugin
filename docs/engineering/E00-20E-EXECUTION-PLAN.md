@@ -90,7 +90,7 @@
 - UserSubject 与 YuanQiSubject 使用两个独立 DSH Storage Domain。
 - 出生资料仅归 UserSubject，并要求可信确认事件回调。
 - YuanQi 唤醒记录仅归 YuanQiSubject，要求可信 direct-user 事件、首条会话用户消息、精确启动口令及 DSH 事件时间。
-- GitHub Actions 已建立；最新运行 `42216613430` 在 commit `c426f4e09cb68342a461a989045fe5490401a3ec` 上成功，6 项测试通过。
+- GitHub Actions 已建立；最新运行 `42217229634` 在 commit `aef37c430c54d5119d1c916cbcf899d9b10d6ab4` 上成功，6 项测试通过。
 
 **当前限制：** 事件验证回调尚未连接真实 DSH 消息事件；Storage Domain 后端真实持久化、Cordis 生命周期集成、根入口整体导入和真实宿主验收仍未通过。PR #3 保持 Draft。
 

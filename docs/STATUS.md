@@ -127,7 +127,7 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - 用户已明确决定：**不恢复 alpha.9 历史源码归档**。不导入历史 19 个模块、17 个测试文件或 5 个夹具；历史归档只保留为历史证据，不作为当前代码恢复来源。
 - 当前开发基线为 `dev`，审计 Tree SHA：`36f1a2a48a85f0d406a7cf045752de9862116eb6`。该 Tree 有 34 个条目；`index.js` 仍引用 19 个当前 Tree 中不存在的模块。当前分支不得描述为完整、可安装的 alpha.9 源码快照。
 - 新实现工作位于 Draft PR #3：`work/e00-20e-05b-subject-domain-runtime`。新增 UserSubject / YuanQiSubject 独立 DSH Storage Domain、主体仓储、出生资料显式确认边界、首次启动口令记录、包子路径入口和 Node 测试。
-- 最新 CI：commit `c426f4e09cb68342a461a989045fe5490401a3ec`，GitHub Actions run `42216613430`，Node.js 22；依赖安装成功（24 packages，0 vulnerabilities），DSH Storage Domain 声明导入成功，6 项测试通过、0 项失败。
+- 最新 CI：commit `aef37c430c54d5119d1c916cbcf899d9b10d6ab4`，GitHub Actions run `42217229634`，Node.js 22；依赖安装成功（24 packages，0 vulnerabilities），DSH Storage Domain 声明导入成功，6 项测试通过、0 项失败。
 - 当前验证范围仅覆盖领域声明导入、内存表适配测试和核心规则；没有真实 DSH 宿主后端持久化验收。事件验证回调仍须由可信 DSH 插件集成层实现；当前新领域 API 尚未接入 Cordis 插件生命周期或根入口。
 - SelfModel 五中心、Worldline 分支隔离、Evidence Ledger、跨线授权转移、CAS 状态提交和真实宿主验收均未完成。
 - PR #3 保持 Draft，不合并 `dev` 或 `main`，直至后续验收完成。
