@@ -9,11 +9,11 @@
 
 | 项目 | 状态 | 说明 |
 |---|---|---|
-| 自动化测试 | P7 CI 通过 | P7 Run #233（`42267042954`）：48 passed / 0 failed（Node.js 24.9.0；四个 DSH peer packages 均解析为 `0.2.2-rc.1`） |
-| JavaScript 语法检查 | P7 CI 通过 | Run #233 的 `npm run check` 通过，包含真实 Storage Domain 导出检查、包根入口导入和源码语法检查 |
+| 自动化测试 | P7 CI 通过 | P7 Run #244（`42267482824`）：50 passed / 0 failed（Node.js 24.9.0；四个 DSH peer packages 均解析为 `0.2.2-rc.1`） |
+| JavaScript 语法检查 | P7 CI 通过 | Run #244 的 `npm run check` 通过，包含真实 Storage Domain 导出检查、包根入口导入和源码语法检查 |
 | npm 安装包构建与归档检查 | 归档隔离复验通过 | 历史隔离复验 `npm pack --dry-run` 成功，26 个发布文件；不代表当前分支重新构建通过 |
 | 解压后入口导入检查 | 归档隔离复验通过 | 20/20 个本地导入目标存在；GitHub `dev` 导入待完成 |
-| GitHub Actions CI | P7 已验证 | PR #4 分支 `work/e00-20-06-p5-dsh-lifecycle-recovery`；Run #233（`42267042954`）成功，PR 仍为 Draft |
+| GitHub Actions CI | P7 已验证 | PR #4 分支 `work/e00-20-06-p5-dsh-lifecycle-recovery`；Run #244（`42267482824`）成功，PR 仍为 Draft |
 | 真实 Android DSH 宿主安装与运行 | 待验收 | 尚无真实宿主验收结论 |
 | 真实模型会话端到端 | 待验收 | 不以模拟宿主测试代替 |
 | Android/iOS 端到端 | 待验收 | 尚未完成 |
@@ -227,7 +227,8 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - 核对 DSH 官方仓库当前 `master` 根 `package.json`：版本 `0.2.2-rc.1`，`engines.node` 为 `>=24.9.0`。因此旧 YuanQi `>=22` 声明不足以代表当前 DSH 目标运行时；P7 将 YuanQi Node 要求调整为 `>=24.9.0`，CI Node 调整为 `24.9.0`。
 - 核对 DSH 官方包清单：`@deepseek-ai/dsh-storage-domain`、`@deepseek-ai/dsh-session`、`@deepseek-ai/dsh-tools`、`@deepseek-ai/dsh-llm` 当前源码版本均为 `0.2.2-rc.1`。peer dependency 下限由 `>=0.2.0-0` 提升为 `>=0.2.2-rc.1`，上限保持 `<0.3.0-0`，避免把未核对的早期 0.2.x 版本宣称为兼容目标。
 - 核对 Storage Domain 实际公开 API：`defineDomain`、`domainTable`、`DomainError`；`Domain.table()` 返回同步读/异步写的 KV 表，支持 `put`、`update`，`Domain.close()` 是异步幂等关闭。现有 YuanQi schema 声明与 `defineDomain` / `domainTable` 用法匹配官方 `0.2.2-rc.1` 源码。
+- 新增 `test/dsh/real-domain-contract.test.js`，直接调用 npm 安装的真实 `DomainFacility` 和 `DomainImpl`，验证 Domain 层的 `put` / `update`、`domain/changed`、关闭后重开读取、`unknown-state` quarantine 和 close/reopen 恢复。测试 backend 是符合 DSH `KvUnit` 形状的内存适配器，因此验证的是实际 DSH Domain 实现，不是生产后端的 fsync 或磁盘持久化。
 - 核对 Session API：`session/flush` 是 `SessionStore.flush(session)` 调度的 awaited durability barrier；当前事件监听器必须保持异步任务排空行为。宿主真实调用链仍需实际集成验收。
-- CI 已改为 Node.js `24.9.0`，安装后执行四个 peer package 的 `npm ls`，并检查真实 Storage Domain 导出；上述改动已由 GitHub Actions Run #233（`42267042954`）验证：Node.js 24.9.0，四个 peer package 均实际解析为 `0.2.2-rc.1`，Storage Domain API 导出检查通过，48 tests passed / 0 failed。
+- CI 已改为 Node.js `24.9.0`，安装后执行四个 peer package 的 `npm ls`，并检查真实 Storage Domain 导出；GitHub Actions Run #244（`42267482824`）验证：Node.js 24.9.0，四个 peer package 均实际解析为 `0.2.2-rc.1`，Storage Domain API 导出检查通过，50 tests passed / 0 failed。新增两项测试直接调用真实 `DomainFacility` / `DomainImpl`：验证持久写入、close/reopen 后读取，以及 `unknown-state` 隔离到 close/reopen 后恢复。底层 KV backend 仍为契约模拟适配器，不是 DSH 生产 JSON/SQLite backend。
 - 仍未执行真实 Android DSH 安装、Cordis Loader 插件生命周期、真实 JSON/SQLite backend 重启与强杀恢复；不得将 package import 或模拟适配器测试标记为宿主验收。
 - CI 日志仍有非阻断项：`actions/checkout@v4` 与 `actions/setup-node@v4` 使用 Node.js 20 运行环境警告，`punycode` 依赖弃用警告；不影响本次成功结果。后续可单独升级 Actions 主版本并复验。不涉及 SHA-256；PR #4 继续 Draft，base `dev`，不合并 PR #3、`dev` 或 `main`。
