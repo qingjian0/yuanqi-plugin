@@ -2,6 +2,14 @@
 
 本清单用于真实 DSH 宿主验收。自动化内存适配器测试不能替代本清单，也不能据此宣称真实 Storage Domain 已通过。
 
+## 目标兼容性基线（P7）
+
+- DSH 仓库当前版本：`0.2.2-rc.1`。
+- DSH 根包 `engines.node`：`>=24.9.0`。
+- YuanQi peer dependencies 的最低声明基线：`0.2.2-rc.1`，上限 `<0.3.0-0`。
+- CI 应在 Node.js `24.9.0` 上安装并解析四个 peer packages，再执行包入口、Storage Domain API、语法和自动化测试。
+- 以上是包/API 兼容性验证基线，不等同于真实 Android DSH 宿主验收。
+
 ## 验收前必须记录
 
 - DSH 精确版本与构建号：
@@ -63,7 +71,7 @@
 
 ## 当前自动化覆盖与未覆盖
 
-- PR #4 当前代码提交 `12bad3bbffaa755b1df330c3f3bd6baf3018f9b1` 已由 GitHub Actions Run #220（`42256698714`）通过：Node.js 22，48 tests passed / 0 failed；包根入口、DSH Domain 导出和源码语法检查均通过。此 CI 结果只证明仓库自动化测试，不代表真实 DSH 宿主验收。
+- PR #4 当前代码提交 `12bad3bbffaa755b1df330c3f3bd6baf3018f9b1` 已由 GitHub Actions Run #220（`42256698714`）通过：Node.js 22，48 tests passed / 0 failed（历史 P6 Run #220；P7 Node.js 24.9.0 新运行结果待 CI 确认）；包根入口、DSH Domain 导出和源码语法检查均通过。此 CI 结果只证明仓库自动化测试，不代表真实 DSH 宿主验收。
 
 - 自动化覆盖：模拟 Storage Domain 跨 close/reopen 保留表数据、插件重载后重放同一直接用户事件、首次记录/唤醒/主线/Session 绑定/Head 不重复变化、第二个 Domain 打开失败时关闭第一个 Domain、插件初始化中途失败时关闭两个已打开 Domain、卸载等待在途写入、快失败仍被 Session flush 观察、unknown-state 后 fail-closed、合成 user-role context 排除。
 - 官方契约核对：DSH Domain 写入等待后端持久化后才更新内存；关闭排空已排队写入；`unknown-state` 隔离当前句柄。`session/event` 为 fire-and-forget，`session/flush` 为 awaited parallel checkpoint。
