@@ -159,8 +159,8 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - `recordEvidence` 只接受同一 YuanQiSubject 下的活动 Worldline，并将证据 ID、证据类型、结构化内容、来源类型、来源事件引用、采集时间与 provenance 固化为不可变记录。相同 ID 的完全相同写入幂等；相同 ID 的内容或来源冲突拒绝覆盖。
 - `getEvidenceRecord` 要求明确提供 Worldline 范围；跨 Worldline 查询返回 undefined，不提供隐式共享。
 - `revokeEvidence` 要求经过可信验证的直接用户事件；撤销写入独立追加记录，不修改或删除原始证据。重复相同撤销幂等，不同撤销内容冲突拒绝。
-- 自动化覆盖证据不可变、幂等、Worldline 隔离、活动线约束、主体归属校验、来源事件类型与撤销追加记录。
-- GitHub Actions Run #118（`42233183397`）在提交 `0c363b9f4569e5665077f13286c4a56ce0d8cdf6` 通过：Node.js 22，25 tests passed / 0 failed；包入口和 DSH Domain 导出检查、全部源码语法检查均通过。此前 Run #114 暴露两个测试断言问题，已修正并由 Run #118 重新验证。
+- 自动化覆盖证据不可变、幂等、并发冲突 ID 串行化、Worldline 隔离、活动线约束、主体归属校验、来源事件类型与撤销追加记录。
+- GitHub Actions Run #124（`42233394151`）在最终代码提交 `c30c39c885b3a277ce5df93d53dc67fbf780175c` 通过：Node.js 22，26 tests passed / 0 failed；包入口和 DSH Domain 导出检查、全部源码语法检查均通过。此前 Run #114 暴露两个测试断言问题，已修正并由 Run #118 重新验证。
 - 当前阶段不含证据自动可信度评分、冲突自动裁决、跨 Worldline 授权转移、转移回滚/审计，也没有将证据自动提升为事实。SelfModel 的证据引用目前仍由调用方提供；后续应在证据评估/状态提交边界校验引用有效性和撤销状态。
 - 本轮 CI 使用内存 Storage 适配器进行领域行为测试；不代表真实 DSH Storage 后端持久化、重启恢复、跨进程并发或 Android 宿主验收已经完成。
 - PR #3 仍为 Draft，目标分支 `dev`；`main` 未改动，未执行合并。
