@@ -27,12 +27,12 @@ function memoryDomain(names) {
     };
   }};
 }
-function setup() {
+async function setup() {
   const yuanqiDomain = memoryDomain([
     'identities','worldlines','worldline_mainlines','worldline_snapshots',
     'worldline_events','session_worldline_bindings','worldline_heads',
   ]);
-  yuanqiDomain.table('identities').put('yuanqi-1',{subject_id:'yuanqi-1',subject_kind:'yuanqi'});
+  await yuanqiDomain.table('identities').put('yuanqi-1',{subject_id:'yuanqi-1',subject_kind:'yuanqi'});
   const store = createWorldlineStore({
     yuanqiDomain,
     verifyHostEvent(event) { return event?.verified === true ? event : null; },
@@ -51,7 +51,7 @@ async function mainline(store) {
 const now = 1793966400000;
 
 test('one YuanQiSubject gets one idempotent mainline with all five SelfModel centers', async () => {
-  const {store,yuanqiDomain}=setup();
+  const {store,yuanqiDomain}=await setup();
   const first=await mainline(store);
   const again=await store.createMainline({
     yuanqi_subject_id:'yuanqi-1',worldline_id:'ignored-mainline',
@@ -64,7 +64,7 @@ test('one YuanQiSubject gets one idempotent mainline with all five SelfModel cen
 });
 
 test('fork preserves the parent snapshot reference and starts an independent local SelfModel', async () => {
-  const {store}=setup();
+  const {store}=await setup();
   await mainline(store);
   const child=await store.forkWorldline({
     yuanqi_subject_id:'yuanqi-1',parent_worldline_id:'worldline:main',
