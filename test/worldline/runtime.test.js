@@ -264,7 +264,7 @@ test('Evidence Ledger is immutable, Worldline-scoped, and revocation is append-o
   }),/immutable provenance/);
   await assert.rejects(store.revokeEvidence({
     evidence_id:'evidence:main:1',worldline_id:'worldline:main',
-    reason:'用户要求撤销',revoked_from_event:hostEvent('host-revoke',now+1),
+    reason:'用户要求撤销',revoked_from_event:{...hostEvent('host-revoke',now+1),source_kind:'host_event'},
   }),/direct user event/);
   const revoked=await store.revokeEvidence({
     evidence_id:'evidence:main:1',worldline_id:'worldline:main',
