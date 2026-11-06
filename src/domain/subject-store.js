@@ -18,7 +18,7 @@ export function createSubjectStore({userDomain,yuanqiDomain,verifyDirectUserEven
  if(typeof verifyDirectUserEvent!=='function'||typeof verifyBirthProfileConfirmation!=='function')throw new TypeError('host event verifiers are required');
  const users=userDomain.table('identities'),births=userDomain.table('birth_profiles'),yuanqis=yuanqiDomain.table('identities');
  const firstMessages=yuanqiDomain.table('first_user_messages'),wakes=yuanqiDomain.table('wake_records'),queues=new Map();
- async function identity(table,kind,id,ref){requiredText(id,'subject_id');requiredText(ref,'created_from_event_ref');const v={subject_id:id,subject_kind:kind,identity_version:1,status:'active',created_from_event_ref:ref};return serializeByKey(queues,kind+':'+id,()=>putOnce(table,id,v,kind+' identity conflict'));}
+ async function identity(table,kind,id,ref){requiredText(id,'subject_id');requiredText(ref,'created_from_event_ref');const v={subject_id:id,subject_kind:kind,identity_version:1,status:'active',created_from_event_ref:ref};return serializeByKey(queues,kind+':'+id,async()=>{const old=table.get(id);if(old!==undefined){if(old.subject_kind!==kind)throw new Error(kind+' identity kind conflict');return clone(old);}return putOnce(table,id,v,kind+' identity conflict');});}
  async function recordFirstUserMessage({subject_id,direct_user_event}){
   requiredText(subject_id,'subject_id');if(!yuanqis.get(subject_id))throw new Error('YuanQiSubject does not exist');
   const e=verified(verifyDirectUserEvent,direct_user_event,'first-user-message'),fields=firstMessageFields(e);
