@@ -15,6 +15,11 @@ function safeTime(value, field = 'now_ms') {
   if (!Number.isSafeInteger(value) || value < 0) throw new TypeError(field + ' must be a non-negative safe integer');
   return value;
 }
+function leaseExpiry(now, ttl) {
+  const expiry = now + ttl;
+  if (!Number.isSafeInteger(expiry)) throw new RangeError('lease expiry exceeds the safe integer range');
+  return expiry;
+}
 function clone(value) { return structuredClone(value); }
 function serializeByKey(queues, key, operation) {
   const previous = queues.get(key) ?? Promise.resolve();
@@ -262,6 +267,9 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
     });
   }
 
+  // KvTable.update is an atomic read-modify-write on this open DSH Domain's write chain.
+  // It provides in-instance serialization; the Storage Domain contract does not claim
+  // distributed compare-and-set across separate processes or independently opened facilities.
   async function acquireRuntimeLease({ worldline_id, holder_id, now_ms = Date.now(), ttl_ms = 30000 }) {
     requiredText(holder_id, 'holder_id');
     safeTime(now_ms);
@@ -282,7 +290,7 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
         return current;
       }
       if (lease.fencing_token >= Number.MAX_SAFE_INTEGER) throw new Error('Worldline fencing token exhausted');
-      acquired = { holder_id, fencing_token: lease.fencing_token + 1, expires_at_ms: now_ms + ttl_ms };
+      acquired = { holder_id, fencing_token: lease.fencing_token + 1, expires_at_ms: leaseExpiry(now_ms, ttl_ms) };
       return { ...current, runtime_lease: acquired };
     });
     return clone(acquired);
