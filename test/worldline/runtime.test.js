@@ -201,3 +201,30 @@ test('Worldline operations reject missing subjects, snapshots, and unverified ho
   await mainline(store);
   await assert.rejects(store.forkWorldline({yuanqi_subject_id:'yuanqi-1',parent_worldline_id:'worldline:main',target_worldline_id:'child',base_snapshot_version:9,created_from_event:hostEvent('f')}),/parent snapshot does not exist/);
 });
+
+test('mainline creation recovers when the Worldline row persisted before its registry', async () => {
+  const {store,yuanqiDomain}=await setup();
+  const line={worldline_id:'worldline:main',yuanqi_subject_id:'yuanqi-1',status:'active',created_from_event_ref:'recovery-event'};
+  await yuanqiDomain.table('worldlines').put('worldline:main',line);
+  const recovered=await store.createMainline({
+    yuanqi_subject_id:'yuanqi-1',worldline_id:'worldline:main',
+    created_from_event:hostEvent('recovery-event'),
+  });
+  assert.deepEqual(recovered,line);
+  assert.equal(store.getHead('worldline:main').current_snapshot_version,0);
+  assert.equal(yuanqiDomain.table('worldline_mainlines').get('yuanqi-1').worldline_id,'worldline:main');
+  assert.equal(yuanqiDomain.table('worldline_events').get('worldline.created:worldline:main').source_event_ref,'recovery-event');
+});
+
+test('a fenced-out runtime cannot commit after a new holder acquires the lease', async () => {
+  const {store}=await setup();
+  await mainline(store);
+  const oldLease=await store.acquireRuntimeLease({worldline_id:'worldline:main',holder_id:'runtime-old',now_ms:now,ttl_ms:1000});
+  const newLease=await store.acquireRuntimeLease({worldline_id:'worldline:main',holder_id:'runtime-new',now_ms:now+1000,ttl_ms:1000});
+  const state=store.getHead('worldline:main').current_state_payload;
+  await assert.rejects(store.commitSnapshot({
+    worldline_id:'worldline:main',holder_id:'runtime-old',fencing_token:oldLease.fencing_token,
+    expected_snapshot_version:0,state_payload:state,source_event_ref:'stale-writer',now_ms:now+1001,
+  }),/expired, or fenced/);
+  assert.equal(store.getHead('worldline:main').runtime_lease.fencing_token,newLease.fencing_token);
+});
