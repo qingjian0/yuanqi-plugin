@@ -9,11 +9,11 @@
 
 | 项目 | 状态 | 说明 |
 |---|---|---|
-| 自动化测试 | P7 CI 通过 | P7 Run #244（`42267482824`）：50 passed / 0 failed（Node.js 24.9.0；四个 DSH peer packages 均解析为 `0.2.2-rc.1`） |
-| JavaScript 语法检查 | P7 CI 通过 | Run #244 的 `npm run check` 通过，包含真实 Storage Domain 导出检查、包根入口导入和源码语法检查 |
+| 自动化测试 | P7 CI 通过 | P7 代码验证 Run #244（`42267482824`）及最新文档提交 Run #248（`42267616282`）均通过：50 passed / 0 failed（Node.js 24.9.0；四个 DSH peer packages 均解析为 `0.2.2-rc.1`） |
+| JavaScript 语法检查 | P7 CI 通过 | Run #248 的 `npm run check` 通过，包含真实 Storage Domain 导出检查、包根入口导入和源码语法检查 |
 | npm 安装包构建与归档检查 | 归档隔离复验通过 | 历史隔离复验 `npm pack --dry-run` 成功，26 个发布文件；不代表当前分支重新构建通过 |
 | 解压后入口导入检查 | 归档隔离复验通过 | 20/20 个本地导入目标存在；GitHub `dev` 导入待完成 |
-| GitHub Actions CI | P7 已验证 | PR #4 分支 `work/e00-20-06-p5-dsh-lifecycle-recovery`；Run #244（`42267482824`）成功，PR 仍为 Draft |
+| GitHub Actions CI | P7 已验证 | PR #4 分支 `work/e00-20-06-p5-dsh-lifecycle-recovery`；Run #248（`42267616282`）成功，PR 仍为 Draft |
 | 真实 Android DSH 宿主安装与运行 | 待验收 | 尚无真实宿主验收结论 |
 | 真实模型会话端到端 | 待验收 | 不以模拟宿主测试代替 |
 | Android/iOS 端到端 | 待验收 | 尚未完成 |
