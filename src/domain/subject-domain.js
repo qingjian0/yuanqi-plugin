@@ -1,13 +1,18 @@
 import { z } from 'zod';
 import { defineDomain, domainTable } from '@deepseek-ai/dsh-storage-domain';
 
-const identity = z.object({
-  subject_id: z.string().min(1),
-  subject_kind: z.enum(['user', 'yuanqi']),
-  identity_version: z.number().int().min(1),
-  status: z.enum(['active', 'suspended', 'retired']),
-  created_from_event_ref: z.string().min(1),
-}).strict();
+function identitySchema(kind) {
+  return z.object({
+    subject_id: z.string().min(1),
+    subject_kind: z.literal(kind),
+    identity_version: z.number().int().min(1),
+    status: z.enum(['active', 'suspended', 'retired']),
+    created_from_event_ref: z.string().min(1),
+  }).strict();
+}
+
+const userIdentity = identitySchema('user');
+const yuanqiIdentity = identitySchema('yuanqi');
 
 const birthProfile = z.object({
   profile_id: z.string().min(1),
@@ -32,13 +37,13 @@ const wakeRecord = z.object({
 export const userSubjectDomainSpec = defineDomain({
   name: 'yuanqi-user-subject',
   version: 1,
-  tables: { identities: domainTable(identity), 'birth-profiles': domainTable(birthProfile) },
+  tables: { identities: domainTable(userIdentity), 'birth-profiles': domainTable(birthProfile) },
 });
 
 export const yuanqiSubjectDomainSpec = defineDomain({
   name: 'yuanqi-subject',
   version: 1,
-  tables: { identities: domainTable(identity), 'wake-records': domainTable(wakeRecord) },
+  tables: { identities: domainTable(yuanqiIdentity), 'wake-records': domainTable(wakeRecord) },
 });
 
 export async function openSubjectDomains(storageDomain) {
