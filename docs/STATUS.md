@@ -125,10 +125,10 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 > 本节是当前开发状态的更新记录；与前文历史恢复计划冲突时，以本节为准。
 
 - 用户已明确决定：**不恢复 alpha.9 历史源码归档**。不导入历史 19 个模块、17 个测试文件或 5 个夹具；历史归档只保留为历史证据，不作为当前代码恢复来源。
-- 当前开发基线为 `dev`，审计 Tree SHA：`36f1a2a48a85f0d406a7cf045752de9862116eb6`。该 Tree 有 34 个条目；`index.js` 仍引用 19 个当前 Tree 中不存在的模块。当前分支不得描述为完整、可安装的 alpha.9 源码快照。
+- 当前开发基线为 `dev`，审计 Tree SHA：`36f1a2a48a85f0d406a7cf045752de9862116eb6`。该基线 Tree 有 34 个条目，旧 `index.js` 曾引用 19 个不存在的模块。PR #3 已将包根入口收敛为仅导出当前真实存在的 Subject Domain 能力；没有恢复缺失模块，也不代表 Cordis 插件已可在真实宿主安装。
 - 新实现工作位于 Draft PR #3：`work/e00-20e-05b-subject-domain-runtime`。新增 UserSubject / YuanQiSubject 独立 DSH Storage Domain、主体仓储、出生资料显式确认边界、首次启动口令记录、包子路径入口和 Node 测试。
-- 最新 CI：commit `aef37c430c54d5119d1c916cbcf899d9b10d6ab4`，GitHub Actions run `42217229634`，Node.js 22；依赖安装成功（24 packages，0 vulnerabilities），DSH Storage Domain 声明导入成功，6 项测试通过、0 项失败。
-- 当前验证范围仅覆盖领域声明导入、内存表适配测试和核心规则；没有真实 DSH 宿主后端持久化验收。事件验证回调仍须由可信 DSH 插件集成层实现；当前新领域 API 尚未接入 Cordis 插件生命周期或根入口。
+- 根入口专项 CI：commit `1c75f69526a95baba1687084af78f8838fb05c8a`，GitHub Actions run `42221995627`，Node.js 22；包根入口导入、DSH Domain 导出、语法检查和当时已有测试通过。后续首次消息持久锁、DSH 事件归一化及其测试已追加到 PR #3；最新提交的 CI 尚待观察，不能将这些新增测试标为已通过。
+- 当前验证范围覆盖包根入口导入、领域声明、内存表适配和核心规则；没有真实 DSH 宿主后端持久化验收。已新增 DSH `SessionEvent` 归一化器，但实际 Cordis `session/event` 监听器及可信 SessionId 绑定仍须接入插件生命周期；根入口仅代表领域包可导入，不代表完整插件可安装。
 - SelfModel 五中心、Worldline 分支隔离、Evidence Ledger、跨线授权转移、CAS 状态提交和真实宿主验收均未完成。
 - PR #3 保持 Draft，不合并 `dev` 或 `main`，直至后续验收完成。
 
@@ -138,4 +138,4 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 2. 实现 Worldline 可信绑定、主线创建和分支快照隔离。
 3. 实现五中心 SelfModel 快照、证据引用和 CAS 状态变更。
 4. 实现 Evidence 撤销、跨线授权、最小范围转移和审计。
-5. 最后处理根入口的整体可运行性与真实 DSH 宿主验收；不恢复历史源码包。
+5. 完成 Cordis 插件生命周期与真实 DSH 宿主验收；根入口导入专项已完成，不恢复历史源码包。
