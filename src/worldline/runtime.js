@@ -314,7 +314,7 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
       revoked_from_event_ref: source.source_event_ref,
       revoked_at: source.occurred_at, schema_version: 1,
     };
-    return serializeByKey(queues, 'evidence-revocation:' + evidence_id, () =>
+    return serializeByKey(queues, 'evidence-state:' + evidence_id, () =>
       putOnce(evidenceRevocations, evidence_id, revocation, 'evidence already has a different revocation record'));
   }
 
@@ -382,7 +382,8 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
     const item = evidenceAssessments.get(assessment_id);
     if (!item || item.worldline_id !== requiredText(worldline_id, 'worldline_id')) return undefined;
     const evidence = getEvidenceRecord({ evidence_id: item.evidence_id, worldline_id });
-    return { assessment: clone(item), status: evidence?.status === 'active' ? 'active' : 'stale' };
+    const refsActive = item.corroborating_evidence_refs.every(id => getEvidenceRecord({ evidence_id: id, worldline_id })?.status === 'active');
+    return { assessment: clone(item), status: evidence?.status === 'active' && refsActive ? 'active' : 'stale' };
   }
 
   async function authorizeEvidenceTransfer({ authorization_id, yuanqi_subject_id, source_worldline_id, target_worldline_id, evidence_ids, expires_at_ms, authorized_from_event, now_ms = Date.now() }) {
@@ -425,7 +426,7 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
       authorization_id, reason, revoked_from_event_ref: source.source_event_ref,
       revoked_at: source.occurred_at, schema_version: 1,
     };
-    return serializeByKey(queues, 'transfer-auth-revoke:' + authorization_id, () =>
+    return serializeByKey(queues, 'transfer-auth-state:' + authorization_id, () =>
       putOnce(transferAuthorizationRevocations, authorization_id, revocation, 'authorization already has a different revocation'));
   }
 
@@ -443,7 +444,14 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
     if (!original || original.status !== 'active') throw new Error('source evidence is unavailable or revoked');
     const transferId = 'transfer:' + authorization_id + ':' + evidence_id;
     const targetEvidenceId = 'transferred:' + authorization_id + ':' + evidence_id;
-    return serializeByKey(queues, 'transfer:' + transferId, async () => {
+    return serializeByKey(queues, 'transfer-auth-state:' + authorization_id, () =>
+      serializeByKey(queues, 'evidence-state:' + evidence_id, async () => {
+      const currentAuthorization = transferAuthorizations.get(authorization_id);
+      if (!currentAuthorization || transferAuthorizationRevocations.get(authorization_id) || now_ms >= currentAuthorization.expires_at_ms) {
+        throw new Error('transfer authorization is revoked or expired');
+      }
+      const currentSource = getEvidenceRecord({ evidence_id, worldline_id: currentAuthorization.source_worldline_id });
+      if (!currentSource || currentSource.status !== 'active') throw new Error('source evidence is unavailable or revoked');
       const old = evidenceTransfers.get(transferId);
       if (old) return clone(old);
       const transferredRecord = {
@@ -470,7 +478,7 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
       };
       await putOnce(evidenceTransfers, transferId, audit, 'evidence transfer audit conflict');
       return clone(audit);
-    });
+    }));
   }
 
   function getEvidenceTransfer({ transfer_id }) {
@@ -547,6 +555,8 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
     let committed;
     await heads.update(requiredText(worldline_id, 'worldline_id'), current => {
       assertLease(current, holder_id, fencing_token, now_ms);
+      const retainedRefs = SELF_MODEL_CENTERS.filter(id => id !== center_id).flatMap(id => current.current_state_payload.self_model.centers[id].evidence_refs);
+      assertEvidenceRefsActive(worldline_id, [...retainedRefs, ...evidence_refs]);
       if (current.current_snapshot_version !== expected_snapshot_version) {
         throw new Error('snapshot CAS conflict: expected ' + expected_snapshot_version + ', current ' + current.current_snapshot_version);
       }
