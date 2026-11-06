@@ -9,11 +9,11 @@
 
 | 项目 | 状态 | 说明 |
 |---|---|---|
-| 自动化测试 | GitHub Actions 通过 | PR #3 当前工作分支 40 passed / 0 failed（Run #185）；测试使用内存 Storage Domain 适配器 |
-| JavaScript 语法检查 | GitHub Actions 通过 | Run #185 的 `npm run check` 通过 |
+| 自动化测试 | GitHub Actions 通过 | PR #3 当前工作分支 41 passed / 0 failed（Run #193）；测试使用内存 Storage Domain 适配器 |
+| JavaScript 语法检查 | GitHub Actions 通过 | Run #193 的 `npm run check` 通过 |
 | npm 安装包构建与归档检查 | 归档隔离复验通过 | `npm pack --dry-run` 成功，26 个发布文件 |
 | 解压后入口导入检查 | 归档隔离复验通过 | 20/20 个本地导入目标存在；GitHub `dev` 导入待完成 |
-| GitHub Actions CI | 已建立并通过 | `work/e00-20-05b-subject-domain-runtime` 分支 Run #185 通过；PR #3 仍为 Draft |
+| GitHub Actions CI | 已建立并通过 | `work/e00-20-05b-subject-domain-runtime` 分支 Run #193 通过；PR #3 仍为 Draft |
 | 真实 Android DSH 宿主安装与运行 | 待验收 | 尚无真实宿主验收结论 |
 | 真实模型会话端到端 | 待验收 | 不以模拟宿主测试代替 |
 | Android/iOS 端到端 | 待验收 | 尚未完成 |
