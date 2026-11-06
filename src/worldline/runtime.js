@@ -87,6 +87,7 @@ function initialHead(worldlineId, subjectId, eventRef, baseSnapshotRef = null) {
     current_state_payload: clone(state),
     current_evidence_refs: [],
     snapshot_history: [snapshot],
+    snapshot_archive_checkpoint: null,
     base_snapshot_ref: baseSnapshotRef,
     runtime_lease: { holder_id: null, fencing_token: 0, expires_at_ms: 0 },
     updated_from_event_ref: eventRef,
@@ -140,6 +141,8 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
   const worldlines = yuanqiDomain.table('worldlines');
   const mainlines = yuanqiDomain.table('worldline_mainlines');
   const snapshots = yuanqiDomain.table('worldline_snapshots');
+  const snapshotArchiveEntries = yuanqiDomain.table('worldline_snapshot_archive_entries');
+  const snapshotArchiveManifests = yuanqiDomain.table('worldline_snapshot_archive_manifests');
   const events = yuanqiDomain.table('worldline_events');
   const bindings = yuanqiDomain.table('session_worldline_bindings');
   const heads = yuanqiDomain.table('worldline_heads');
@@ -156,6 +159,7 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
     if (!identities.get(id)) throw new Error('YuanQiSubject does not exist');
   }
   function snapshotKey(id, version) { return id + ':' + version; }
+  function archiveId(id, from, through) { return 'archive:' + id + ':' + from + ':' + through; }
 
   async function ensureHead(line, eventRef) {
     const existing = heads.get(line.worldline_id);
@@ -608,6 +612,86 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
     return committed;
   }
 
+
+  async function compactSnapshotHistory({
+    worldline_id, holder_id, fencing_token, expected_snapshot_version,
+    through_version, source_event_ref, now_ms = Date.now(),
+  }) {
+    requiredText(source_event_ref, 'source_event_ref');
+    safeTime(now_ms);
+    if (!Number.isSafeInteger(expected_snapshot_version) || expected_snapshot_version < 0 ||
+        !Number.isSafeInteger(through_version) || through_version < 0) {
+      throw new TypeError('snapshot versions must be non-negative safe integers');
+    }
+    return serializeByKey(queues, 'snapshot-archive:' + requiredText(worldline_id, 'worldline_id'), async () => {
+      const observed = heads.get(worldline_id);
+      if (!observed) throw new Error('Worldline head is missing');
+      const checkpoint = observed.snapshot_archive_checkpoint?.through_version ?? -1;
+      if (through_version <= checkpoint) {
+        const existing = snapshotArchiveManifests.get(observed.snapshot_archive_checkpoint.archive_id);
+        if (!existing || existing.through_version !== checkpoint) throw new Error('existing snapshot archive checkpoint is inconsistent');
+        return { archive_id: existing.archive_id, from_version: existing.from_version, through_version: existing.through_version, snapshot_count: existing.snapshot_count, compacted: false };
+      }
+      if (observed.current_snapshot_version !== expected_snapshot_version) {
+        throw new Error('snapshot archive CAS conflict: expected ' + expected_snapshot_version + ', current ' + observed.current_snapshot_version);
+      }
+      if (through_version >= observed.current_snapshot_version) {
+        throw new Error('snapshot archive must retain the current snapshot');
+      }
+      const from_version = checkpoint + 1;
+      const archive_id = archiveId(worldline_id, from_version, through_version);
+      const line = worldlines.get(worldline_id);
+      if (!line) throw new Error('Worldline does not exist');
+      const historyByVersion = new Map(observed.snapshot_history.map(item => [item.snapshot_version, item]));
+      const selected = [];
+      for (let version = from_version; version <= through_version; version += 1) {
+        const snapshot = historyByVersion.get(version);
+        if (!snapshot) throw new Error('snapshot archive range is incomplete at version ' + version);
+        selected.push(snapshot);
+      }
+      const manifest = {
+        archive_id, worldline_id, yuanqi_subject_id: line.yuanqi_subject_id,
+        from_version, through_version, snapshot_count: selected.length,
+        created_from_event_ref: source_event_ref, schema_version: 1,
+      };
+      const existingManifest = snapshotArchiveManifests.get(archive_id);
+      if (existingManifest && JSON.stringify(existingManifest) !== JSON.stringify(manifest)) {
+        throw new Error('snapshot archive manifest conflicts with an existing archive');
+      }
+      for (const snapshot of selected) {
+        const entry = { archive_id, worldline_id, yuanqi_subject_id: line.yuanqi_subject_id, snapshot: clone(snapshot) };
+        await putOnce(snapshotArchiveEntries, snapshotKey(worldline_id, snapshot.snapshot_version), entry, 'snapshot archive entry conflict');
+      }
+      await putOnce(snapshotArchiveManifests, archive_id, manifest, 'snapshot archive manifest conflict');
+      let compacted = false;
+      await heads.update(worldline_id, current => {
+        assertLease(current, holder_id, fencing_token, now_ms);
+        if (current.current_snapshot_version !== expected_snapshot_version) {
+          throw new Error('snapshot archive CAS conflict: expected ' + expected_snapshot_version + ', current ' + current.current_snapshot_version);
+        }
+        if ((current.snapshot_archive_checkpoint?.through_version ?? -1) !== checkpoint) {
+          throw new Error('snapshot archive checkpoint changed during compaction');
+        }
+        const prefix = current.snapshot_history.filter(item => item.snapshot_version <= through_version);
+        if (prefix.length !== selected.length || prefix.some((item, index) => JSON.stringify(item) !== JSON.stringify(selected[index]))) {
+          throw new Error('snapshot history changed while archive was being prepared');
+        }
+        const retained = current.snapshot_history.filter(item => item.snapshot_version > through_version);
+        if (retained.length === 0 || retained[0].snapshot_version !== through_version + 1) {
+          throw new Error('snapshot archive would leave no valid active history');
+        }
+        compacted = true;
+        return {
+          ...current,
+          snapshot_history: retained,
+          snapshot_archive_checkpoint: { archive_id, through_version },
+          updated_from_event_ref: source_event_ref,
+        };
+      });
+      return { archive_id, from_version, through_version, snapshot_count: selected.length, compacted };
+    });
+  }
+
   async function updateSelfModelCenter({ worldline_id, holder_id, fencing_token, expected_snapshot_version, center_id, content, evidence_refs = [], uncertainty = [], epistemic_status = 'hypothesis', source_event_ref, confirmation_event, now_ms = Date.now() }) {
     if (!SELF_MODEL_CENTERS.includes(center_id)) throw new TypeError('unknown SelfModel center');
     if (!content || typeof content !== 'object' || Array.isArray(content)) throw new TypeError('center content must be an object');
@@ -678,6 +762,8 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
     const head = heads.get(worldline_id);
     const value = head?.snapshot_history.find(item => item.snapshot_version === version);
     if (value) return clone(value);
+    const archived = snapshotArchiveEntries.get(snapshotKey(worldline_id, version));
+    if (archived) return clone(archived.snapshot);
     const legacy = snapshots.get(snapshotKey(worldline_id, version));
     return legacy === undefined ? undefined : clone(legacy);
   }
@@ -851,7 +937,7 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
     assessEvidence, getEvidenceAssessment,
     authorizeEvidenceTransfer, revokeTransferAuthorization, transferEvidence, getEvidenceTransfer,
     acquireRuntimeLease, renewRuntimeLease, releaseRuntimeLease,
-    commitSnapshot, updateSelfModelCenter,
+    commitSnapshot, compactSnapshotHistory, updateSelfModelCenter,
     getHead, getSnapshot, auditWorldline, getWorldline(id) {
       requiredText(id, 'worldline_id');
       const value = worldlines.get(id);
