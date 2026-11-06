@@ -312,3 +312,27 @@ test('Evidence Ledger rejects inactive or cross-subject Worldline writes', async
     content:'not-an-object',captured_from_event:hostEvent('bad-content'),
   }),/must be an object/);
 });
+
+
+test('concurrent conflicting evidence IDs serialize to one immutable winner', async () => {
+  const {store}=await setup();
+  await mainline(store);
+  const attempts=await Promise.allSettled([
+    store.recordEvidence({
+      evidence_id:'evidence:race',yuanqi_subject_id:'yuanqi-1',
+      worldline_id:'worldline:main',evidence_type:'observation',
+      content:{value:'A'},provenance:{writer:'A'},
+      captured_from_event:hostEvent('evidence-race-A'),
+    }),
+    store.recordEvidence({
+      evidence_id:'evidence:race',yuanqi_subject_id:'yuanqi-1',
+      worldline_id:'worldline:main',evidence_type:'observation',
+      content:{value:'B'},provenance:{writer:'B'},
+      captured_from_event:hostEvent('evidence-race-B'),
+    }),
+  ]);
+  assert.equal(attempts.filter(x=>x.status==='fulfilled').length,1);
+  assert.equal(attempts.filter(x=>x.status==='rejected').length,1);
+  const stored=store.getEvidenceRecord({evidence_id:'evidence:race',worldline_id:'worldline:main'});
+  assert.ok(['A','B'].includes(stored.record.content.value));
+});
