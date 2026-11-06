@@ -3,7 +3,13 @@ import assert from 'node:assert/strict';
 import { apply } from '../../src/dsh/plugin.js';
 import { openSubjectDomains } from '../../src/domain/subject-domain.js';
 
-function persistentStorageDomain({ failOpenName } = {}) {
+function deferred() {
+  let resolve;
+  const promise = new Promise(r => { resolve = r; });
+  return { promise, resolve };
+}
+
+function persistentStorageDomain({ failOpenName, beforeWrite = async () => {} } = {}) {
   const tablesByDomain = new Map();
   const handles = [];
   return {
@@ -15,6 +21,15 @@ function persistentStorageDomain({ failOpenName } = {}) {
         tables = new Map(Object.keys(spec.tables).map(name => [name, new Map()]));
         tablesByDomain.set(spec.name, tables);
       }
+      let writeChain = Promise.resolve();
+      let closing = false;
+      let closePromise;
+      const enqueue = job => {
+        if (closing) return Promise.reject(new Error('domain is closing'));
+        const result = writeChain.then(job);
+        writeChain = result.then(() => undefined, () => undefined);
+        return result;
+      };
       const handle = {
         closed: false,
         table(name) {
@@ -22,10 +37,31 @@ function persistentStorageDomain({ failOpenName } = {}) {
           if (!rows) throw new Error('unknown table: ' + name);
           return {
             get: key => rows.get(key),
-            async put(key, value) { rows.set(key, structuredClone(value)); },
+            async put(key, value) {
+              return enqueue(async () => {
+                await beforeWrite({ domain: spec.name, table: name, key, operation: 'put' });
+                rows.set(key, structuredClone(value));
+              });
+            },
+            async update(key, fn) {
+              return enqueue(async () => {
+                if (!rows.has(key)) throw new Error('missing-key: ' + key);
+                const next = fn(rows.get(key));
+                await beforeWrite({ domain: spec.name, table: name, key, operation: 'update' });
+                rows.set(key, structuredClone(next));
+                return structuredClone(next);
+              });
+            },
           };
         },
-        async close() { handle.closed = true; },
+        close() {
+          closing = true;
+          closePromise ??= (async () => {
+            await writeChain;
+            handle.closed = true;
+          })();
+          return closePromise;
+        },
       };
       handles.push({ name: spec.name, handle });
       return handle;
@@ -36,12 +72,12 @@ function persistentStorageDomain({ failOpenName } = {}) {
   };
 }
 
-function dshEvent(text, id, seq = 0, time = 1793966400000) {
+function dshEvent(text, id, seq = 0, time = 1793966400000, source = { kind: 'user' }) {
   return {
     type: 'user/message',
     seq,
     time,
-    data: { id, role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text }] },
+    data: { id, role: 'user', source, content: [{ type: 'text', text }] },
   };
 }
 
@@ -92,6 +128,52 @@ test('reopening DSH Storage Domains preserves YuanQi state and replay is idempot
 
   await secondContext.disposer();
   assert.equal(storage.handles.slice(2).every(item => item.handle.closed), true);
+});
+
+test('synthetic user-role context is not mistaken for the first direct human message', async () => {
+  const storage = persistentStorageDomain();
+  const ctx = context(storage);
+  await apply(ctx);
+
+  await ctx.listener({ id: 'session-context' }, dshEvent('injected context', 'synthetic-context', 0, 1793966400000, { kind: 'plugin', plugin: 'test' }));
+  await ctx.flushListener({ id: 'session-context' });
+  assert.equal(storage.table('yuanqi_subject', 'first_user_messages').get('yuanqi:primary'), undefined);
+
+  await ctx.listener({ id: 'session-human' }, dshEvent('真正的首条消息', 'direct-human-message', 0, 1793966401000));
+  await ctx.flushListener({ id: 'session-human' });
+  assert.equal(storage.table('yuanqi_subject', 'first_user_messages').get('yuanqi:primary').first_event_id, 'direct-human-message');
+
+  await ctx.disposer();
+});
+
+test('plugin disposal waits for in-flight event writes before closing Domains', async () => {
+  const entered = deferred();
+  const release = deferred();
+  let firstWrite = true;
+  const storage = persistentStorageDomain({
+    beforeWrite: async () => {
+      if (!firstWrite) return;
+      firstWrite = false;
+      entered.resolve();
+      await release.promise;
+    },
+  });
+  const ctx = context(storage);
+  await apply(ctx);
+
+  const eventTask = ctx.listener({ id: 'session-drain' }, dshEvent('普通消息', 'drain-event'));
+  await entered.promise;
+  let disposed = false;
+  const disposeTask = ctx.disposer().then(() => { disposed = true; });
+  await Promise.resolve();
+  assert.equal(disposed, false);
+  assert.equal(storage.handles.every(item => !item.handle.closed), true);
+
+  release.resolve();
+  await eventTask;
+  await disposeTask;
+  assert.equal(disposed, true);
+  assert.equal(storage.handles.every(item => item.handle.closed), true);
 });
 
 test('opening the second DSH Domain failure closes the already-open first Domain', async () => {
