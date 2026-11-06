@@ -30,7 +30,7 @@
 | 项目阶段 | Developer Preview |
 | 软件包 | `dsh-yuanqi-plugin` |
 | 运行环境 | DeepSeek Harness（DSH） |
-| Node.js | `>=22` |
+| Node.js | `>=24.9.0` |
 | 持久化 | DSH Storage Domain |
 | 本地测试记录 | alpha.9 历史发布记录：96 项通过，0 项失败；当前快照不可复核 |
 | 许可证 | GNU GPL-3.0-only |
@@ -177,7 +177,7 @@ flowchart TB
 
 ### 环境要求
 
-- Node.js 22 或更高版本。
+- Node.js 24.9.0 或更高版本（与当前 DSH 0.2.2-rc.1 运行时要求对齐）。
 - npm。
 - 可运行的 DSH 环境。
 
@@ -202,11 +202,11 @@ dsh plugin --profile web add ./dist/dsh-yuanqi-plugin-1.1.0-alpha.9.tgz
 
 当前声明的 DSH peer dependency 范围为：
 
-- `@deepseek-ai/dsh-tools`：`>=0.2.0-0 <0.3.0-0`
-- `@deepseek-ai/dsh-storage-domain`：`>=0.2.0-0 <0.3.0-0`
-- `@deepseek-ai/dsh-llm`：`>=0.2.0-0 <0.3.0-0`
+- `@deepseek-ai/dsh-tools`：`>=0.2.2-rc.1 <0.3.0-0`
+- `@deepseek-ai/dsh-storage-domain`：`>=0.2.2-rc.1 <0.3.0-0`
+- `@deepseek-ai/dsh-llm`：`>=0.2.2-rc.1 <0.3.0-0`
 
-这是依赖兼容性声明，不代表范围内所有宿主版本均已通过真实运行验证。
+这是与 DSH 0.2.2-rc.1 API 基线对齐的 peer dependency 范围，不代表范围内所有宿主版本均已通过真实运行验证。
 
 ## 安全与隐私边界
 
