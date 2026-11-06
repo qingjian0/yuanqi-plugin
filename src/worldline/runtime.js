@@ -235,8 +235,8 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
       if (!parent || parent.yuanqi_subject_id !== yuanqi_subject_id || parent.status !== 'active') {
         throw new Error('active parent Worldline for this YuanQiSubject is required');
       }
-      const parentHead = await ensureHead(parent, parent.created_from_event_ref);
-      const base = parentHead.snapshot_history.find(item => item.snapshot_version === base_snapshot_version);
+      await ensureHead(parent, parent.created_from_event_ref);
+      const base = getSnapshot(parent_worldline_id, base_snapshot_version);
       if (!base) throw new Error('parent snapshot does not exist');
       const existing = worldlines.get(target_worldline_id);
       if (existing && (
