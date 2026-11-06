@@ -20,7 +20,16 @@ jobs:
           node-version: 22
       - name: Install declared runtime dependencies
         run: npm install --ignore-scripts --no-package-lock
-      - name: Validate DSH Storage Domain declarations
-        run: node --input-type=module -e "const m = await import('./src/domain/index.js'); if (m.userSubjectDomainSpec.name !== 'yuanqi_user_subject' || m.yuanqiSubjectDomainSpec.name !== 'yuanqi_subject' || typeof m.createSubjectStore !== 'function') process.exit(1)"
+      - name: Validate package root and DSH Storage Domain exports
+        run: >-
+          node --input-type=module -e "
+          const root = await import('./index.js');
+          const domain = await import('./src/domain/index.js');
+          for (const key of ['createSubjectStore', 'openSubjectDomains', 'userSubjectDomainSpec', 'yuanqiSubjectDomainSpec']) {
+            if (!(key in root) || !(key in domain)) throw new Error('missing package export: ' + key);
+          }
+          if (root.userSubjectDomainSpec.name !== 'yuanqi_user_subject' || root.yuanqiSubjectDomainSpec.name !== 'yuanqi_subject') process.exit(1);
+          console.log('package root import and DSH domain exports verified');
+          "
       - name: Verify syntax and tests
         run: npm run check
