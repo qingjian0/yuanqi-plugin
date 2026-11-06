@@ -85,9 +85,11 @@ function context(storageDomain) {
   let listener;
   let flushListener;
   let disposer;
+  const warnings = [];
   return {
     storageDomain,
-    logger: { warn(message) { throw new Error(message); } },
+    warnings,
+    logger: { warn(message) { warnings.push(message); } },
     on(name, callback) {
       if (name === 'session/event') listener = callback;
       else if (name === 'session/flush') flushListener = callback;
@@ -174,6 +176,42 @@ test('plugin disposal waits for in-flight event writes before closing Domains', 
   await disposeTask;
   assert.equal(disposed, true);
   assert.equal(storage.handles.every(item => item.handle.closed), true);
+});
+
+test('a fast event-write failure remains visible to the later Session flush', async () => {
+  const storage = persistentStorageDomain({
+    beforeWrite: async () => { throw new Error('simulated durable write rejection'); },
+  });
+  const ctx = context(storage);
+  await apply(ctx);
+
+  await assert.rejects(ctx.listener({ id: 'session-fail' }, dshEvent('消息', 'failed-event')), /simulated durable write rejection/);
+  await assert.rejects(ctx.flushListener({ id: 'session-fail' }), /YuanQi Session writes failed/);
+  await ctx.flushListener({ id: 'session-fail' });
+  assert.equal(ctx.warnings.some(message => message.includes('session event processing failed')), true);
+  await ctx.disposer();
+});
+
+test('unknown-state makes the plugin fail closed until unload and reload', async () => {
+  let writeAttempts = 0;
+  const storage = persistentStorageDomain({
+    beforeWrite: async () => {
+      writeAttempts += 1;
+      throw Object.assign(new Error('backend cannot establish durable state'), { code: 'unknown-state' });
+    },
+  });
+  const ctx = context(storage);
+  await apply(ctx);
+
+  await assert.rejects(ctx.listener({ id: 'session-uncertain' }, dshEvent('消息', 'uncertain-event')), /backend cannot establish durable state/);
+  await assert.rejects(ctx.flushListener({ id: 'session-uncertain' }), /YuanQi Session writes failed/);
+  await ctx.listener({ id: 'session-uncertain' }, dshEvent('后续消息', 'later-event', 1));
+  await ctx.flushListener({ id: 'session-uncertain' });
+
+  assert.equal(writeAttempts, 1);
+  assert.equal(storage.table('yuanqi_user_subject', 'identities').get('user:primary'), undefined);
+  assert.equal(ctx.warnings.some(message => message.includes('failed closed')), true);
+  await ctx.disposer();
 });
 
 test('opening the second DSH Domain failure closes the already-open first Domain', async () => {
