@@ -1,0 +1,484 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://yuanqi.invalid/contracts/domain/subject-and-self-model.schema.json",
+  "title": "YuanQi Subject and Self Model Domain Contracts",
+  "description": "Logical domain contracts for UserSubject, YuanQiSubject, internal centers, isolated worldlines and evidence-backed state. Not yet a runtime implementation.",
+  "$defs": {
+    "SubjectIdentity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "subject_id",
+        "subject_kind",
+        "identity_version",
+        "status"
+      ],
+      "properties": {
+        "subject_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "subject_kind": {
+          "enum": [
+            "user",
+            "yuanqi"
+          ]
+        },
+        "identity_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "status": {
+          "enum": [
+            "active",
+            "suspended",
+            "retired"
+          ]
+        },
+        "created_from_event_ref": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "WorldlineRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "worldline_id",
+        "yuanqi_subject_id",
+        "status"
+      ],
+      "properties": {
+        "worldline_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "yuanqi_subject_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "parent_worldline_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "base_snapshot_version": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "status": {
+          "enum": [
+            "active",
+            "archived",
+            "suspended"
+          ]
+        }
+      }
+    },
+    "EvidenceRef": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "evidence_id",
+        "source_kind",
+        "source_event_ref",
+        "trust_class",
+        "status"
+      ],
+      "properties": {
+        "evidence_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_kind": {
+          "enum": [
+            "direct_user_event",
+            "host_event",
+            "confirmed_memory",
+            "tool_observation",
+            "model_inference"
+          ]
+        },
+        "source_event_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "worldline_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "trust_class": {
+          "enum": [
+            "authoritative_user",
+            "authoritative_host",
+            "confirmed",
+            "observed",
+            "inferred"
+          ]
+        },
+        "status": {
+          "enum": [
+            "active",
+            "revoked",
+            "redacted",
+            "unavailable"
+          ]
+        },
+        "observed_at_event_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "uncertainty_note": {
+          "type": "string"
+        }
+      }
+    },
+    "CenterState": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "center_id",
+        "center_version",
+        "evidence_refs",
+        "uncertainty_notes",
+        "updated_by_event_ref"
+      ],
+      "properties": {
+        "center_id": {
+          "enum": [
+            "identity_continuity",
+            "experience_memory",
+            "cognition_reflection",
+            "emotion_appraisal",
+            "goals_agency"
+          ]
+        },
+        "center_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "state_payload": {
+          "type": "object"
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "uncertainty_notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "updated_by_event_ref": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "SelfModelSnapshot": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "snapshot_id",
+        "subject_id",
+        "subject_kind",
+        "worldline_id",
+        "snapshot_version",
+        "center_states",
+        "evidence_refs",
+        "created_at_event_ref"
+      ],
+      "properties": {
+        "snapshot_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "subject_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "subject_kind": {
+          "const": "yuanqi"
+        },
+        "worldline_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "snapshot_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "center_states": {
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/CenterState"
+          }
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "uncertainty": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "created_at_event_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "supersedes_snapshot_id": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "StateChangeProposal": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "proposal_id",
+        "subject_id",
+        "worldline_id",
+        "center_id",
+        "expected_snapshot_version",
+        "reason",
+        "evidence_refs",
+        "created_at_event_ref",
+        "status"
+      ],
+      "properties": {
+        "proposal_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "subject_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "worldline_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "center_id": {
+          "enum": [
+            "identity_continuity",
+            "experience_memory",
+            "cognition_reflection",
+            "emotion_appraisal",
+            "goals_agency"
+          ]
+        },
+        "expected_snapshot_version": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "reason": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "counter_evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "uniqueItems": true
+        },
+        "uncertainty_notes": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "authorization_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "created_at_event_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "status": {
+          "enum": [
+            "proposed",
+            "rejected",
+            "committed",
+            "conflicted",
+            "expired"
+          ]
+        }
+      }
+    },
+    "TransferRequest": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "transfer_id",
+        "yuanqi_subject_id",
+        "source_worldline_id",
+        "target_worldline_id",
+        "evidence_refs",
+        "scope",
+        "purpose",
+        "authorization_ref",
+        "expires_at_event_ref",
+        "status"
+      ],
+      "properties": {
+        "transfer_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "yuanqi_subject_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_worldline_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "target_worldline_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "evidence_refs": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "scope": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "purpose": {
+          "type": "string",
+          "minLength": 1
+        },
+        "authorization_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "expires_at_event_ref": {
+          "type": "string",
+          "minLength": 1
+        },
+        "policy_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "source_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "target_expected_version": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "status": {
+          "enum": [
+            "proposed",
+            "authorized",
+            "rejected",
+            "committed",
+            "revoked",
+            "conflicted",
+            "expired"
+          ]
+        }
+      }
+    },
+    "DomainEvent": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "event_id",
+        "event_type",
+        "subject_id",
+        "subject_kind",
+        "occurred_at",
+        "source_kind",
+        "schema_version"
+      ],
+      "properties": {
+        "event_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "event_type": {
+          "type": "string",
+          "minLength": 1
+        },
+        "subject_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "subject_kind": {
+          "enum": [
+            "user",
+            "yuanqi"
+          ]
+        },
+        "worldline_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "occurred_at": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "source_kind": {
+          "enum": [
+            "direct_user_event",
+            "host_event",
+            "tool_observation",
+            "model_inference"
+          ]
+        },
+        "causation_event_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "correlation_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "schema_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "payload": {
+          "type": "object"
+        }
+      }
+    }
+  }
+}
