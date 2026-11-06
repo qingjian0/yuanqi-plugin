@@ -81,7 +81,7 @@ test('fork preserves the parent snapshot reference and starts an independent loc
 });
 
 test('a Session is bound to a Worldline, and multiple Sessions may share one line', async () => {
-  const {store}=setup();
+  const {store}=await setup();
   await mainline(store);
   await store.bindSession({session_id:'session-a',yuanqi_subject_id:'yuanqi-1',worldline_id:'worldline:main',bound_from_event_ref:'e1'});
   await store.bindSession({session_id:'session-b',yuanqi_subject_id:'yuanqi-1',worldline_id:'worldline:main',bound_from_event_ref:'e2'});
@@ -92,7 +92,7 @@ test('a Session is bound to a Worldline, and multiple Sessions may share one lin
 });
 
 test('runtime lease acquisition, renewal, release and fencing reject stale holders', async () => {
-  const {store}=setup();
+  const {store}=await setup();
   await mainline(store);
   const first=await store.acquireRuntimeLease({worldline_id:'worldline:main',holder_id:'runtime-A',now_ms:now,ttl_ms:1000});
   assert.equal(first.fencing_token,1);
@@ -119,7 +119,7 @@ test('runtime lease acquisition, renewal, release and fencing reject stale holde
 });
 
 test('expired leases can be taken over and increment the fencing token', async () => {
-  const {store}=setup();
+  const {store}=await setup();
   await mainline(store);
   const first=await store.acquireRuntimeLease({worldline_id:'worldline:main',holder_id:'runtime-A',now_ms:now,ttl_ms:1000});
   const second=await store.acquireRuntimeLease({worldline_id:'worldline:main',holder_id:'runtime-B',now_ms:now+1000,ttl_ms:1000});
@@ -131,7 +131,7 @@ test('expired leases can be taken over and increment the fencing token', async (
 });
 
 test('Snapshot CAS commits atomically and rejects stale or concurrent expected versions', async () => {
-  const {store}=setup();
+  const {store}=await setup();
   await mainline(store);
   const lease=await store.acquireRuntimeLease({worldline_id:'worldline:main',holder_id:'runtime-A',now_ms:now,ttl_ms:10000});
   const initial=store.getHead('worldline:main').current_state_payload;
@@ -168,7 +168,7 @@ test('Snapshot CAS commits atomically and rejects stale or concurrent expected v
 });
 
 test('five-center SelfModel stores evidence and uncertainty without treating model output as fact', async () => {
-  const {store}=setup();
+  const {store}=await setup();
   await mainline(store);
   const lease=await store.acquireRuntimeLease({worldline_id:'worldline:main',holder_id:'runtime-A',now_ms:now,ttl_ms:10000});
   const result=await store.updateSelfModelCenter({
@@ -195,7 +195,7 @@ test('five-center SelfModel stores evidence and uncertainty without treating mod
 });
 
 test('Worldline operations reject missing subjects, snapshots, and unverified host events', async () => {
-  const {store}=setup();
+  const {store}=await setup();
   await assert.rejects(store.createMainline({yuanqi_subject_id:'missing',worldline_id:'x',created_from_event:hostEvent('e')}),/does not exist/);
   await assert.rejects(store.createMainline({yuanqi_subject_id:'yuanqi-1',worldline_id:'x',created_from_event:{event_id:'fake'}}),/unverified/);
   await mainline(store);
