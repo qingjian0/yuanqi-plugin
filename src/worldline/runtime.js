@@ -28,6 +28,14 @@ function serializeByKey(queues, key, operation) {
   queues.set(key, settled);
   return result.finally(() => { if (queues.get(key) === settled) queues.delete(key); });
 }
+function serializeByKeys(queues, keys, operation) {
+  const ordered = [...new Set(keys)].sort();
+  const nested = ordered.reduceRight(
+    (next, key) => () => serializeByKey(queues, 'evidence-state:' + key, next),
+    operation,
+  );
+  return nested();
+}
 function putOnce(table, key, value, message) {
   const old = table.get(key);
   if (old !== undefined) {
@@ -553,29 +561,32 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
     const allRefs = [...evidence_refs, ...SELF_MODEL_CENTERS.flatMap(center => state_payload.self_model.centers[center].evidence_refs)];
     assertEvidenceRefsActive(worldline_id, allRefs);
     let committed;
-    await heads.update(requiredText(worldline_id, 'worldline_id'), current => {
-      assertLease(current, holder_id, fencing_token, now_ms);
-      if (current.current_snapshot_version !== expected_snapshot_version) {
-        throw new Error('snapshot CAS conflict: expected ' + expected_snapshot_version + ', current ' + current.current_snapshot_version);
-      }
-      const nextVersion = current.current_snapshot_version + 1;
-      if (!Number.isSafeInteger(nextVersion)) throw new Error('snapshot version exhausted');
-      const snapshot = {
-        snapshot_version: nextVersion,
-        state_payload: clone(state_payload),
-        evidence_refs: [...new Set(evidence_refs)],
-        created_at_event_ref: source_event_ref,
-        fencing_token,
-      };
-      committed = clone(snapshot);
-      return {
-        ...current,
-        current_snapshot_version: nextVersion,
-        current_state_payload: clone(state_payload),
-        current_evidence_refs: snapshot.evidence_refs,
-        snapshot_history: [...current.snapshot_history, snapshot],
-        updated_from_event_ref: source_event_ref,
-      };
+    await serializeByKeys(queues, allRefs, async () => {
+      assertEvidenceRefsActive(worldline_id, allRefs);
+      await heads.update(requiredText(worldline_id, 'worldline_id'), current => {
+        assertLease(current, holder_id, fencing_token, now_ms);
+        if (current.current_snapshot_version !== expected_snapshot_version) {
+          throw new Error('snapshot CAS conflict: expected ' + expected_snapshot_version + ', current ' + current.current_snapshot_version);
+        }
+        const nextVersion = current.current_snapshot_version + 1;
+        if (!Number.isSafeInteger(nextVersion)) throw new Error('snapshot version exhausted');
+        const snapshot = {
+          snapshot_version: nextVersion,
+          state_payload: clone(state_payload),
+          evidence_refs: [...new Set(evidence_refs)],
+          created_at_event_ref: source_event_ref,
+          fencing_token,
+        };
+        committed = clone(snapshot);
+        return {
+          ...current,
+          current_snapshot_version: nextVersion,
+          current_state_payload: clone(state_payload),
+          current_evidence_refs: snapshot.evidence_refs,
+          snapshot_history: [...current.snapshot_history, snapshot],
+          updated_from_event_ref: source_event_ref,
+        };
+      });
     });
     return committed;
   }
@@ -593,37 +604,41 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
     safeTime(now_ms);
     assertEvidenceRefsActive(worldline_id, evidence_refs);
     let result;
-    await heads.update(requiredText(worldline_id, 'worldline_id'), current => {
-      assertLease(current, holder_id, fencing_token, now_ms);
-      const retainedRefs = SELF_MODEL_CENTERS.filter(id => id !== center_id).flatMap(id => current.current_state_payload.self_model.centers[id].evidence_refs);
-      assertEvidenceRefsActive(worldline_id, [...retainedRefs, ...evidence_refs]);
-      if (current.current_snapshot_version !== expected_snapshot_version) {
-        throw new Error('snapshot CAS conflict: expected ' + expected_snapshot_version + ', current ' + current.current_snapshot_version);
-      }
-      const state = clone(current.current_state_payload);
-      const oldCenter = state.self_model.centers[center_id];
-      state.self_model.centers[center_id] = {
-        center_id,
-        center_version: oldCenter.center_version + 1,
-        content: clone(content),
-        evidence_refs: [...new Set(evidence_refs)],
-        uncertainty: [...uncertainty],
-        epistemic_status,
-        updated_from_event_ref: source_event_ref,
-      };
-      const nextVersion = current.current_snapshot_version + 1;
-      const snapshot = {
-        snapshot_version: nextVersion, state_payload: state,
-        evidence_refs: [...new Set(evidence_refs)], created_at_event_ref: source_event_ref,
-        fencing_token,
-      };
-      result = { center: clone(state.self_model.centers[center_id]), snapshot: clone(snapshot) };
-      return {
-        ...current, current_snapshot_version: nextVersion,
-        current_state_payload: state, current_evidence_refs: snapshot.evidence_refs,
-        snapshot_history: [...current.snapshot_history, snapshot],
-        updated_from_event_ref: source_event_ref,
-      };
+    const observed = getHead(worldline_id);
+    const observedRefs = observed ? SELF_MODEL_CENTERS.flatMap(id => observed.current_state_payload.self_model.centers[id].evidence_refs) : [];
+    await serializeByKeys(queues, [...observedRefs, ...evidence_refs], async () => {
+      await heads.update(requiredText(worldline_id, 'worldline_id'), current => {
+        assertLease(current, holder_id, fencing_token, now_ms);
+        const retainedRefs = SELF_MODEL_CENTERS.filter(id => id !== center_id).flatMap(id => current.current_state_payload.self_model.centers[id].evidence_refs);
+        assertEvidenceRefsActive(worldline_id, [...retainedRefs, ...evidence_refs]);
+        if (current.current_snapshot_version !== expected_snapshot_version) {
+          throw new Error('snapshot CAS conflict: expected ' + expected_snapshot_version + ', current ' + current.current_snapshot_version);
+        }
+        const state = clone(current.current_state_payload);
+        const oldCenter = state.self_model.centers[center_id];
+        state.self_model.centers[center_id] = {
+          center_id,
+          center_version: oldCenter.center_version + 1,
+          content: clone(content),
+          evidence_refs: [...new Set(evidence_refs)],
+          uncertainty: [...uncertainty],
+          epistemic_status,
+          updated_from_event_ref: source_event_ref,
+        };
+        const nextVersion = current.current_snapshot_version + 1;
+        const snapshot = {
+          snapshot_version: nextVersion, state_payload: state,
+          evidence_refs: [...new Set(evidence_refs)], created_at_event_ref: source_event_ref,
+          fencing_token,
+        };
+        result = { center: clone(state.self_model.centers[center_id]), snapshot: clone(snapshot) };
+        return {
+          ...current, current_snapshot_version: nextVersion,
+          current_state_payload: state, current_evidence_refs: snapshot.evidence_refs,
+          snapshot_history: [...current.snapshot_history, snapshot],
+          updated_from_event_ref: source_event_ref,
+        };
+      });
     });
     return result;
   }
