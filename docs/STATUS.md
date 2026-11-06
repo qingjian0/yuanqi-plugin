@@ -9,11 +9,11 @@
 
 | 项目 | 状态 | 说明 |
 |---|---|---|
-| 本地自动化测试 | 归档隔离复验通过 | alpha.9 源码归档中 96 passed / 0 failed；GitHub `dev` 导入待完成 |
-| JavaScript 语法检查 | 归档隔离复验通过 | `npm run check` 通过；包含语法检查和测试 |
+| 自动化测试 | GitHub Actions 通过 | PR #3 当前工作分支 40 passed / 0 failed（Run #185）；测试使用内存 Storage Domain 适配器 |
+| JavaScript 语法检查 | GitHub Actions 通过 | Run #185 的 `npm run check` 通过 |
 | npm 安装包构建与归档检查 | 归档隔离复验通过 | `npm pack --dry-run` 成功，26 个发布文件 |
 | 解压后入口导入检查 | 归档隔离复验通过 | 20/20 个本地导入目标存在；GitHub `dev` 导入待完成 |
-| GitHub Actions CI | 待建立 | 当前 Git Tree 尚无 Workflow |
+| GitHub Actions CI | 已建立并通过 | `work/e00-20-05b-subject-domain-runtime` 分支 Run #185 通过；PR #3 仍为 Draft |
 | 真实 Android DSH 宿主安装与运行 | 待验收 | 尚无真实宿主验收结论 |
 | 真实模型会话端到端 | 待验收 | 不以模拟宿主测试代替 |
 | Android/iOS 端到端 | 待验收 | 尚未完成 |
@@ -151,7 +151,7 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - 自动化测试已扩展至租约获取/续租/释放/到期接管、旧 Token 拒绝、Snapshot CAS 并发竞争、五中心结构与证据约束、主线恢复。
 - 首轮扩展 CI Run #92（`42231588769`）曾在 21 项测试中报告 15 通过、6 失败；失败原因为新增测试夹具没有等待异步 Storage 写入，导致后续测试拿到未初始化的 fixture。夹具已修正并补充恢复与 fencing 测试。后续 CI Run #104（`42232212448`）在代码提交 `4a08d0e3d9b791e146aaf224a7a98faa601522cf` 上通过：23 tests passed / 0 failed，包含语法检查、包入口导入、DSH Domain 导出、Lease/Fencing、CAS 并发、五中心 SelfModel 与主线恢复。
 - 原子性边界：本实现依赖 DSH `KvTable.update` 的单个已打开 Domain 写队列。DSH Storage Domain 契约没有提供跨进程/多独立 Facility 的分布式 CAS 保证，因此不宣称跨进程租约互斥或分布式 fencing 已验收。
-- 快照历史目前保存在每条 Worldline Head 的单一记录中，以保证状态、版本和 fencing 校验同一记录原子提交；长期历史增长与归档/压缩策略尚待设计。
+- 快照历史活动窗口仍保存在每条 Worldline Head 的单一记录中；v7 已提供显式归档与可重入压缩 API，归档保留策略、自动调度及真实后端故障语义仍待验收。
 - 真实 DSH 后端、重启恢复、并发多进程及 Android 宿主验收仍未完成。PR #3 保持 Draft；`dev` 和 `main` 均未合并。
 ## 10. 2026-11-06 P2 Evidence Ledger 第一阶段交付
 
