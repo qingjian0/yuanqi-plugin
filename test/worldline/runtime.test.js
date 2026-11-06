@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createWorldlineStore, SELF_MODEL_CENTER_IDS } from '../../src/worldline/runtime.js';
 
-function memoryDomain(names) {
+function memoryDomain(names, hooks = {}) {
   const maps = new Map(names.map(name => [name, new Map()]));
   let chain = Promise.resolve();
   function enqueue(operation) {
@@ -17,7 +17,8 @@ function memoryDomain(names) {
       get: key => rows.get(key),
       async put(key, value) { return enqueue(() => { rows.set(key, structuredClone(value)); }); },
       async update(key, transform) {
-        return enqueue(() => {
+        return enqueue(async () => {
+          await hooks.beforeUpdate?.(name, key);
           if (!rows.has(key)) throw new Error('missing-key');
           const next = transform(rows.get(key));
           rows.set(key, structuredClone(next));
@@ -27,11 +28,11 @@ function memoryDomain(names) {
     };
   }};
 }
-async function setup() {
+async function setup(hooks) {
   const yuanqiDomain = memoryDomain([
     'identities','worldlines','worldline_mainlines','worldline_snapshots',
     'worldline_events','session_worldline_bindings','worldline_heads','worldline_snapshot_archive_entries','worldline_snapshot_archive_manifests','evidence_records','evidence_revocations','evidence_assessments','transfer_authorizations','transfer_authorization_revocations','evidence_transfers',
-  ]);
+  ], hooks);
   await yuanqiDomain.table('identities').put('yuanqi-1',{subject_id:'yuanqi-1',subject_kind:'yuanqi'});
   const store = createWorldlineStore({
     yuanqiDomain,
@@ -657,4 +658,35 @@ test('snapshot archive rejects stale CAS and never truncates the active history'
     expected_snapshot_version:1,through_version:0,source_event_ref:'archive:stale',now_ms:now+10,
   }),/CAS conflict/);
   assert.deepEqual(store.getHead('worldline:main').snapshot_history.map(x=>x.snapshot_version),[0,1,2]);
+});
+
+
+test('snapshot archive retries safely after archive persistence but before Head CAS', async () => {
+  let failHeadUpdate=false;
+  const {store,yuanqiDomain}=await setup({
+    beforeUpdate(name) {
+      if (name==='worldline_heads' && failHeadUpdate) {
+        failHeadUpdate=false;
+        throw new Error('simulated interruption after archive persistence');
+      }
+    },
+  });
+  await mainline(store);
+  const runtime=await advanceSnapshots(store,3);
+  const args={
+    worldline_id:'worldline:main',holder_id:runtime.holder,fencing_token:runtime.fencing_token,
+    expected_snapshot_version:runtime.version,through_version:1,
+    source_event_ref:'archive:interrupted',now_ms:now+10,
+  };
+  failHeadUpdate=true;
+  await assert.rejects(store.compactSnapshotHistory(args),/simulated interruption/);
+  assert.deepEqual(store.getHead('worldline:main').snapshot_history.map(x=>x.snapshot_version),[0,1,2,3]);
+  const archiveId='archive:worldline:main:0:1';
+  assert.ok(yuanqiDomain.table('worldline_snapshot_archive_manifests').get(archiveId));
+  assert.ok(yuanqiDomain.table('worldline_snapshot_archive_entries').get('worldline:main:0'));
+  assert.ok(yuanqiDomain.table('worldline_snapshot_archive_entries').get('worldline:main:1'));
+  const retried=await store.compactSnapshotHistory(args);
+  assert.equal(retried.compacted,true);
+  assert.deepEqual(store.getHead('worldline:main').snapshot_history.map(x=>x.snapshot_version),[2,3]);
+  assert.equal(store.auditWorldline({worldline_id:'worldline:main',now_ms:now+11}).status,'healthy');
 });
