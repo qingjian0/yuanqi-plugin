@@ -8,7 +8,6 @@ test('DSH domains enforce separate subject ownership and fenced Worldline state 
   assert.equal(yuanqiSubjectDomainSpec.name, 'yuanqi_subject');
   assert.equal(yuanqiSubjectDomainSpec.version, 5);
   assert.deepEqual(yuanqiSubjectDomainSpec.compatibleVersions, [3, 4]);
-  assert.deepEqual(yuanqiSubjectDomainSpec.compatibleVersions, [3]);
   assert.deepEqual(Object.keys(yuanqiSubjectDomainSpec.tables).sort(), [
     'evidence_records', 'evidence_revocations', 'first_user_messages', 'identities', 'session_worldline_bindings', 'wake_records',
     'worldline_events', 'worldline_heads', 'worldline_mainlines', 'worldline_snapshots', 'worldlines',
