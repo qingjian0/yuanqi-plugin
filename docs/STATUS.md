@@ -130,7 +130,7 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - 最新完整 CI：commit `f10f8a559f17142927b372198f63dc0ba0669ecc`，GitHub Actions run `42223941870`（Run #74），Node.js 22；依赖安装、包根入口与 DSH Domain 导出检查、源码语法检查全部通过；17 项自动化测试通过，0 项失败。覆盖 P0 首次消息锁、Cordis 事件/flush 集成，以及 P1 Worldline 主线、分支快照引用和 Session 绑定模拟。
 - 当前验证范围覆盖包根入口导入、领域声明、内存表适配、首次消息规则、DSH 事件来源识别和 Cordis 插件监听器测试；最新提交的 GitHub CI 尚未观察到完成结果。插件监听 `session/event`，通过 `session.id` 绑定 Session，并在 `session/flush` 等待该 Session 的待处理领域写入；没有真实 DSH 宿主后端持久化验收。
 - P1 Worldline 第一阶段已新增主线注册、父快照引用、子线独立初始快照和 Session→Worldline 持久绑定；多个 Session 可以绑定同一 Worldline，Session 不等于 Worldline。上述代码与模拟测试已由 CI Run #74 验证。当前仅完成创建/分支元数据与初始快照引用，没有开放状态写入、跨线切换或自动数据迁移。
-- SelfModel 五中心、Worldline 分支隔离、Evidence Ledger、跨线授权转移、跨进程 CAS 状态提交和真实宿主验收均未完成。首次消息写入仅声明单个插件实例内串行化，不宣称跨进程 CAS。
+- 当时记录：SelfModel 五中心、Worldline 分支隔离、Evidence Ledger、跨线授权转移、跨进程 CAS 状态提交和真实宿主验收均未完成；其中 SelfModel 与 Worldline Runtime、Evidence Ledger 已由后续第 9、10 节更新，跨线授权与真实宿主验收仍未完成。首次消息写入仅声明单个插件实例内串行化，不宣称跨进程 CAS。
 - PR #3 保持 Draft，不合并 `dev` 或 `main`，直至后续验收完成。
 
 ### 下一步（替代旧源码恢复顺序）
@@ -153,3 +153,14 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - 原子性边界：本实现依赖 DSH `KvTable.update` 的单个已打开 Domain 写队列。DSH Storage Domain 契约没有提供跨进程/多独立 Facility 的分布式 CAS 保证，因此不宣称跨进程租约互斥或分布式 fencing 已验收。
 - 快照历史目前保存在每条 Worldline Head 的单一记录中，以保证状态、版本和 fencing 校验同一记录原子提交；长期历史增长与归档/压缩策略尚待设计。
 - 真实 DSH 后端、重启恢复、并发多进程及 Android 宿主验收仍未完成。PR #3 保持 Draft；`dev` 和 `main` 均未合并。
+## 10. 2026-11-06 P2 Evidence Ledger 第一阶段交付
+
+- 新增 `evidence_records` 与 `evidence_revocations` 两张独立表；YuanQiSubject Domain schema 升级至 v5，兼容 v3、v4。
+- `recordEvidence` 只接受同一 YuanQiSubject 下的活动 Worldline，并将证据 ID、证据类型、结构化内容、来源类型、来源事件引用、采集时间与 provenance 固化为不可变记录。相同 ID 的完全相同写入幂等；相同 ID 的内容或来源冲突拒绝覆盖。
+- `getEvidenceRecord` 要求明确提供 Worldline 范围；跨 Worldline 查询返回 undefined，不提供隐式共享。
+- `revokeEvidence` 要求经过可信验证的直接用户事件；撤销写入独立追加记录，不修改或删除原始证据。重复相同撤销幂等，不同撤销内容冲突拒绝。
+- 自动化覆盖证据不可变、幂等、Worldline 隔离、活动线约束、主体归属校验、来源事件类型与撤销追加记录。
+- GitHub Actions Run #118（`42233183397`）在提交 `0c363b9f4569e5665077f13286c4a56ce0d8cdf6` 通过：Node.js 22，25 tests passed / 0 failed；包入口和 DSH Domain 导出检查、全部源码语法检查均通过。此前 Run #114 暴露两个测试断言问题，已修正并由 Run #118 重新验证。
+- 当前阶段不含证据自动可信度评分、冲突自动裁决、跨 Worldline 授权转移、转移回滚/审计，也没有将证据自动提升为事实。SelfModel 的证据引用目前仍由调用方提供；后续应在证据评估/状态提交边界校验引用有效性和撤销状态。
+- 本轮 CI 使用内存 Storage 适配器进行领域行为测试；不代表真实 DSH Storage 后端持久化、重启恢复、跨进程并发或 Android 宿主验收已经完成。
+- PR #3 仍为 Draft，目标分支 `dev`；`main` 未改动，未执行合并。
