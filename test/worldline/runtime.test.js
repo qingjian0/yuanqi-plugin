@@ -30,7 +30,7 @@ function memoryDomain(names) {
 async function setup() {
   const yuanqiDomain = memoryDomain([
     'identities','worldlines','worldline_mainlines','worldline_snapshots',
-    'worldline_events','session_worldline_bindings','worldline_heads','evidence_records','evidence_revocations','evidence_assessments','transfer_authorizations','transfer_authorization_revocations','evidence_transfers',
+    'worldline_events','session_worldline_bindings','worldline_heads','worldline_snapshot_archive_entries','worldline_snapshot_archive_manifests','evidence_records','evidence_revocations','evidence_assessments','transfer_authorizations','transfer_authorization_revocations','evidence_transfers',
   ]);
   await yuanqiDomain.table('identities').put('yuanqi-1',{subject_id:'yuanqi-1',subject_kind:'yuanqi'});
   const store = createWorldlineStore({
@@ -588,4 +588,73 @@ test('Worldline integrity audit safely identifies cyclic transferred evidence li
   assert.equal(report.status,'critical');
   assert.ok(report.issues.some(issue=>issue.code==='evidence.transfer_lineage_invalid'));
   assert.ok(report.issues.some(issue=>issue.code==='transfer.lineage_inconsistent'));
+});
+
+
+async function advanceSnapshots(store, count) {
+  const holder='archive-runtime';
+  const lease=await store.acquireRuntimeLease({worldline_id:'worldline:main',holder_id:holder,now_ms:now,ttl_ms:100000});
+  let version=0;
+  for(let index=1;index<=count;index+=1) {
+    await store.commitSnapshot({
+      worldline_id:'worldline:main',holder_id:holder,fencing_token:lease.fencing_token,
+      expected_snapshot_version:version,state_payload:store.getHead('worldline:main').current_state_payload,
+      evidence_refs:[],source_event_ref:'archive-snapshot:'+index,now_ms:now+index,
+    });
+    version+=1;
+  }
+  return {holder,fencing_token:lease.fencing_token,version};
+}
+
+test('snapshot archive compaction preserves every historical read and Worldline audit', async () => {
+  const {store}=await setup();
+  await mainline(store);
+  const runtime=await advanceSnapshots(store,3);
+  const first=await store.compactSnapshotHistory({
+    worldline_id:'worldline:main',holder_id:runtime.holder,fencing_token:runtime.fencing_token,
+    expected_snapshot_version:runtime.version,through_version:1,
+    source_event_ref:'archive:first',now_ms:now+10,
+  });
+  assert.equal(first.compacted,true);
+  assert.equal(first.from_version,0);
+  assert.equal(first.snapshot_count,2);
+  assert.deepEqual(store.getHead('worldline:main').snapshot_history.map(x=>x.snapshot_version),[2,3]);
+  for(let version=0;version<=3;version+=1) assert.equal(store.getSnapshot('worldline:main',version).snapshot_version,version);
+  assert.equal(store.auditWorldline({worldline_id:'worldline:main',now_ms:now+11}).status,'healthy');
+});
+
+test('snapshot archive manifests chain across compactions and retries are idempotent', async () => {
+  const {store,yuanqiDomain}=await setup();
+  await mainline(store);
+  const runtime=await advanceSnapshots(store,4);
+  const args={
+    worldline_id:'worldline:main',holder_id:runtime.holder,fencing_token:runtime.fencing_token,
+    expected_snapshot_version:runtime.version,through_version:1,
+    source_event_ref:'archive:batch-one',now_ms:now+10,
+  };
+  const first=await store.compactSnapshotHistory(args);
+  const repeated=await store.compactSnapshotHistory(args);
+  assert.equal(repeated.compacted,false);
+  assert.equal(repeated.archive_id,first.archive_id);
+  const second=await store.compactSnapshotHistory({
+    ...args,through_version:3,source_event_ref:'archive:batch-two',now_ms:now+12,
+  });
+  assert.equal(second.from_version,2);
+  assert.equal(second.through_version,3);
+  assert.equal(yuanqiDomain.table('worldline_snapshot_archive_manifests').get(second.archive_id).previous_archive_id,first.archive_id);
+  assert.deepEqual(store.getHead('worldline:main').snapshot_history.map(x=>x.snapshot_version),[4]);
+  for(let version=0;version<=4;version+=1) assert.equal(store.getSnapshot('worldline:main',version).snapshot_version,version);
+  const report=store.auditWorldline({worldline_id:'worldline:main',now_ms:now+13});
+  assert.equal(report.status,'healthy',JSON.stringify(report.issues));
+});
+
+test('snapshot archive rejects stale CAS and never truncates the active history', async () => {
+  const {store}=await setup();
+  await mainline(store);
+  const runtime=await advanceSnapshots(store,2);
+  await assert.rejects(store.compactSnapshotHistory({
+    worldline_id:'worldline:main',holder_id:runtime.holder,fencing_token:runtime.fencing_token,
+    expected_snapshot_version:1,through_version:0,source_event_ref:'archive:stale',now_ms:now+10,
+  }),/CAS conflict/);
+  assert.deepEqual(store.getHead('worldline:main').snapshot_history.map(x=>x.snapshot_version),[0,1,2]);
 });
