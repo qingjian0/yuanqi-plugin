@@ -14,6 +14,16 @@ const worldlineMainline=z.object({ yuanqi_subject_id:z.string().min(1), worldlin
 const worldlineSnapshot=z.object({ snapshot_id:z.string().min(1), worldline_id:z.string().min(1), yuanqi_subject_id:z.string().min(1), snapshot_version:z.number().int().nonnegative(), state_payload:z.record(z.string(),z.unknown()), evidence_refs:z.array(z.string().min(1)).default([]), created_at_event_ref:z.string().min(1) }).strict();
 const worldlineEvent=z.object({ event_id:z.string().min(1), event_type:z.enum(['worldline.created','worldline.forked']), subject_id:z.string().min(1), subject_kind:z.literal('yuanqi'), worldline_id:z.string().min(1), occurred_at:z.string().datetime(), source_kind:z.enum(['direct_user_event','host_event']), source_event_ref:z.string().min(1), schema_version:z.literal(1), payload:z.record(z.string(),z.unknown()) }).strict();
 const sessionWorldlineBinding=z.object({ session_id:z.string().min(1), yuanqi_subject_id:z.string().min(1), worldline_id:z.string().min(1), bound_from_event_ref:z.string().min(1), schema_version:z.literal(1) }).strict();
+const evidenceRecord=z.object({
+ evidence_id:z.string().min(1), yuanqi_subject_id:z.string().min(1), worldline_id:z.string().min(1),
+ evidence_type:z.string().min(1), content:z.record(z.string(),z.unknown()), provenance:z.record(z.string(),z.unknown()),
+ source_kind:z.enum(['direct_user_event','host_event']), source_event_ref:z.string().min(1),
+ captured_at:z.string().datetime(), schema_version:z.literal(1),
+}).strict();
+const evidenceRevocation=z.object({
+ evidence_id:z.string().min(1), worldline_id:z.string().min(1), reason:z.string().min(1),
+ revoked_from_event_ref:z.string().min(1), revoked_at:z.string().datetime(), schema_version:z.literal(1),
+}).strict();
 const headSnapshot=z.object({ snapshot_version:z.number().int().nonnegative(), state_payload:z.record(z.string(),z.unknown()), evidence_refs:z.array(z.string().min(1)), created_at_event_ref:z.string().min(1), fencing_token:z.number().int().nonnegative() }).strict();
 const worldlineHead=z.object({
  worldline_id:z.string().min(1), yuanqi_subject_id:z.string().min(1),
@@ -29,7 +39,7 @@ const wakeRecord=z.object({
  wake_event_ref:z.string().min(1), trigger_command:z.enum(['启动元气','启动元炁']), occurred_at:z.string().datetime(), schema_version:z.literal(3),
 }).strict();
 export const userSubjectDomainSpec=defineDomain({name:'yuanqi_user_subject',version:1,tables:{identities:domainTable(identitySchema('user')),birth_profiles:domainTable(birthProfile)}});
-export const yuanqiSubjectDomainSpec=defineDomain({name:'yuanqi_subject',version:4,compatibleVersions:[3],tables:{identities:domainTable(identitySchema('yuanqi')),first_user_messages:domainTable(firstUserMessage),wake_records:domainTable(wakeRecord),worldlines:domainTable(worldline),worldline_mainlines:domainTable(worldlineMainline),worldline_snapshots:domainTable(worldlineSnapshot),worldline_heads:domainTable(worldlineHead),worldline_events:domainTable(worldlineEvent),session_worldline_bindings:domainTable(sessionWorldlineBinding)}});
+export const yuanqiSubjectDomainSpec=defineDomain({name:'yuanqi_subject',version:5,compatibleVersions:[3,4],tables:{identities:domainTable(identitySchema('yuanqi')),first_user_messages:domainTable(firstUserMessage),wake_records:domainTable(wakeRecord),worldlines:domainTable(worldline),worldline_mainlines:domainTable(worldlineMainline),worldline_snapshots:domainTable(worldlineSnapshot),worldline_heads:domainTable(worldlineHead),evidence_records:domainTable(evidenceRecord),evidence_revocations:domainTable(evidenceRevocation),worldline_events:domainTable(worldlineEvent),session_worldline_bindings:domainTable(sessionWorldlineBinding)}});
 export async function openSubjectDomains(storageDomain) {
  if(!storageDomain||typeof storageDomain.open!=='function') throw new TypeError('DSH storageDomain is required');
  const userDomain=await storageDomain.open(userSubjectDomainSpec);
