@@ -771,7 +771,18 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
     const value = head?.snapshot_history.find(item => item.snapshot_version === version);
     if (value) return clone(value);
     const archived = snapshotArchiveEntries.get(snapshotKey(worldline_id, version));
-    if (archived) return clone(archived.snapshot);
+    if (archived) {
+      const manifest = snapshotArchiveManifests.get(archived.archive_id);
+      if (!manifest || manifest.archive_id !== archived.archive_id ||
+          manifest.worldline_id !== worldline_id ||
+          manifest.yuanqi_subject_id !== archived.yuanqi_subject_id ||
+          version < manifest.from_version || version > manifest.through_version ||
+          archived.worldline_id !== worldline_id ||
+          archived.snapshot?.snapshot_version !== version) {
+        throw new Error('archived snapshot entry has no valid matching manifest');
+      }
+      return clone(archived.snapshot);
+    }
     const legacy = snapshots.get(snapshotKey(worldline_id, version));
     return legacy === undefined ? undefined : clone(legacy);
   }
