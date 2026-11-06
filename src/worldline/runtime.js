@@ -292,7 +292,8 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
       source_kind: source.source_kind, source_event_ref: source.source_event_ref,
       captured_at: source.occurred_at, schema_version: 1,
     };
-    return putOnce(evidenceRecords, evidence_id, record, 'evidence id is already bound to different immutable provenance');
+    return serializeByKey(queues, 'evidence:' + evidence_id, () =>
+      putOnce(evidenceRecords, evidence_id, record, 'evidence id is already bound to different immutable provenance'));
   }
 
   async function revokeEvidence({ evidence_id, worldline_id, reason, revoked_from_event }) {
@@ -309,7 +310,8 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
       revoked_from_event_ref: source.source_event_ref,
       revoked_at: source.occurred_at, schema_version: 1,
     };
-    return putOnce(evidenceRevocations, evidence_id, revocation, 'evidence already has a different revocation record');
+    return serializeByKey(queues, 'evidence-revocation:' + evidence_id, () =>
+      putOnce(evidenceRevocations, evidence_id, revocation, 'evidence already has a different revocation record'));
   }
 
   function getEvidenceRecord({ evidence_id, worldline_id }) {
