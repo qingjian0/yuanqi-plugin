@@ -134,6 +134,8 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
   const events = yuanqiDomain.table('worldline_events');
   const bindings = yuanqiDomain.table('session_worldline_bindings');
   const heads = yuanqiDomain.table('worldline_heads');
+  const evidenceRecords = yuanqiDomain.table('evidence_records');
+  const evidenceRevocations = yuanqiDomain.table('evidence_revocations');
   const queues = new Map();
 
   function requireSubject(id) {
@@ -270,6 +272,53 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
         session_id, yuanqi_subject_id, worldline_id, bound_from_event_ref, schema_version: 1,
       }, 'Session Worldline binding conflict');
     });
+  }
+
+  // Evidence records are immutable provenance objects. Revocation is a separate append-only row.
+  async function recordEvidence({ evidence_id, yuanqi_subject_id, worldline_id, evidence_type, content, provenance = {}, captured_from_event }) {
+    requiredText(evidence_id, 'evidence_id');
+    requiredText(evidence_type, 'evidence_type');
+    if (!content || typeof content !== 'object' || Array.isArray(content)) throw new TypeError('evidence content must be an object');
+    if (!provenance || typeof provenance !== 'object' || Array.isArray(provenance)) throw new TypeError('evidence provenance must be an object');
+    requireSubject(yuanqi_subject_id);
+    const source = verifiedEvent(verifyHostEvent, captured_from_event, 'evidence-recorded');
+    const line = worldlines.get(requiredText(worldline_id, 'worldline_id'));
+    if (!line || line.yuanqi_subject_id !== yuanqi_subject_id || line.status !== 'active') {
+      throw new Error('active Worldline for this YuanQiSubject is required');
+    }
+    const record = {
+      evidence_id, yuanqi_subject_id, worldline_id, evidence_type,
+      content: clone(content), provenance: clone(provenance),
+      source_kind: source.source_kind, source_event_ref: source.source_event_ref,
+      captured_at: source.occurred_at, schema_version: 1,
+    };
+    return putOnce(evidenceRecords, evidence_id, record, 'evidence id is already bound to different immutable provenance');
+  }
+
+  async function revokeEvidence({ evidence_id, worldline_id, reason, revoked_from_event }) {
+    requiredText(evidence_id, 'evidence_id');
+    requiredText(reason, 'reason');
+    const source = verifiedEvent(verifyHostEvent, revoked_from_event, 'evidence-revoked');
+    if (source.source_kind !== 'direct_user_event') throw new Error('evidence revocation requires a verified direct user event');
+    const record = evidenceRecords.get(evidence_id);
+    if (!record || record.worldline_id !== requiredText(worldline_id, 'worldline_id')) {
+      throw new Error('evidence does not exist in the requested Worldline scope');
+    }
+    const revocation = {
+      evidence_id, worldline_id, reason,
+      revoked_from_event_ref: source.source_event_ref,
+      revoked_at: source.occurred_at, schema_version: 1,
+    };
+    return putOnce(evidenceRevocations, evidence_id, revocation, 'evidence already has a different revocation record');
+  }
+
+  function getEvidenceRecord({ evidence_id, worldline_id }) {
+    requiredText(evidence_id, 'evidence_id');
+    const scope = requiredText(worldline_id, 'worldline_id');
+    const record = evidenceRecords.get(evidence_id);
+    if (!record || record.worldline_id !== scope) return undefined;
+    const revocation = evidenceRevocations.get(evidence_id);
+    return { record: clone(record), revocation: revocation === undefined ? null : clone(revocation), status: revocation ? 'revoked' : 'active' };
   }
 
   // KvTable.update is an atomic read-modify-write on this open DSH Domain's write chain.
@@ -445,6 +494,7 @@ export function createWorldlineStore({ yuanqiDomain, verifyHostEvent }) {
 
   return Object.freeze({
     createMainline, forkWorldline, bindSession,
+    recordEvidence, revokeEvidence, getEvidenceRecord,
     acquireRuntimeLease, renewRuntimeLease, releaseRuntimeLease,
     commitSnapshot, updateSelfModelCenter,
     getHead, getSnapshot, getWorldline(id) {
