@@ -45,12 +45,9 @@ export function createWorldlineStore({yuanqiDomain,verifyHostEvent}){
    const base=snapshots.get(snapshotKey(parent_worldline_id,base_snapshot_version));
    if(!base)throw new Error('parent snapshot does not exist');
    const existing=worldlines.get(target_worldline_id);
-   if(existing){
-    if(existing.yuanqi_subject_id!==yuanqi_subject_id||existing.parent_worldline_id!==parent_worldline_id||existing.base_snapshot_version!==base_snapshot_version)throw new Error('target Worldline already exists with different lineage');
-    return clone(existing);
-   }
-   const record={worldline_id:target_worldline_id,yuanqi_subject_id,parent_worldline_id,base_snapshot_version,status:'active',created_from_event_ref:source.source_event_ref};
-   const local={snapshot_id:snapshotKey(target_worldline_id,0),worldline_id:target_worldline_id,yuanqi_subject_id,snapshot_version:0,state_payload:{},evidence_refs:[],created_at_event_ref:source.source_event_ref};
+   if(existing&&(existing.yuanqi_subject_id!==yuanqi_subject_id||existing.parent_worldline_id!==parent_worldline_id||existing.base_snapshot_version!==base_snapshot_version))throw new Error('target Worldline already exists with different lineage');
+   const record=existing??{worldline_id:target_worldline_id,yuanqi_subject_id,parent_worldline_id,base_snapshot_version,status:'active',created_from_event_ref:source.source_event_ref};
+   const local={snapshot_id:snapshotKey(target_worldline_id,0),worldline_id:target_worldline_id,yuanqi_subject_id,snapshot_version:0,state_payload:{},evidence_refs:[],created_at_event_ref:record.created_from_event_ref};
    await putOnce(snapshots,snapshotKey(target_worldline_id,0),local,'fork local snapshot conflict');
    await putOnce(worldlines,target_worldline_id,record,'fork Worldline conflict');
    await recordEvent({event_id:'worldline.forked:'+target_worldline_id,event_type:'worldline.forked',subject_id:yuanqi_subject_id,worldline_id:target_worldline_id,occurred_at:source.occurred_at,source_kind:source.source_kind,source_event_ref:source.source_event_ref,payload:{parent_worldline_id,base_snapshot_version}});
