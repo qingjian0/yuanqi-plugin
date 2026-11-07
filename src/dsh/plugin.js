@@ -153,10 +153,14 @@ export async function apply(ctx) {
       const batch = [...tasks];
       const results = await Promise.allSettled(batch.map(entry => entry.promise));
       const failed = [];
+      const failedReasons = [];
       results.forEach((result, index) => {
         const entry = batch[index];
         if (result.status === 'fulfilled') tasks.delete(entry);
-        else failed.push(entry);
+        else {
+          failed.push(entry);
+          failedReasons.push(result.reason);
+        }
       });
 
       if (failed.length) {
@@ -164,7 +168,7 @@ export async function apply(ctx) {
         // through the same handle; only close/reopen can re-establish state.
         if (storageUncertain) {
           throw new AggregateError(
-            failed.map(entry => entry.promise).map(promise => promise.catch(error => error)),
+            failedReasons,
             'YuanQi Storage Domain state is unknown; unload and reload is required',
           );
         }
