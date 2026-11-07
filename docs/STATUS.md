@@ -9,11 +9,11 @@
 
 | 项目 | 状态 | 说明 |
 |---|---|---|
-| 自动化测试 | GitHub Actions 通过 | 最新代码验证 Run #264（commit `03999247`）的 `npm run check` 成功；测试使用内存 Storage Domain 适配器，未将其等同真实宿主验收 |
-| JavaScript 语法检查 | GitHub Actions 通过 | Run #264 的 `npm run check` 通过 |
+| 自动化测试 | GitHub Actions 通过 | Run #275（commit `c9285a9`）`npm run check`：46 passed / 0 failed；测试使用内存 Storage Domain 适配器 |
+| JavaScript 语法检查 | GitHub Actions 通过 | Run #275 的 `npm run check` 通过 |
 | npm 安装包构建与归档检查 | 归档隔离复验通过 | `npm pack --dry-run` 成功，26 个发布文件 |
 | 解压后入口导入检查 | 归档隔离复验通过 | 20/20 个本地导入目标存在；GitHub `dev` 导入待完成 |
-| GitHub Actions CI | 已建立并通过 | `work/e00-20e-05b-subject-domain-runtime` 分支 Run #264 通过；PR #3 仍为 Draft |
+| GitHub Actions CI | 已建立并通过 | 当前 HEAD `c9285a9`：Push Run #275 与 PR Run #276 均通过；PR #3 仍为 Draft |
 | 真实 Android DSH 宿主安装与运行 | 待验收 | 尚无真实宿主验收结论 |
 | 真实模型会话端到端 | 待验收 | 不以模拟宿主测试代替 |
 | Android/iOS 端到端 | 待验收 | 尚未完成 |
@@ -224,3 +224,20 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - 唤醒锁和 Worldline 写入的串行化只保证单个插件实例，不宣称多进程或多 Facility 分布式 CAS。
 - 出生资料确认在 Host 入口继续 fail-closed；可信用户确认事件与出生资料对话流程尚未接通。
 - 本节覆盖并修正本文件前面关于旧根入口缺失模块、旧 CI Run 编号和旧唤醒触发条件的历史状态描述；历史记录保留作为审计轨迹，不作为当前状态。
+
+
+## 15. 2026-11-07 P0 Session Flush 失败写入保留与重试
+
+- 当前代码提交：`c9285a9c8e829d7d3a3680611050fa18bcce307f`。
+- 审计发现旧版 `track()` 在任务成功或失败时都会将任务从 `pendingBySession` 删除。若领域写入在 `session/flush` 之前失败，Flush 可能看不到已被删除的失败任务；旧版 `Promise.all()` 也可能在同批次其他任务尚未结束时提前拒绝。
+- 已修复 `src/dsh/plugin.js`：待处理项现在保留可重放的执行函数和最新 Promise；成功后移除，失败后保留。Flush 使用 `Promise.allSettled()` 等待完整批次，对失败项执行一次幂等重试；持续失败时抛出 `AggregateError`，不再静默确认。
+- Flush 在每轮后重新读取 Session 待处理集合，直到当前集合排空，以覆盖 Flush 等待期间新加入的任务。
+- 插件卸载时停止接收新任务，等待已经开始的任务全部结束，关闭两个 Storage Domain；若仍有失败任务，在资源关闭后向生命周期调用方报告聚合错误。
+- 重试从原始 Session 事件重新执行 `observe()`。主体创建、首次消息锁、唤醒记录、主 Worldline 创建与 Session 绑定均使用现有幂等路径；没有增加新的领域身份或权限入口。
+- 新增测试覆盖一次性 Worldline 写入失败后由 Flush 恢复、连续失败时 Flush 明确拒绝、后续 Flush 再次重试成功，以及插件卸载期间失败不被吞掉。
+- GitHub Actions Push Run #275（`42349568355`）和 PR Run #276（`42349572586`）均在当前 HEAD 通过；`npm run check` 为 46 tests passed / 0 failed。
+- 中间提交 `4c69e7f` 的 Run #273/#274 曾因旧测试仍期待卸载吞掉失败而失败；随后修正测试契约，当前提交的 Run #275/#276 已通过。
+- 保证边界：自动重试仅在每次 Flush 内执行一次；若持续失败，Flush 会拒绝，失败项保留供后续 Flush 再试。卸载阶段不无限重试，而是等待、关闭资源并报告错误。
+- 本阶段仍使用内存 Storage Domain 测试适配器。真实 DSH 后端故障注入、进程崩溃恢复、真实 Profile 插件卸载与 Android 宿主验收尚未完成。
+- PR #3 保持 Draft，目标 `dev`；未合并 PR，未修改 `main`。
+- 详细审查：[E00-20G P0 Session Flush Retry Review](./engineering/E00-20G-P0-SESSION-FLUSH-RETRY-REVIEW.md)。
