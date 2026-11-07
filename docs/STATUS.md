@@ -273,3 +273,15 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - PR #4 的 Session 绑定检查还只比较 `yuanqi_subject_id`，未验证现有绑定的 `worldline_id` 是否等于本次预期主线。
 - 因此本轮只移植 PR #4 中的 Node/peer 兼容基线、CI 检查和 DSH DomainFacility 契约测试；没有移植 PR #4 的插件运行时逻辑，也没有修改 PR #4 分支。
 - 详细对照：[E00-20I PR3 / PR4 Reconciliation](./engineering/E00-20I-PR3-PR4-RECONCILIATION.md)。
+
+## 19. 2026-11-07 P0 Session Restore 历史事件重放边界
+
+- DSH 官方 Session 契约明确：`session/event` 是 post-commit、fire-and-forget 的实时追加通知；SessionStore 恢复/进入一个带 seed history 的 Session 时，不会把历史 seed events 重新发送为 `session/event`。
+- `session/created` 是只读创建公告；监听器可以看到已有历史，但它不是历史事件重放流。
+- `session/flush` 是 awaited parallel checkpoint：所有监听器都会执行，调用方等待全部完成；单个 YuanQi Flush 失败不会构成阻止其他持久化监听器运行的 waterfall veto。
+- 当前 PR #3 插件监听 `session/event` 和 `session/flush`，没有监听 `session/created`，也没有调用 DSH Session history/query service。虽然 `sessions` 已列入 Cordis inject，但当前代码没有使用它。
+- 因此，若 Session history 成功持久化，而 YuanQi 的首次消息锁/唤醒侧写入失败，重启后历史事件不会自动通过 `session/event` 再次送达。现有恢复逻辑能修复已经写入的首次消息锁、Wake Record 与 Worldline 中断；不能据此宣称能从 Session 历史有事件、YuanQi 侧没有首次锁的状态自动恢复。
+- PR #4 的 `test/dsh/lifecycle-recovery.test.js` 在重载后手动再次调用插件 listener 传入同一个事件；这证明同一事件被再次投递时的幂等性，不等于真实 DSH SessionStore restore 自动重放历史。
+- DSH `Session.snapshotEvents()` 在官方声明中已 deprecated，并标注禁止新增调用；不能为恢复功能直接依赖该弃用接口。下一步必须审查正式 Session Query / History API，并设计不依赖模型输入的可信恢复路径。
+- 该项当前状态：**未修复 / 真实 Host 验收阻断项**。在正式 API 和安装实例时间边界确定前，不得伪造事件、使用模型提供的时间，或把历史消息误判为安装后的新消息。
+- 详细审查：[E00-20J P0 Session Restore Replay Gap](./engineering/E00-20J-P0-SESSION-RESTORE-REPLAY-GAP.md)。
