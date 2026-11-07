@@ -208,3 +208,19 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - 本阶段不使用 SHA-256，不声称归档内容具有密码学防篡改能力；当前保证是基于 Storage Domain 不可变写入约束、确定性键、清单链与一致性审计。真实后端的持久化与故障语义仍需宿主验收。
 - 快照归档目前是显式 API，不会在后台自动触发；归档保留策略、容量阈值和后台维护调度仍未定义。
 - P4 代码和测试已推送至 PR #3 分支；CI 最新提交结果待确认。PR #3 保持 Draft，目标 `dev`；`main` 未修改、未合并。
+
+
+## 14. 2026-11-07 P0 首次唤醒与 Host 集成复核（以本节为准）
+
+- 当前开发 PR：#3，分支 `work/e00-20e-05b-subject-domain-runtime`，目标 `dev`，仍为 Draft；未合并 `dev` 或 `main`。
+- 当前实现不是 alpha.9 发布包状态。package.json 的版本号仍为 `1.1.0-alpha.9`，不得据此推断本分支的新能力已经发布。
+- 已修复首次唤醒命令匹配：只接受首条直接用户消息中唯一文本块的完整文本，精确等于 `启动元气` 或 `启动元炁`；不 trim、不拼接多个文本块，不接受空格、引号、标点或附加文字。
+- 已修复未唤醒时提前创建 Worldline 的问题：首条直接用户消息不是精确启动口令时，永久消耗首次唤醒资格；后续 Session 再发送口令不能唤醒，也不创建主 Worldline、不绑定 Session。
+- 精确启动口令成功后，唤醒时间取 DSH SessionEvent.time（Unix 毫秒），不是设备当前时间或模型提供的时间。
+- 插件启动时会检查持久化首次消息锁并恢复唤醒记录；如果唤醒记录已写入但主 Worldline/首次 Session 绑定未完成，会幂等补齐。新增测试模拟 Worldline 写入中断并重新 apply 插件后的恢复。
+- 新增审查与交付记录：[E00-20F P0 Wake and Host Review](./engineering/E00-20F-P0-WAKE-AND-HOST-REVIEW.md)。
+- 最新代码验证：GitHub Actions Run #264（`42347900017`），commit `03999247cda29cf1c52b8b673a7ec5ae26ccd17c`，job `node-check` completed / success；依赖安装、包根入口/DSH Domain 导出验证、`npm run check` 全部成功。
+- 自动化测试使用内存 Storage Domain 适配器。真实 DSH Storage 后端、真实 DSH Profile 安装/卸载/重启、Android 宿主和真实模型会话端到端仍待验收。
+- 唤醒锁和 Worldline 写入的串行化只保证单个插件实例，不宣称多进程或多 Facility 分布式 CAS。
+- 出生资料确认在 Host 入口继续 fail-closed；可信用户确认事件与出生资料对话流程尚未接通。
+- 本节覆盖并修正本文件前面关于旧根入口缺失模块、旧 CI Run 编号和旧唤醒触发条件的历史状态描述；历史记录保留作为审计轨迹，不作为当前状态。
