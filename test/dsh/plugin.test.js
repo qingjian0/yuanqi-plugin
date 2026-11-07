@@ -8,6 +8,7 @@ function fakeStorageDomain() {
   const storage = {
     opened,
     failWorldlineWrite: false,
+    failWorldlineWrites: 0,
     async open(spec) {
       let tables = persisted.get(spec.name);
       if (!tables) {
@@ -21,8 +22,10 @@ function fakeStorageDomain() {
           return {
             get: key => rows.get(key),
             async put(key, value) {
-              if (spec.name === 'yuanqi_subject' && name === 'worldlines' && storage.failWorldlineWrite) {
+              if (spec.name === 'yuanqi_subject' && name === 'worldlines' &&
+                  (storage.failWorldlineWrite || storage.failWorldlineWrites > 0)) {
                 storage.failWorldlineWrite = false;
+                if (storage.failWorldlineWrites > 0) storage.failWorldlineWrites -= 1;
                 throw new Error('simulated interruption before Worldline record');
               }
               rows.set(key, structuredClone(value));
@@ -102,7 +105,7 @@ test('startup reconciliation completes Worldline creation after an interrupted w
   const first = context(storage);
   await apply(first);
   await assert.rejects(first.listener({ id: 'session-a' }, dshEvent('启动元炁', 'm1', 0, 1793966400000)), /simulated interruption/);
-  await first.disposer();
+  await assert.rejects(first.disposer(), /YuanQi session writes failed during plugin teardown/);
 
   const restarted = context(storage);
   await apply(restarted);
@@ -135,5 +138,30 @@ test('session/flush retries a failed domain write before acknowledging the check
     'worldline:main',
   );
   assert.equal(ctx.warnings.length, 1);
+  await ctx.disposer();
+});
+
+test('persistent session write failure is reported by flush and remains retryable', async () => {
+  const storage = fakeStorageDomain();
+  storage.failWorldlineWrites = 2;
+  const ctx = context(storage);
+  await apply(ctx);
+
+  await assert.rejects(
+    ctx.listener({ id: 'session-a' }, dshEvent('启动元炁', 'm1', 0, 1793966400000)),
+    /simulated interruption before Worldline record/,
+  );
+  await assert.rejects(
+    ctx.flushListener({ id: 'session-a' }),
+    /YuanQi session writes failed after flush retry/,
+  );
+
+  const tables = storage.opened.get('yuanqi_subject').tables;
+  assert.equal(tables.get('worldlines').has('worldline:main'), false);
+  assert.equal(ctx.warnings.length, 2);
+
+  // The failed entry remains pending; a later flush retries it again.
+  await ctx.flushListener({ id: 'session-a' });
+  assert.equal(tables.get('worldlines').get('worldline:main').status, 'active');
   await ctx.disposer();
 });
