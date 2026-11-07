@@ -17,8 +17,10 @@
 - `@deepseek-ai/dsh-storage-domain`：`>=0.2.2-rc.1 <0.3.0-0`
 - `@deepseek-ai/dsh-session`：`>=0.2.2-rc.1 <0.3.0-0`
 - `@deepseek-ai/dsh-llm`：`>=0.2.2-rc.1 <0.3.0-0`
+- `@deepseek-ai/dsh-session-query`：`>=0.2.2-rc.1 <0.3.0-0`
+- `@deepseek-ai/dsh-session-persistence`：`>=0.2.2-rc.1 <0.3.0-0`
 
-当前核对的 DSH API 基线为 `0.2.2-rc.1`；DSH 根包声明 Node.js `>=24.9.0`。依赖范围是兼容性声明，不代表范围内所有 DSH 版本均已完成真实运行验证。
+当前核对的 DSH API 基线为 `0.2.2-rc.1`；DSH 根包声明 Node.js `>=24.9.0`。其中 Session Query 与 Session Persistence 是冷历史恢复的必需服务定义；具体 Provider 由目标 Profile 组合提供。依赖范围是兼容性声明，不代表范围内所有 DSH 版本均已完成真实运行验证。
 
 ## 2. 本地检查与打包
 
