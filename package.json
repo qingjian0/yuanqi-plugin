@@ -43,5 +43,9 @@
     "cordis.patch.yml",
     "README.md"
   ],
-  "x-default-language": "zh-CN"
+  "x-default-language": "zh-CN",
+  "devDependencies": {
+    "@deepseek-ai/dsh-session-persistence-jsonl": ">=0.2.2-rc.1 <0.3.0-0",
+    "@deepseek-ai/dsh-session-query-sqlite": ">=0.2.2-rc.1 <0.3.0-0"
+  }
 }
