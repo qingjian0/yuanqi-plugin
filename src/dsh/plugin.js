@@ -99,37 +99,87 @@ export async function apply(ctx) {
     }
   }
 
-  function track(sessionId, task) {
+  function track(sessionId, run) {
     let tasks = pendingBySession.get(sessionId);
     if (!tasks) { tasks = new Set(); pendingBySession.set(sessionId, tasks); }
-    tasks.add(task);
+
+    const entry = { run, promise: null, execute: null };
     const remove = () => {
-      tasks.delete(task);
-      if (tasks.size === 0) pendingBySession.delete(sessionId);
+      tasks.delete(entry);
+      if (tasks.size === 0 && pendingBySession.get(sessionId) === tasks) {
+        pendingBySession.delete(sessionId);
+      }
     };
-    task.then(remove, remove);
+    entry.execute = () => {
+      let result;
+      try {
+        // Start synchronously up to the first await, preserving event admission order.
+        result = run();
+      } catch (error) {
+        result = Promise.reject(error);
+      }
+      const task = Promise.resolve(result).catch(error => {
+        ctx.logger?.warn?.('[yuanqi] session event processing failed: ' + String(error));
+        throw error;
+      });
+      entry.promise = task;
+      // Successful writes leave the pending set. Failed writes remain there
+      // until a flush retries them or teardown reports the failure.
+      task.then(remove, () => {});
+      return task;
+    };
+
+    tasks.add(entry);
+    return entry.execute();
+  }
+
+  async function flushSession(sessionId) {
+    while (true) {
+      const tasks = pendingBySession.get(sessionId);
+      if (!tasks?.size) return;
+
+      const batch = [...tasks];
+      const results = await Promise.allSettled(batch.map(entry => entry.promise));
+      const failed = [];
+      results.forEach((result, index) => {
+        const entry = batch[index];
+        if (result.status === 'fulfilled') tasks.delete(entry);
+        else failed.push(entry);
+      });
+
+      if (failed.length) {
+        // Domain operations are idempotent. Retry failed work once at the
+        // durability checkpoint; persistent failures remain visible to DSH.
+        const retries = await Promise.allSettled(failed.map(entry => entry.execute()));
+        const retryErrors = retries
+          .filter(result => result.status === 'rejected')
+          .map(result => result.reason);
+        if (retryErrors.length) {
+          throw new AggregateError(retryErrors, 'YuanQi session writes failed after flush retry');
+        }
+      }
+      // Re-read the set on every pass so work admitted while this flush was
+      // waiting is also drained before the checkpoint resolves.
+    }
   }
 
   ctx.on('session/event', (session, event) => {
-    const task = observe(session, event).catch(error => {
-      ctx.logger?.warn?.('[yuanqi] session event processing failed: ' + String(error));
-      throw error;
-    });
-    track(session.id, task);
-    return task;
+    return track(session.id, () => observe(session, event));
   });
 
   // session/event is post-commit and fire-and-forget. The awaited flush
-  // barrier makes sure our cross-session lock write settles before the host
-  // completes its durability checkpoint for this Session.
+  // barrier drains all admitted work, retries transient failures, and reports
+  // persistent failures before the host completes its durability checkpoint.
   ctx.on('session/flush', async session => {
-    const tasks = [...(pendingBySession.get(session.id) ?? [])];
-    await Promise.all(tasks);
+    await flushSession(session.id);
   });
 
   ctx.effect(() => async () => {
     active = false;
-    await Promise.allSettled([...pendingBySession.values()].flatMap(tasks => [...tasks]));
+    const pending = [...pendingBySession.values()].flatMap(tasks => [...tasks]);
+    const results = await Promise.allSettled(pending.map(entry => entry.promise));
     await domains.close();
+    const errors = results.filter(result => result.status === 'rejected').map(result => result.reason);
+    if (errors.length) throw new AggregateError(errors, 'YuanQi session writes failed during plugin teardown');
   });
 }

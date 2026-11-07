@@ -43,9 +43,11 @@ function dshEvent(text, id, seq, time) {
 }
 function context(storageDomain) {
   let listener, flushListener, disposer;
+  const warnings = [];
   return {
     storageDomain,
-    logger: { warn(message) { throw new Error(message); } },
+    warnings,
+    logger: { warn(message) { warnings.push(message); } },
     on(name, callback) { if (name === 'session/event') listener = callback; else if (name === 'session/flush') flushListener = callback; else throw new Error('unexpected event ' + name); },
     effect(register) { disposer = register(); },
     get listener() { return listener; },
@@ -109,4 +111,29 @@ test('startup reconciliation completes Worldline creation after an interrupted w
   assert.equal(tables.get('worldlines').get('worldline:main').status, 'active');
   assert.equal(tables.get('session_worldline_bindings').get('session-a').worldline_id, 'worldline:main');
   await restarted.disposer();
+});
+
+test('session/flush retries a failed domain write before acknowledging the checkpoint', async () => {
+  const storage = fakeStorageDomain();
+  storage.failWorldlineWrite = true;
+  const ctx = context(storage);
+  await apply(ctx);
+
+  await assert.rejects(
+    ctx.listener({ id: 'session-a' }, dshEvent('启动元炁', 'm1', 0, 1793966400000)),
+    /simulated interruption before Worldline record/,
+  );
+
+  // The failed event task must remain visible to the next flush. Its retry
+  // resumes from the persisted wake record and completes the Worldline.
+  await ctx.flushListener({ id: 'session-a' });
+  const tables = storage.opened.get('yuanqi_subject').tables;
+  assert.equal(tables.get('wake_records').get('yuanqi:primary').wake_event_ref, 'm1');
+  assert.equal(tables.get('worldlines').get('worldline:main').status, 'active');
+  assert.equal(
+    tables.get('session_worldline_bindings').get('session-a').worldline_id,
+    'worldline:main',
+  );
+  assert.equal(ctx.warnings.length, 1);
+  await ctx.disposer();
 });
