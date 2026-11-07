@@ -179,7 +179,7 @@ DSH Storage Domain 的 `KvTable.update()` 是同一个 Domain 实例内部 write
 4. 安装边界在本次功能版本首次激活时建立。若用户此前已运行旧版插件，而旧版没有保存该边界，升级前的事件不能被安全地认定为原始安装后的事件；本实现按保守策略不回溯这些无可靠边界的历史。
 5. Storage Domain 与 Session Persistence 仍是不同持久化域；不存在跨 Domain 原子事务。首次锁、Wake Record、Worldline 的部分写入仍依赖幂等恢复。
 
-### 首轮测试矩阵（待 CI）
+### 首轮自动化验证（已通过，真实 Host 仍待验收）
 
 - cold Session 历史恢复；
 - 安装边界前历史排除；
@@ -189,5 +189,7 @@ DSH Storage Domain 的 `KvTable.update()` 是同一个 Domain 实例内部 write
 - 安装边界重启复用；
 - listener 事件与历史扫描合并；
 - Flush 等待恢复 barrier。
+
+GitHub Actions Push Run #299（`42355677376`）和 PR Run #300（`42355680482`）均通过，commit `801e9c1057943f2c917f702f813a41621901e181`，Node.js 24.9.0，56 passed / 0 failed。Run #295-#298 曾因测试期望未同步 Domain v8 表清单和新的 inject 服务列表而失败；修正后最新两条 CI 均通过。
 
 真实 DSH SessionStore restore 和 JSONL 后端重启测试仍是后续 P0 验收门槛。

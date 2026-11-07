@@ -309,5 +309,5 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - 跨 Session 的恢复顺序按各 Session 内首个符合边界的 direct-user 事件时间比较；若多个 Session 的最早事件具有相同毫秒时间戳，拒绝唤醒，不以 Session ID 字典序制造顺序。该策略依赖 DSH `Date.now()` 事件时钟作为跨 Session 排序依据；系统时钟回拨仍可能导致历史候选遗漏/排序偏差，后续真实宿主验收必须覆盖。
 - 增加启动恢复 barrier：恢复扫描期间到达的 `session/flush` 等待历史与实时缓冲合并处理完成，避免先确认 Flush 再完成首次消息锁。
 - 新增自动化覆盖：cold-history 恢复、安装前历史排除、Fork 继承边界、跨 Session 同毫秒歧义 fail-closed、缺少服务 fail-closed、安装边界重启复用和实时事件时钟回拨场景。
-- **验证状态：代码已准备提交；本节测试和 GitHub CI 尚待本轮提交后实际执行。** 现有内存 Session Query mock 只验证 YuanQi 的调用/筛选协议，不等于真实 DSH SessionStore restore 或 JSONL backend 重启验收。
+- **代码提交：** `801e9c1057943f2c917f702f813a41621901e181`。GitHub Actions Push Run #299（`42355677376`）和 PR Run #300（`42355680482`）均通过；Node.js 24.9.0；`npm run check` 为 56 passed / 0 failed。Run #295-#298 曾因测试契约断言未同步而失败，已修正并由 Run #299/#300 验证通过。现有 Session Query mock 只验证 YuanQi 的调用/筛选协议，不等于真实 DSH SessionStore restore 或 JSONL backend 重启验收。
 - 本轮没有修改 `main` / `dev`，不合并 PR #3；真实 Android/Profile 服务组合仍待核验。
