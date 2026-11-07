@@ -2,22 +2,23 @@
 
 > 对应版本：`1.1.0-alpha.9`  
 > 运行环境：DeepSeek Harness（DSH）  
-> Node.js：`>=22`
+> Node.js：`>=24.9.0`
 
 ## 1. 安装前检查
 
 1. 确认目标 DSH Profile 可正常运行。
 2. 确认目标环境使用的 DSH peer packages 与插件声明的范围兼容。
-3. 确认 Node.js 版本满足 `>=22`。
+3. 确认 Node.js 版本满足 `>=24.9.0`。
 4. 阅读当前版本的 [项目状态](./STATUS.md)，不要将本地测试记录视为真实宿主验收结论。
 
 当前声明的 peer dependency 范围：
 
-- `@deepseek-ai/dsh-tools`：`>=0.2.0-0 <0.3.0-0`
-- `@deepseek-ai/dsh-storage-domain`：`>=0.2.0-0 <0.3.0-0`
-- `@deepseek-ai/dsh-llm`：`>=0.2.0-0 <0.3.0-0`
+- `@deepseek-ai/dsh-tools`：`>=0.2.2-rc.1 <0.3.0-0`
+- `@deepseek-ai/dsh-storage-domain`：`>=0.2.2-rc.1 <0.3.0-0`
+- `@deepseek-ai/dsh-session`：`>=0.2.2-rc.1 <0.3.0-0`
+- `@deepseek-ai/dsh-llm`：`>=0.2.2-rc.1 <0.3.0-0`
 
-依赖范围是兼容性声明，不代表范围内所有 DSH 版本均已完成真实运行验证。
+当前核对的 DSH API 基线为 `0.2.2-rc.1`；DSH 根包声明 Node.js `>=24.9.0`。依赖范围是兼容性声明，不代表范围内所有 DSH 版本均已完成真实运行验证。
 
 ## 2. 本地检查与打包
 
@@ -62,7 +63,7 @@ dsh plugin --profile web add ./dist/dsh-yuanqi-plugin-1.1.0-alpha.9.tgz
 
 元炁自身的唤醒时间与用户个人出生资料相互独立。
 
-当前版本记录的唤醒行为：插件安装后，首次出现包含“元气”的 direct-user 消息时，使用该 DSH 事件时间记录元炁自身唤醒时刻；助手输出和注入上下文不会触发唤醒。
+当前实现的唤醒条件：只有安装后第一条 direct-user `user/message` 事件同时满足以下条件才允许唤醒：消息来源为真实 direct user（`source.kind === 'user'`）；消息内容数组恰好包含一个文本块；该文本完整精确等于“启动元气”或“启动元炁”。前后空格、换行、引号、标点、附加文字、多文本块、助手输出和注入上下文均不触发。首次直接用户消息不是启动命令时，永久消耗本次安装实例的首次唤醒资格，不创建唤醒记录、主线 Worldline 或 Session 绑定；后续 Session 再发送命令也不能补触发。唤醒时间必须使用该 DSH `SessionEvent.time`。详见 [E00-20F P0 唤醒与 Host 集成审查](./engineering/E00-20F-P0-WAKE-AND-HOST-REVIEW.md)。
 
 用户出生资料必须由用户明确提供并确认。不得通过 IP、设备定位或模型推断补全出生地点或出生事实。
 

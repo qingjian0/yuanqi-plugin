@@ -9,11 +9,11 @@
 
 | 项目 | 状态 | 说明 |
 |---|---|---|
-| 自动化测试 | GitHub Actions 通过 | Run #275（commit `c9285a9`）`npm run check`：46 passed / 0 failed；测试使用内存 Storage Domain 适配器 |
-| JavaScript 语法检查 | GitHub Actions 通过 | Run #275 的 `npm run check` 通过 |
+| 自动化测试 | GitHub Actions 通过 | Run #283（commit `902e6d2`）：50 passed / 0 failed；Node.js 24.9.0；四个 DSH peer packages 均解析为 `0.2.2-rc.1` |
+| JavaScript 语法检查 | GitHub Actions 通过 | Run #283 的 `npm run check` 通过（Node.js 24.9.0） |
 | npm 安装包构建与归档检查 | 归档隔离复验通过 | `npm pack --dry-run` 成功，26 个发布文件 |
 | 解压后入口导入检查 | 归档隔离复验通过 | 20/20 个本地导入目标存在；GitHub `dev` 导入待完成 |
-| GitHub Actions CI | 已建立并通过 | 当前 HEAD `c9285a9`：Push Run #275 与 PR Run #276 均通过；PR #3 仍为 Draft |
+| GitHub Actions CI | 已建立并通过 | 当前代码 HEAD `902e6d2`：Push Run #283 通过；PR #3 保持 Draft |
 | 真实 Android DSH 宿主安装与运行 | 待验收 | 尚无真实宿主验收结论 |
 | 真实模型会话端到端 | 待验收 | 不以模拟宿主测试代替 |
 | Android/iOS 端到端 | 待验收 | 尚未完成 |
@@ -226,7 +226,7 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - 本节覆盖并修正本文件前面关于旧根入口缺失模块、旧 CI Run 编号和旧唤醒触发条件的历史状态描述；历史记录保留作为审计轨迹，不作为当前状态。
 
 
-## 15. 2026-11-07 P0 Session Flush 失败写入保留与重试
+## 15. 2026-11-07 P0 Session Flush 失败写入保留与重试（历史批次）
 
 - 当前代码提交：`c9285a9c8e829d7d3a3680611050fa18bcce307f`。
 - 审计发现旧版 `track()` 在任务成功或失败时都会将任务从 `pendingBySession` 删除。若领域写入在 `session/flush` 之前失败，Flush 可能看不到已被删除的失败任务；旧版 `Promise.all()` 也可能在同批次其他任务尚未结束时提前拒绝。
@@ -241,3 +241,35 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - 本阶段仍使用内存 Storage Domain 测试适配器。真实 DSH 后端故障注入、进程崩溃恢复、真实 Profile 插件卸载与 Android 宿主验收尚未完成。
 - PR #3 保持 Draft，目标 `dev`；未合并 PR，未修改 `main`。
 - 详细审查：[E00-20G P0 Session Flush Retry Review](./engineering/E00-20G-P0-SESSION-FLUSH-RETRY-REVIEW.md)。
+
+
+## 16. 2026-11-07 P0 unknown-state 故障关闭与初始化清理
+
+- 代码提交：`da3d695d6deaf3c9e6dd2565ddca829915ee273a`，错误保留细节修正：`7b501e8079579326758115cc1b470f9e4ce88f9a`。
+- DSH Storage Domain 的 `unknown-state` 表示后端无法确认持久化结果，当前 Domain 会被隔离；不能在同一句柄上继续读写或盲目重试。
+- 已在 `src/dsh/plugin.js` 增加 `storageUncertain` 状态。捕获 `unknown-state` 后立即停止接收新的 Session 事件，并使后续 Flush 不再通过已隔离句柄重试。
+- 失败任务继续保留；Flush 向 DSH 抛出带原始错误原因的 `AggregateError`。插件卸载等待任务 settle，关闭 Domain 后报告未解决的失败；重新加载时由新的 `open()` 重新读取并验证后端。
+- 插件初始化在两个 Domain 均打开后若发生 Store/表绑定或其他同步初始化错误，会尝试关闭两个 Domain；关闭本身失败时同时报告初始化错误和关闭错误。
+- 新增测试：unknown-state 后不再写入/重试；两个 Domain 打开后初始化失败能够关闭两个句柄。
+- Run #281（`42350481051`）：48 passed / 0 failed；Node.js 22。后续 P7 基线升级后的完整验证见 Run #283。
+
+## 17. 2026-11-07 P7 DSH Storage Domain 运行时契约验证
+
+- 当前代码提交：`902e6d2b5552dd616ad75eedfe9af8e686675d84`。
+- `package.json` Node.js 最低版本提升为 `>=24.9.0`，与 DSH 根包运行时要求对齐。
+- 四个 peer dependency 使用兼容范围而非单版本锁定：`@deepseek-ai/dsh-tools`、`@deepseek-ai/dsh-storage-domain`、`@deepseek-ai/dsh-session`、`@deepseek-ai/dsh-llm` 均为 `>=0.2.2-rc.1 <0.3.0-0`。
+- CI 在 Node.js 24.9.0 上实际解析四个 peer packages，均为 `0.2.2-rc.1`。
+- 新增 `test/dsh/real-domain-contract.test.js`，直接使用 DSH `DomainFacility` / `DomainImpl`，覆盖 put、update、domain/changed、close/reopen 数据恢复，以及 `unknown-state` 隔离和 close/reopen 后恢复。
+- 该测试使用自建内存 `KvUnit` backend，测试的是 DSH 官方 Domain 实现，不是生产 JSON/SQLite 磁盘后端；不能据此宣称真实 Android 宿主持久化验收通过。
+- Run #283（`42350594409`）：Push / completed / success；50 passed / 0 failed；Node.js 24.9.0；四个 DSH peer packages 均解析为 `0.2.2-rc.1`。
+
+## 18. PR #3 / PR #4 分支协调审查
+
+- PR #3 当前分支：`work/e00-20e-05b-subject-domain-runtime`。
+- PR #4 独立分支：`work/e00-20-06-p5-dsh-lifecycle-recovery`，HEAD `413fc01e5738bf7565ec791a9845408b29f71948`；仍为 Open / Draft，目标 `dev`。
+- 当前比较结果：PR #4 相对 PR #3 有 28 个独有提交；PR #3 相对 PR #4 有 19 个独有提交。两个分支已经分叉，禁止直接重置或整体合并。
+- PR #4 有价值的 P6/P7 工作包括 unknown-state 故障关闭、初始化清理、Node.js 24.9.0 / DSH 0.2.2-rc.1 兼容基线和 DSH DomainFacility 契约测试。
+- 但 PR #4 的 `src/dsh/plugin.js` 在 `recordInitialWake()` 后无条件创建主线；其 `test/dsh/plugin.test.js` 明确断言普通首条消息“你好”也会创建主线 Worldline 和 Session 绑定。这与 PR #3 已确认的严格唤醒规则冲突：非启动口令的首条直接用户消息不得创建 Worldline 或 Session 绑定。
+- PR #4 的 Session 绑定检查还只比较 `yuanqi_subject_id`，未验证现有绑定的 `worldline_id` 是否等于本次预期主线。
+- 因此本轮只移植 PR #4 中的 Node/peer 兼容基线、CI 检查和 DSH DomainFacility 契约测试；没有移植 PR #4 的插件运行时逻辑，也没有修改 PR #4 分支。
+- 详细对照：[E00-20I PR3 / PR4 Reconciliation](./engineering/E00-20I-PR3-PR4-RECONCILIATION.md)。
