@@ -304,7 +304,7 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - 本轮开始将 E00-20K 的官方 API 核验转为运行时代码：插件正式注入 `sessionQuery` 与 `sessionPersistence`，缺少任一服务时启动 fail-closed；`package.json` 声明对应 `0.2.2-rc.1` 起的 `<0.3.0-0` peer 范围。
 - YuanQiSubject Domain schema 升级至 v8，兼容 v3-v7；新增持久化 `installation_state`。首次 activation boundary 只写入一次，后续插件重载复用，不能每次重启刷新边界。
 - 启动时先注册实时 `session/event` listener 并缓冲事件，再通过 `sessionQuery.listSessions()` 与 `observeSession(..., { projectionMode: 'none' })` 扫描历史。观察 lease 在每个 Session 处理完后释放；不将完整聊天历史复制进 YuanQi 长期存储。
-- 历史恢复只接受 `event.time >= activated_at_ms` 的候选；实时 listener 在持久边界建立后才注册，因此实时缓冲事件不依赖系统时钟过滤。Wake Record 的 `occurred_at` 仍直接取原始 DSH `SessionEvent.time`。
+- 历史恢复只接受 `event.time > activated_at_ms` 的候选；同一毫秒的历史事件保守排除，避免无法判定其相对安装标记的先后；实时 listener 在持久边界建立后才注册，因此实时缓冲事件不依赖系统时钟过滤。Wake Record 的 `occurred_at` 仍直接取原始 DSH `SessionEvent.time`。
 - 历史事件严格复用 direct-user 过滤：`user/message`、`data.role === 'user'`、`data.source.kind === 'user'`、唯一文本块；Fork 历史按 `seq < inheritedEventCount` 排除。
 - 跨 Session 的恢复顺序按各 Session 内首个符合边界的 direct-user 事件时间比较；若多个 Session 的最早事件具有相同毫秒时间戳，拒绝唤醒，不以 Session ID 字典序制造顺序。该策略依赖 DSH `Date.now()` 事件时钟作为跨 Session 排序依据；系统时钟回拨仍可能导致历史候选遗漏/排序偏差，后续真实宿主验收必须覆盖。
 - 增加启动恢复 barrier：恢复扫描期间到达的 `session/flush` 等待历史与实时缓冲合并处理完成，避免先确认 Flush 再完成首次消息锁。

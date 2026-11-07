@@ -166,7 +166,7 @@ DSH Storage Domain 的 `KvTable.update()` 是同一个 Domain 实例内部 write
 - `package.json` 声明 `@deepseek-ai/dsh-session-query` 与 `@deepseek-ai/dsh-session-persistence` peer dependencies，范围为 `>=0.2.2-rc.1 <0.3.0-0`。
 - YuanQiSubject Domain v8 新增只写一次的安装边界记录；重启时复用原始 `activated_at_ms`，不刷新。
 - 先注册 `session/event` listener 并缓冲事件，再扫描 `listSessions()`；每个 Session 使用 `observeSession(id, { projectionMode: 'none' })`，按 `inheritedEventCount` 排除 Fork 继承前缀，并释放 observation lease。
-- 历史候选只筛选 `event.time >= activated_at_ms`；实时缓冲事件是安装边界写入后由 Host listener 实际观察到的事件，不再用系统时钟二次过滤。
+- 历史候选只筛选 `event.time > activated_at_ms`；与安装标记同毫秒的历史候选保守排除，避免误判为安装后事件；实时缓冲事件是安装边界写入后由 Host listener 实际观察到的事件，不再用系统时钟二次过滤。
 - 多 Session 恢复时先取各 Session 内最早符合边界的 direct-user 事件，再比较 DSH event.time。多个 Session 的最早候选若同毫秒，拒绝唤醒并保留首次资格，不以 Session ID 排序。
 - `session/flush` 等待启动恢复 barrier，避免恢复扫描尚未完成时先确认 Flush。
 - Wake Record 的 `occurred_at` 仍取源事件 `event.time`，安装边界只用于区分安装前历史。

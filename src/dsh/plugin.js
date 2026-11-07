@@ -235,7 +235,7 @@ export async function apply(ctx) {
             throw new Error('DSH Session observation has an invalid inheritedEventCount');
           }
           for (const event of observation.events) {
-            if (event.seq < inherited || event.time < boundary.activated_at_ms) continue;
+            if (event.seq < inherited || event.time <= boundary.activated_at_ms) continue;
             const direct = normalizeDirectUserMessageEvent(sessionId, event);
             if (direct) candidates.push({ ...direct, event });
           }

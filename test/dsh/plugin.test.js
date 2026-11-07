@@ -311,3 +311,22 @@ test('installation boundary is reused after restart; live post-activation events
   assert.equal(storage.opened.get('yuanqi_subject').tables.get('first_user_messages').get('yuanqi:primary').first_event_id, 'live-after-activation');
   await restarted.disposer();
 });
+
+test('historical event at the exact activation millisecond is excluded conservatively', async () => {
+  const storage = fakeStorageDomain();
+  const first = context(storage);
+  await apply(first);
+  const boundary = storage.opened.get('yuanqi_subject').tables.get('installation_state').get('installation:primary');
+  await first.disposer();
+  const restarted = context(storage, {
+    sessionQuery: {
+      async listSessions() { return [{ header: { id: 'same-ms' } }]; },
+      async observeSession() {
+        return { inheritedEventCount: 0, events: [dshEvent('启动元炁', 'same-ms-event', 0, boundary.activated_at_ms)], [Symbol.dispose]() {} };
+      },
+    },
+  });
+  await apply(restarted);
+  assert.equal(storage.opened.get('yuanqi_subject').tables.get('first_user_messages').has('yuanqi:primary'), false);
+  await restarted.disposer();
+});
