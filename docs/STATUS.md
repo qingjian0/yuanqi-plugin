@@ -9,11 +9,11 @@
 
 | 项目 | 状态 | 说明 |
 |---|---|---|
-| 自动化测试 | GitHub Actions 通过 | Run #283（commit `902e6d2`）：50 passed / 0 failed；Node.js 24.9.0；四个 DSH peer packages 均解析为 `0.2.2-rc.1` |
-| JavaScript 语法检查 | GitHub Actions 通过 | Run #283 的 `npm run check` 通过（Node.js 24.9.0） |
+| 自动化测试 | GitHub Actions 通过 | PR Run #320（PR merge ref `fe7bb93`，对应 head `5a51ba7`）：62 passed / 0 failed；Node.js 24.9.0 |
+| JavaScript 语法检查 | GitHub Actions 通过 | PR Run #320 的 `npm run check` 通过（Node.js 24.9.0） |
 | npm 安装包构建与归档检查 | 归档隔离复验通过 | `npm pack --dry-run` 成功，26 个发布文件 |
 | 解压后入口导入检查 | 归档隔离复验通过 | 20/20 个本地导入目标存在；GitHub `dev` 导入待完成 |
-| GitHub Actions CI | 已建立并通过 | 当前代码 HEAD `902e6d2`：Push Run #283 通过；PR #3 保持 Draft |
+| GitHub Actions CI | 已建立并通过 | PR #3 Run #320（`42361284246`）通过；PR head `5a51ba70513802ed4a19db11b4d38c61afe66f87`，CI 检查 PR merge ref `fe7bb93`；PR 仍为 Draft |
 | 真实 Android DSH 宿主安装与运行 | 待验收 | 尚无真实宿主验收结论 |
 | 真实模型会话端到端 | 待验收 | 不以模拟宿主测试代替 |
 | Android/iOS 端到端 | 待验收 | 尚未完成 |
@@ -320,3 +320,16 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - `@deepseek-ai/dsh-session-persistence-jsonl` 与 `@deepseek-ai/dsh-session-query-sqlite` 作为开发测试依赖加入；YuanQi 运行时仍只要求宿主提供 `sessionPersistence` / `sessionQuery` 服务，不擅自强制宿主安装具体 provider。
 - 最新 HEAD：`89682d558703564ef8d9cd9b9e84201bde99ab92`；Push Run #309（`42356569340`）和 PR Run #310（`42356573538`）均通过，60 passed / 0 failed。
 - **验证边界：** 这是同一进程内关闭/重建 DSH Context、重新打开真实 JSONL 文件根目录的持久化恢复测试，不是杀进程级 crash test；YuanQi Storage Domain 仍使用内存适配器；目标 Android Profile provider 组合与大 Session 启动成本仍待验收。
+
+
+## 22. 2026-11-07 P0 Session Query / Domain v8 当前 HEAD 复核
+
+- 当前 PR #3 head：`5a51ba70513802ed4a19db11b4d38c61afe66f87`（`fix(test): assert schema validation on domain reopen`）；PR #3 仍为 Open / Draft，目标 `dev`，未合并。
+- 本次 PR CI Run #320（`42361284246`）成功。该 PR workflow 实际 checkout 的是 GitHub PR merge ref `fe7bb93`，因此准确表述为“PR 合并候选快照验证通过”，不能将 merge ref SHA 写成 head commit。Job `node-check` 完成依赖安装、Node/DSH peer 检查、包根入口与 Storage Domain exports 检查、语法检查和测试。
+- 实际日志：Node.js 24.9.0；62 tests passed / 0 failed；无 skipped / todo。测试覆盖严格唤醒、Session Flush 重试、unknown-state 故障关闭、Session Query cold observation、Fork inherited prefix、官方 DSH DomainFacility / DomainImpl 契约、Worldline / SelfModel / Evidence Ledger / transfer / archive。
+- P0 Session Query / Persistence 已接入运行时：Cordis inject 要求 `sessionQuery` 与 `sessionPersistence`；安装激活边界持久化一次；先注册实时事件并缓冲，再扫描 cold Session；历史候选排除 Fork inherited prefix；跨 Session 最早事件同毫秒时 fail-closed；Flush 等待 startup recovery barrier。
+- DSH Domain v8 的 schema reopen 校验测试已按官方契约修正：`KvTable.put()` 不在写入时执行 Zod schema parse；DomainFacility 在重新打开时加载并校验持久记录。当前测试验证损坏的 activation boundary 在 close/reopen 时被拒绝，且 Domain 句柄得到清理。
+- 真实 DSH SessionQueryEngine / SessionStore cold observation、JSONL Session Persistence 与 SQLite Query provider 的跨 Context 恢复测试已存在；但它不是 OS 进程强制终止测试。YuanQi Storage Domain 的真实生产磁盘 backend、目标 Android Profile provider 组合、Android 启动性能与多进程竞争仍未验收。
+- 已知依赖风险：E00-20L 记录的 CI 安装阶段 22 个 high severity vulnerabilities 尚未完成依赖树定位；当前不进行盲目强制升级。
+- 当前下一阶段不再重复实现 Session Query。优先顺序：① 核验目标 DSH Profile 是否同时提供官方 Session Query SQLite 与 Session Persistence JSONL 服务；② 设计并执行 OS 进程强制终止后的跨 Domain 恢复故障注入；③ 验证激活边界对历史事件时钟偏差/未来时间戳的防护策略；④ 完成 BirthProfile 可信确认事件路径；⑤ 对大 Session 的 observation 启动成本进行测量。
+- 本轮只更新状态文档，不修改运行时代码；未修改 `dev` / `main`，未合并 PR。
