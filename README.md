@@ -200,14 +200,16 @@ dsh plugin --profile web add ./dist/dsh-yuanqi-plugin-1.1.0-alpha.9.tgz
 
 将安装包添加到目标 DSH Profile 后，重启该 Profile。实际安装命令和目标宿主要求请以 [安装说明](./docs/INSTALLATION.md) 及目标 DSH 版本为准。
 
-当前声明的 DSH peer dependency 范围为：
+当前声明的 DSH peer dependency 范围为（包含运行时直接依赖的 Session Query / Persistence 服务定义）：
 
 - `@deepseek-ai/dsh-tools`：`>=0.2.2-rc.1 <0.3.0-0`
 - `@deepseek-ai/dsh-storage-domain`：`>=0.2.2-rc.1 <0.3.0-0`
 - `@deepseek-ai/dsh-session`：`>=0.2.2-rc.1 <0.3.0-0`
 - `@deepseek-ai/dsh-llm`：`>=0.2.2-rc.1 <0.3.0-0`
+- `@deepseek-ai/dsh-session-query`：`>=0.2.2-rc.1 <0.3.0-0`
+- `@deepseek-ai/dsh-session-persistence`：`>=0.2.2-rc.1 <0.3.0-0`
 
-当前 CI 在 Node.js 24.9.0 上解析四个 peer packages 为 0.2.2-rc.1，并验证 DSH Storage Domain API 契约；这是依赖/API 兼容性验证，不代表范围内所有宿主版本均已通过真实运行验证。
+当前 CI 在 Node.js 24.9.0 上解析六个 DSH peer packages 为 0.2.2-rc.1，并验证 DSH Storage Domain API 契约；这是依赖/API 兼容性验证，不代表范围内所有宿主版本均已通过真实运行验证。
 
 ## 安全与隐私边界
 
