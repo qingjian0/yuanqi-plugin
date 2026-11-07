@@ -36,11 +36,21 @@
 
 因此，Session history 的持久化和 YuanQi Storage Domain 的首次锁写入不是一个原子事务。
 
-### 2.4 历史读取 API
+### 2.4 正式历史读取 API（已找到，尚未接入）
 
-DSH Session public API 中的 `Session.snapshotEvents()` 与 `ownEvents()` 已标记 deprecated，官方文档明确指出新调用被禁止。不能把它们作为新恢复功能的实现基础。
+DSH Session public API 中的 `Session.snapshotEvents()` 与 `ownEvents()` 已标记 deprecated，禁止新增调用。正式替代服务为 `ctx.sessionQuery`，由 `@deepseek-ai/dsh-session-query-sqlite` 后端提供，接口包版本为 `0.2.2-rc.1`。
 
-应先审查正式的 Session Query / History API、它的权限范围、恢复顺序、历史读取稳定性和持久化来源。
+已核对的方法：
+
+- `listSessions()`：列出 live-preferred 逻辑 Session 及来源可用性。
+- `readSession(sessionId)`：读取完整、脱离宿主对象且 replay-validated 的 SessionLogSnapshot。
+- `observeSession(sessionId, { projectionMode: 'none' })`：取得精确不可变观察，含 `inheritedEventCount`、events 与 cursor；cold Session 通过持久化读取，不会被加入 live SessionStore。
+- `listEvents(sessionId)`：读取 seq/type/time 等轻量事件元数据。
+- `readEvent(request)`：读取指定事件及有限上下文。
+
+Session Query 通过可选的 `ctx.sessionPersistence` 读取 cold history；缺少持久化服务时，不能保证跨进程恢复。YuanQi 当前未注入 `sessionQuery`，也未声明相关 peer dependency，因此正式 API 虽已存在，当前插件仍未接入。
+
+`inheritedEventCount` 是正式 Fork 历史边界；任何恢复扫描都必须排除继承前缀。不得调用 deprecated 的同步 Session history API。
 
 ## 3. 当前 YuanQi 的行为边界
 
