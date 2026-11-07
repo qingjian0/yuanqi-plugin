@@ -333,3 +333,16 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - 已知依赖风险：E00-20L 记录的 CI 安装阶段 22 个 high severity vulnerabilities 尚未完成依赖树定位；当前不进行盲目强制升级。
 - 当前下一阶段不再重复实现 Session Query。优先顺序：① 核验目标 DSH Profile 是否同时提供官方 Session Query SQLite 与 Session Persistence JSONL 服务；② 设计并执行 OS 进程强制终止后的跨 Domain 恢复故障注入；③ 验证激活边界对历史事件时钟偏差/未来时间戳的防护策略；④ 完成 BirthProfile 可信确认事件路径；⑤ 对大 Session 的 observation 启动成本进行测量。
 - 本轮只更新状态文档，不修改运行时代码；未修改 `dev` / `main`，未合并 PR。
+
+
+## 23. 2026-11-07 P0 DSH Profile Provider 组合与冷读取契约审计（E00-20M）
+
+- 核对官方 DSH 源码基线 `deepseek-ai/deepseek-harness@fcc0ad462172522aaf5c93a7b2e01f6b9f0b0159`。官方 `dsh-base` 组合同时挂载 JSONL `session-persistence-jsonl`、SQLite `session-query-sqlite` 和 JSON `storage-domain`；CLI composition 文档说明 web/headless/sdk/acp 使用共享 Base bundle。
+- Base 中 Query 配置为 `openAt: never`。官方 Query Provider 文档明确此设置只关闭 FTS5 全文搜索，继承的精确读取、过滤、追踪仍可用。因此 YuanQi 的 `listSessions()` / `observeSession()` 冷恢复不需要启用全文搜索，不应为 YuanQi 改动该配置。
+- 官方冷观察实际调用 Persistence `stat()` 与 `open(id, 'read')`；Query corpus 列举依赖 `list()`。Persistence 服务还提供稳定的 `identity: symbol`。旧 YuanQi 启动 guard 只检查 `list()`，不足以在启动时证明冷读取契约完整。
+- 已修复 `src/dsh/plugin.js`：启动时在打开 YuanQi Storage Domains 前检查 `sessionPersistence.identity` 为 symbol，且 `list/stat/open` 均为函数；缺失时 fail-closed。未要求不被冷读取路径使用的 `create/flush`。
+- 已更新 `test/dsh/plugin.test.js`：加入只有 list、缺 stat、缺 open、identity 非 symbol 四种 Provider 形态，均要求在打开 Domain 前失败；默认测试 fixture 补齐读取契约。
+- README 与 INSTALLATION 补齐两个 peer dependencies：`@deepseek-ai/dsh-session-query` 与 `@deepseek-ai/dsh-session-persistence`，现在与 package.json 六项 DSH peer 声明一致。
+- 新审计文档：[E00-20M P0 DSH Profile Provider 组合与冷读取契约审计](./engineering/E00-20M-P0-REAL-HOST-PROFILE-AUDIT.md)。
+- **边界：** DSH Base 的官方组合已核实，但任意 Android Profile 的最终合并配置、真实 Android Storage backend、OS 进程强制终止恢复与性能仍未验收。当前 JSONL 集成测试是同进程重建 Context；YuanQi Domain adapter 仍是测试内存实现。
+- 本轮运行时代码与测试已提交；需以本节提交之后最新 GitHub Actions 结果作为验证结论。PR #3 仍为 Draft，不合并 `dev` / `main`。
