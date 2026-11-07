@@ -267,7 +267,7 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 
 - PR #3 当前分支：`work/e00-20e-05b-subject-domain-runtime`。
 - PR #4 独立分支：`work/e00-20-06-p5-dsh-lifecycle-recovery`，HEAD `413fc01e5738bf7565ec791a9845408b29f71948`；仍为 Open / Draft，目标 `dev`。
-- 当前比较结果：PR #4 相对 PR #3 有 28 个独有提交；PR #3 相对 PR #4 有 19 个独有提交。两个分支已经分叉，禁止直接重置或整体合并。
+- 当前比较结果：PR #4 相对 PR #3 有 28 个独有提交；PR #3 相对 PR #4 有 21 个独有提交。两个分支已经分叉，禁止直接重置或整体合并。
 - PR #4 有价值的 P6/P7 工作包括 unknown-state 故障关闭、初始化清理、Node.js 24.9.0 / DSH 0.2.2-rc.1 兼容基线和 DSH DomainFacility 契约测试。
 - 但 PR #4 的 `src/dsh/plugin.js` 在 `recordInitialWake()` 后无条件创建主线；其 `test/dsh/plugin.test.js` 明确断言普通首条消息“你好”也会创建主线 Worldline 和 Session 绑定。这与 PR #3 已确认的严格唤醒规则冲突：非启动口令的首条直接用户消息不得创建 Worldline 或 Session 绑定。
 - PR #4 的 Session 绑定检查还只比较 `yuanqi_subject_id`，未验证现有绑定的 `worldline_id` 是否等于本次预期主线。
