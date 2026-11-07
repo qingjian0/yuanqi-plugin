@@ -111,3 +111,11 @@ PR #4 的 `test/dsh/lifecycle-recovery.test.js` 在关闭/重开 Domain 后，�
 PR #3 首轮实现已接入官方 `ctx.sessionQuery` / `ctx.sessionPersistence`，启动时通过 live-preferred Session 列表和精确 observation 扫描可恢复历史；严格过滤 direct-user 消息，排除 Fork inherited prefix，并将 listener 在扫描期间收到的事件缓冲合并。安装边界只持久化一次，避免每次重启刷新。若跨 Session 最早候选同毫秒，恢复拒绝唤醒。
 
 该实现已由 GitHub Actions Run #299/#300 验证通过（56 passed / 0 failed），但自动化仍使用内存 Session Query mock。它仍未达到真实宿主验收：目标 Profile 是否同时挂载 Session Query SQLite backend 与 Session Persistence JSONL backend 尚未核实；没有真实 DSH SessionStore restore + 进程重启测试；跨 Session event.time 不是单调全局时钟；超大 Session 的完整 observation 成本也未在目标 Android 环境测量。
+
+
+## 9. DSH SessionStore 与 JSONL 后端集成验证（2026-11-07）
+
+- 已新增官方 DSH `SessionQueryEngine.observeSession()` + `SessionStore.prepare()` cold restore 测试；确认 prepared observation 不会把 cold Session 加入 live store，并验证真实 Fork inherited prefix。
+- 已新增 JSONL backend / SQLite SessionQuery provider 的跨 Context 持久化恢复测试：第一个 Context 中 sidecar observer 被模拟为未收到事件，真实 JSONL persistence 已落盘；第二个 Context 重新挂载 provider 后，YuanQi 通过 cold history 恢复首次消息锁、WakeRecord、主线与绑定。
+- Push Run #309 / PR Run #310：60 passed / 0 failed。
+- 尚未覆盖 OS 进程强制终止、生产 Storage Domain backend、Android Profile 服务组合与超大 Session 性能；这些仍是验收门槛。

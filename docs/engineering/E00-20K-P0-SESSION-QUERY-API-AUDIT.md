@@ -193,3 +193,12 @@ DSH Storage Domain 的 `KvTable.update()` 是同一个 Domain 实例内部 write
 GitHub Actions Push Run #299（`42355677376`）和 PR Run #300（`42355680482`）均通过，commit `801e9c1057943f2c917f702f813a41621901e181`，Node.js 24.9.0，56 passed / 0 failed。Run #295-#298 曾因测试期望未同步 Domain v8 表清单和新的 inject 服务列表而失败；修正后最新两条 CI 均通过。
 
 真实 DSH SessionStore restore 和 JSONL 后端重启测试仍是后续 P0 验收门槛。
+
+
+## 9. 官方 DSH SessionStore / JSONL 后端集成验证（2026-11-07）
+
+- 新增集成测试使用真实 DSH `SessionStore`、官方 `SessionQueryEngine` 冷观察 API，验证 cold observation 通过 `SessionStore.prepare()` 恢复、lease 释放后 Session 仍不进入 live store；同时验证 Fork inherited prefix 的真实恢复边界。
+- 新增真实 `@deepseek-ai/dsh-session-persistence-jsonl` provider 与 `@deepseek-ai/dsh-session-query-sqlite` provider 测试。第一个 Context 持久化安装边界，模拟 YuanQi 实时 observer 未收到事件，但 JSONL persistence 已成功落盘；销毁 Context 后，第二个 Context 重新挂载两个官方 provider，YuanQi 从 cold history 恢复 first-message lock、WakeRecord 和 Worldline。
+- provider 包只作为开发测试依赖；运行时包仍通过 `sessionQuery` / `sessionPersistence` 服务契约注入，不强制把特定后端安装进所有宿主。
+- Push Run #309（`42356569340`）和 PR Run #310（`42356573538`）在 HEAD `89682d558703564ef8d9cd9b9e84201bde99ab92` 通过：60 passed / 0 failed。
+- 限制：Context 关闭/重建测试验证 JSONL 文件持久化跨服务实例恢复，但不是操作系统进程被强制终止的 crash test；YuanQi Storage Domain 仍用内存测试适配器；Android/Profile 服务组合尚未验收。

@@ -311,3 +311,12 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - 新增自动化覆盖：cold-history 恢复、安装前历史排除、Fork 继承边界、跨 Session 同毫秒歧义 fail-closed、缺少服务 fail-closed、安装边界重启复用和实时事件时钟回拨场景。
 - **代码提交：** `801e9c1057943f2c917f702f813a41621901e181`。GitHub Actions Push Run #299（`42355677376`）和 PR Run #300（`42355680482`）均通过；Node.js 24.9.0；`npm run check` 为 56 passed / 0 failed。Run #295-#298 曾因测试契约断言未同步而失败，已修正并由 Run #299/#300 验证通过。现有 Session Query mock 只验证 YuanQi 的调用/筛选协议，不等于真实 DSH SessionStore restore 或 JSONL backend 重启验收。
 - 本轮没有修改 `main` / `dev`，不合并 PR #3；真实 Android/Profile 服务组合仍待核验。
+
+
+### P0 SessionQuery / JSONL 冷恢复集成验证（2026-11-07 08:42 UTC）
+
+- 新增官方 DSH SessionQuery + SessionStore 集成测试：通过真实 `SessionQueryEngine.observeSession()` 冷读取，触发真实 `SessionStore.prepare()` restore；验证 prepared observation 不会把 cold Session 加入 live SessionStore，并验证 Fork `inheritedEventCount`。
+- 新增真实 DSH JSONL persistence backend + SQLite SessionQuery provider 集成测试：先持久化 YuanQi activation boundary，再模拟 YuanQi 实时 observer 未收到事件、DSH JSONL backend 已写入；关闭第一个 DSH Context 后使用新 Context 重新挂载 JSONL/Query 服务，插件从 cold Session 历史恢复 first-message lock、WakeRecord、主 Worldline 和 Session 绑定。
+- `@deepseek-ai/dsh-session-persistence-jsonl` 与 `@deepseek-ai/dsh-session-query-sqlite` 作为开发测试依赖加入；YuanQi 运行时仍只要求宿主提供 `sessionPersistence` / `sessionQuery` 服务，不擅自强制宿主安装具体 provider。
+- 最新 HEAD：`89682d558703564ef8d9cd9b9e84201bde99ab92`；Push Run #309（`42356569340`）和 PR Run #310（`42356573538`）均通过，60 passed / 0 failed。
+- **验证边界：** 这是同一进程内关闭/重建 DSH Context、重新打开真实 JSONL 文件根目录的持久化恢复测试，不是杀进程级 crash test；YuanQi Storage Domain 仍使用内存适配器；目标 Android Profile provider 组合与大 Session 启动成本仍待验收。
