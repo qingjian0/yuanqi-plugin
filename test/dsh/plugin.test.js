@@ -213,3 +213,26 @@ test('plugin initialization failure after opening both Domains closes both handl
   assert.equal(storage.opened.get('yuanqi_subject').domain.closed, true);
   assert.equal(storage.opened.get('yuanqi_user_subject').domain.closed, true);
 });
+
+test('installation boundary is reused after restart; live post-activation events are not rejected by clock rollback', async () => {
+  const storage = fakeStorageDomain();
+  const first = context(storage);
+  await apply(first);
+  const boundary = storage.opened.get('yuanqi_subject').tables.get('installation_state').get('installation:primary');
+  await first.disposer();
+
+  const restarted = context(storage, {
+    sessionQuery: {
+      async listSessions() { return [{ header: { id: 'old-session' } }]; },
+      async observeSession() {
+        return { inheritedEventCount: 0, events: [dshEvent('启动元炁', 'pre-boundary', 0, boundary.activated_at_ms - 1)], [Symbol.dispose]() {} };
+      },
+    },
+  });
+  await apply(restarted);
+  assert.equal(storage.opened.get('yuanqi_subject').tables.get('first_user_messages').has('yuanqi:primary'), false);
+  await restarted.listener({ id: 'live-session' }, dshEvent('启动元炁', 'live-after-activation', 0, boundary.activated_at_ms - 2));
+  await restarted.flushListener({ id: 'live-session' });
+  assert.equal(storage.opened.get('yuanqi_subject').tables.get('first_user_messages').get('yuanqi:primary').first_event_id, 'live-after-activation');
+  await restarted.disposer();
+});

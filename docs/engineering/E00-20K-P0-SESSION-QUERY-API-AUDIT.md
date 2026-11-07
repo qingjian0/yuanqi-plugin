@@ -4,7 +4,7 @@
 > YuanQi 分支：`work/e00-20e-05b-subject-domain-runtime`  
 > DSH 源码基准：`fcc0ad462172522aaf5c93a7b2e01f6b9f0b0159`  
 > DSH 包基线：`0.2.2-rc.1`  
-> 状态：接口核验完成；YuanQi 接入和恢复实现未完成。
+> 状态：接口核验完成；首轮 YuanQi 运行时接入已进入 PR #3，真实 DSH/Android Host 验收未完成。
 
 ## 1. 结论
 
@@ -156,3 +156,38 @@ DSH Storage Domain 的 `KvTable.update()` 是同一个 Domain 实例内部 write
 ## 7. 本轮结论
 
 正式 API 已找到，原先“尚未找到 Session History API”的调查任务可以关闭；但 P0 故障本身没有关闭。当前 PR #3 仍不能宣称首次唤醒在所有 Session restore 崩溃窗口下可靠。
+
+
+## 8. 首轮运行时接入（2026-11-07）
+
+当前 PR #3 已开始按上述 API 实施：
+
+- `inject` 要求 `sessionQuery` 与 `sessionPersistence`；缺失服务时启动 fail-closed。
+- `package.json` 声明 `@deepseek-ai/dsh-session-query` 与 `@deepseek-ai/dsh-session-persistence` peer dependencies，范围为 `>=0.2.2-rc.1 <0.3.0-0`。
+- YuanQiSubject Domain v8 新增只写一次的安装边界记录；重启时复用原始 `activated_at_ms`，不刷新。
+- 先注册 `session/event` listener 并缓冲事件，再扫描 `listSessions()`；每个 Session 使用 `observeSession(id, { projectionMode: 'none' })`，按 `inheritedEventCount` 排除 Fork 继承前缀，并释放 observation lease。
+- 历史候选只筛选 `event.time >= activated_at_ms`；实时缓冲事件是安装边界写入后由 Host listener 实际观察到的事件，不再用系统时钟二次过滤。
+- 多 Session 恢复时先取各 Session 内最早符合边界的 direct-user 事件，再比较 DSH event.time。多个 Session 的最早候选若同毫秒，拒绝唤醒并保留首次资格，不以 Session ID 排序。
+- `session/flush` 等待启动恢复 barrier，避免恢复扫描尚未完成时先确认 Flush。
+- Wake Record 的 `occurred_at` 仍取源事件 `event.time`，安装边界只用于区分安装前历史。
+
+### 尚未证明的保证
+
+1. DSH `event.time` 由 `Date.now()` 生成，但不是跨 Session 的单调全局时钟；时钟回拨可能让历史事件落在安装边界之前，或影响跨 Session 的先后判断。当前实现对同毫秒最早候选 fail-closed，但无法从 API 层消除时钟回拨风险。
+2. DSH `observeSession()` 为完整日志观察，超大 Session 仍可能带来启动内存和延迟成本；观察结果不写入 YuanQi 持久存储，但 API 本身需要完整日志。
+3. 内存 mock 测试不等于 DSH 真实 SessionStore restore、JSONL persistence 进程重启或目标 Android/Profile 组合验收。
+4. 安装边界在本次功能版本首次激活时建立。若用户此前已运行旧版插件，而旧版没有保存该边界，升级前的事件不能被安全地认定为原始安装后的事件；本实现按保守策略不回溯这些无可靠边界的历史。
+5. Storage Domain 与 Session Persistence 仍是不同持久化域；不存在跨 Domain 原子事务。首次锁、Wake Record、Worldline 的部分写入仍依赖幂等恢复。
+
+### 首轮测试矩阵（待 CI）
+
+- cold Session 历史恢复；
+- 安装边界前历史排除；
+- Fork inherited prefix 排除；
+- 同毫秒跨 Session 歧义拒绝；
+- Session Query / Persistence 服务缺失拒绝；
+- 安装边界重启复用；
+- listener 事件与历史扫描合并；
+- Flush 等待恢复 barrier。
+
+真实 DSH SessionStore restore 和 JSONL 后端重启测试仍是后续 P0 验收门槛。

@@ -16,6 +16,7 @@ export function createSubjectStore({userDomain,yuanqiDomain,verifyDirectUserEven
  if(!userDomain||!yuanqiDomain)throw new TypeError('both DSH subject domains are required');
  if(typeof verifyDirectUserEvent!=='function'||typeof verifyBirthProfileConfirmation!=='function')throw new TypeError('host event verifiers are required');
  const users=userDomain.table('identities'),births=userDomain.table('birth_profiles'),yuanqis=yuanqiDomain.table('identities');
+ const installationState=yuanqiDomain.table('installation_state');
  const firstMessages=yuanqiDomain.table('first_user_messages'),wakes=yuanqiDomain.table('wake_records'),queues=new Map();
  async function identity(table,kind,id,ref){requiredText(id,'subject_id');requiredText(ref,'created_from_event_ref');const v={subject_id:id,subject_kind:kind,identity_version:1,status:'active',created_from_event_ref:ref};return serializeByKey(queues,kind+':'+id,async()=>{const old=table.get(id);if(old!==undefined){if(old.subject_kind!==kind)throw new Error(kind+' identity kind conflict');return clone(old);}return putOnce(table,id,v,kind+' identity conflict');});}
  async function recordFirstUserMessage({subject_id,direct_user_event}){
@@ -32,6 +33,14 @@ export function createSubjectStore({userDomain,yuanqiDomain,verifyDirectUserEven
   });
  }
  return Object.freeze({
+  async getOrCreateInstallationBoundary(now){
+   if(!Number.isSafeInteger(now)||now<0)throw new TypeError('installation boundary clock must be Unix milliseconds');
+   return serializeByKey(queues,'installation:primary',async()=>{
+    const old=installationState.get('installation:primary');
+    if(old!==undefined){if(old.installation_id!=='installation:primary'||old.schema_version!==1||!Number.isSafeInteger(old.activated_at_ms)||old.activated_at_ms<0)throw new Error('persisted YuanQi installation boundary is invalid');return clone(old);}
+    return putOnce(installationState,'installation:primary',{installation_id:'installation:primary',activated_at_ms:now,schema_version:1},'installation boundary conflict');
+   });
+  },
   createUserSubject({subject_id,created_from_event_ref}){return identity(users,'user',subject_id,created_from_event_ref);},
   createYuanQiSubject({subject_id,created_from_event_ref}){return identity(yuanqis,'yuanqi',subject_id,created_from_event_ref);},
   getUserSubject(id){requiredText(id,'subject_id');const v=users.get(id);return v===undefined?undefined:clone(v);},

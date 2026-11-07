@@ -2,7 +2,7 @@
 
 > 日期：2026-11-07
 > 当前分支：`work/e00-20e-05b-subject-domain-runtime`
-> 状态：未修复；真实 Host 验收阻断项。
+> 状态：首轮代码接入已实施，真实 Host 验收阻断项仍未关闭。
 
 ## 1. 结论
 
@@ -105,3 +105,9 @@ PR #4 的 `test/dsh/lifecycle-recovery.test.js` 在关闭/重开 Domain 后，�
 - 安装实例边界与多 Session 顺序：待设计和核验。
 - 真实 SessionStore restore 测试：未完成。
 - 真实后端故障与进程崩溃测试：未完成。
+
+## 8. 首轮修复实现状态（2026-11-07）
+
+PR #3 首轮实现已接入官方 `ctx.sessionQuery` / `ctx.sessionPersistence`，启动时通过 live-preferred Session 列表和精确 observation 扫描可恢复历史；严格过滤 direct-user 消息，排除 Fork inherited prefix，并将 listener 在扫描期间收到的事件缓冲合并。安装边界只持久化一次，避免每次重启刷新。若跨 Session 最早候选同毫秒，恢复拒绝唤醒。
+
+该实现尚待本轮 CI 验证。它仍未达到真实宿主验收：目标 Profile 是否同时挂载 Session Query SQLite backend 与 Session Persistence JSONL backend 尚未核实；没有真实 DSH SessionStore restore + 进程重启测试；跨 Session event.time 不是单调全局时钟；超大 Session 的完整 observation 成本也未在目标 Android 环境测量。
