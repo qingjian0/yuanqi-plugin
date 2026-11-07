@@ -4,15 +4,30 @@ import { apply } from '../../src/dsh/plugin.js';
 
 function fakeStorageDomain() {
   const opened = new Map();
-  return {
+  const persisted = new Map();
+  const storage = {
     opened,
+    failWorldlineWrite: false,
     async open(spec) {
-      const tables = new Map(Object.keys(spec.tables).map(name => [name, new Map()]));
+      let tables = persisted.get(spec.name);
+      if (!tables) {
+        tables = new Map(Object.keys(spec.tables).map(name => [name, new Map()]));
+        persisted.set(spec.name, tables);
+      }
       const domain = {
         table(name) {
           const rows = tables.get(name);
           if (!rows) throw new Error('unknown table: ' + name);
-          return { get: key => rows.get(key), async put(key, value) { rows.set(key, structuredClone(value)); } };
+          return {
+            get: key => rows.get(key),
+            async put(key, value) {
+              if (spec.name === 'yuanqi_subject' && name === 'worldlines' && storage.failWorldlineWrite) {
+                storage.failWorldlineWrite = false;
+                throw new Error('simulated interruption before Worldline record');
+              }
+              rows.set(key, structuredClone(value));
+            },
+          };
         },
         async close() { domain.closed = true; },
         closed: false,
@@ -21,6 +36,7 @@ function fakeStorageDomain() {
       return domain;
     },
   };
+  return storage;
 }
 function dshEvent(text, id, seq, time) {
   return { type: 'user/message', seq, time, data: { id, role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text }] } };
@@ -77,4 +93,20 @@ test('Cordis plugin wakes only from the exact first direct user command', async 
   assert.equal(wake.occurred_at, new Date(1793966400000).toISOString());
   assert.equal(storage.opened.get('yuanqi_subject').tables.get('session_worldline_bindings').get('session-a').worldline_id, 'worldline:main');
   await ctx.disposer();
+});
+test('startup reconciliation completes Worldline creation after an interrupted wake', async () => {
+  const storage = fakeStorageDomain();
+  storage.failWorldlineWrite = true;
+  const first = context(storage);
+  await apply(first);
+  await assert.rejects(first.listener({ id: 'session-a' }, dshEvent('启动元炁', 'm1', 0, 1793966400000)), /simulated interruption/);
+  await first.disposer();
+
+  const restarted = context(storage);
+  await apply(restarted);
+  const tables = storage.opened.get('yuanqi_subject').tables;
+  assert.equal(tables.get('wake_records').get('yuanqi:primary').wake_event_ref, 'm1');
+  assert.equal(tables.get('worldlines').get('worldline:main').status, 'active');
+  assert.equal(tables.get('session_worldline_bindings').get('session-a').worldline_id, 'worldline:main');
+  await restarted.disposer();
 });
