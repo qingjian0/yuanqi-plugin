@@ -11,6 +11,7 @@ const YUANQI_SUBJECT_ID = 'yuanqi:primary';
 
 export async function apply(ctx) {
   const domains = await openSubjectDomains(ctx.storageDomain);
+  try {
   const worldlines = createWorldlineStore({
     yuanqiDomain: domains.yuanqiDomain,
     verifyHostEvent(event) { return event?.verified === true ? event : null; },
@@ -23,7 +24,12 @@ export async function apply(ctx) {
   });
 
   let active = true;
+  let storageUncertain = false;
   const pendingBySession = new Map();
+
+  function warn(message) {
+    try { ctx.logger?.warn?.(message); } catch {}
+  }
 
   async function ensureWorldlineForWake(wake) {
     const first = store.getFirstUserMessage(YUANQI_SUBJECT_ID);
@@ -65,7 +71,7 @@ export async function apply(ctx) {
   }
 
   async function observe(session, event) {
-    if (!active) return;
+    if (!active || storageUncertain) return;
     const direct = normalizeDirectUserMessageEvent(session?.id, event);
     if (!direct) return;
 
@@ -119,7 +125,13 @@ export async function apply(ctx) {
         result = Promise.reject(error);
       }
       const task = Promise.resolve(result).catch(error => {
-        ctx.logger?.warn?.('[yuanqi] session event processing failed: ' + String(error));
+        if (error?.code === 'unknown-state') {
+          storageUncertain = true;
+          active = false;
+          warn('[yuanqi] Storage Domain state is unknown; YuanQi has failed closed. Unload and reload the plugin to reopen and validate the Domains.');
+        } else {
+          warn('[yuanqi] session event processing failed: ' + String(error));
+        }
         throw error;
       });
       entry.promise = task;
@@ -148,8 +160,16 @@ export async function apply(ctx) {
       });
 
       if (failed.length) {
-        // Domain operations are idempotent. Retry failed work once at the
-        // durability checkpoint; persistent failures remain visible to DSH.
+        // An unknown durable outcome quarantines the DSH Domain. Never retry
+        // through the same handle; only close/reopen can re-establish state.
+        if (storageUncertain) {
+          throw new AggregateError(
+            failed.map(entry => entry.promise).map(promise => promise.catch(error => error)),
+            'YuanQi Storage Domain state is unknown; unload and reload is required',
+          );
+        }
+        // Domain operations are idempotent. Retry ordinary transient failures
+        // once at the durability checkpoint; persistent failures remain visible.
         const retries = await Promise.allSettled(failed.map(entry => entry.execute()));
         const retryErrors = retries
           .filter(result => result.status === 'rejected')
@@ -164,6 +184,7 @@ export async function apply(ctx) {
   }
 
   ctx.on('session/event', (session, event) => {
+    if (!active || storageUncertain) return;
     return track(session.id, () => observe(session, event));
   });
 
@@ -182,4 +203,15 @@ export async function apply(ctx) {
     const errors = results.filter(result => result.status === 'rejected').map(result => result.reason);
     if (errors.length) throw new AggregateError(errors, 'YuanQi session writes failed during plugin teardown');
   });
+  } catch (error) {
+    try {
+      await domains.close();
+    } catch (closeError) {
+      throw new AggregateError(
+        [error, closeError],
+        'YuanQi plugin initialization failed and Storage Domains could not both close cleanly',
+      );
+    }
+    throw error;
+  }
 }

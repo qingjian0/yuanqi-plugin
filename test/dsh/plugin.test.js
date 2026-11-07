@@ -9,6 +9,9 @@ function fakeStorageDomain() {
     opened,
     failWorldlineWrite: false,
     failWorldlineWrites: 0,
+    failWorldlineUnknownState: false,
+    worldlineWriteAttempts: 0,
+    failWorldlineTableBinding: false,
     async open(spec) {
       let tables = persisted.get(spec.name);
       if (!tables) {
@@ -18,10 +21,19 @@ function fakeStorageDomain() {
       const domain = {
         table(name) {
           const rows = tables.get(name);
+          if (spec.name === 'yuanqi_subject' && name === 'worldlines' && storage.failWorldlineTableBinding) {
+            throw new Error('simulated table binding failure: ' + spec.name + '/' + name);
+          }
           if (!rows) throw new Error('unknown table: ' + name);
           return {
             get: key => rows.get(key),
             async put(key, value) {
+              if (spec.name === 'yuanqi_subject' && name === 'worldlines') {
+                storage.worldlineWriteAttempts += 1;
+                if (storage.failWorldlineUnknownState) {
+                  throw Object.assign(new Error('simulated unknown durable state'), { code: 'unknown-state' });
+                }
+              }
               if (spec.name === 'yuanqi_subject' && name === 'worldlines' &&
                   (storage.failWorldlineWrite || storage.failWorldlineWrites > 0)) {
                 storage.failWorldlineWrite = false;
@@ -164,4 +176,40 @@ test('persistent session write failure is reported by flush and remains retryabl
   await ctx.flushListener({ id: 'session-a' });
   assert.equal(tables.get('worldlines').get('worldline:main').status, 'active');
   await ctx.disposer();
+});
+
+test('unknown-state fails closed and never retries through the quarantined Domain', async () => {
+  const storage = fakeStorageDomain();
+  storage.failWorldlineUnknownState = true;
+  const ctx = context(storage);
+  await apply(ctx);
+
+  await assert.rejects(
+    ctx.listener({ id: 'session-a' }, dshEvent('启动元炁', 'm1', 0, 1793966400000)),
+    /simulated unknown durable state/,
+  );
+  await assert.rejects(
+    ctx.flushListener({ id: 'session-a' }),
+    /Storage Domain state is unknown/,
+  );
+
+  // Once DSH reports unknown durable state, no later event may use this handle.
+  await ctx.listener({ id: 'session-b' }, dshEvent('后续消息', 'm2', 0, 1794052800000));
+  await assert.rejects(
+    ctx.flushListener({ id: 'session-a' }),
+    /Storage Domain state is unknown/,
+  );
+  assert.equal(storage.worldlineWriteAttempts, 1);
+  assert.equal(ctx.warnings.some(message => message.includes('failed closed')), true);
+  await assert.rejects(ctx.disposer(), /failed during plugin teardown/);
+  assert.equal(storage.opened.get('yuanqi_subject').domain.closed, true);
+  assert.equal(storage.opened.get('yuanqi_user_subject').domain.closed, true);
+});
+
+test('plugin initialization failure after opening both Domains closes both handles', async () => {
+  const storage = fakeStorageDomain();
+  storage.failWorldlineTableBinding = true;
+  await assert.rejects(apply(context(storage)), /simulated table binding failure/);
+  assert.equal(storage.opened.get('yuanqi_subject').domain.closed, true);
+  assert.equal(storage.opened.get('yuanqi_user_subject').domain.closed, true);
 });
