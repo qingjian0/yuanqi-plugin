@@ -61,7 +61,12 @@ function context(storageDomain, options = {}) {
   const warnings = [];
   return {
     storageDomain,
-    sessionPersistence: options.sessionPersistence ?? { async list() { return []; } },
+    sessionPersistence: options.sessionPersistence ?? {
+      identity: Symbol('test-session-persistence'),
+      async list() { return []; },
+      async stat() { return undefined; },
+      async open() { throw new Error('unexpected persisted Session open'); },
+    },
     sessionQuery: options.sessionQuery ?? { async listSessions() { return []; }, async observeSession() { throw new Error('unexpected Session observation'); } },
     warnings,
     logger: { warn(message) { warnings.push(message); } },
@@ -72,6 +77,25 @@ function context(storageDomain, options = {}) {
     get disposer() { return disposer; },
   };
 }
+
+test('plugin startup rejects an incomplete SessionPersistence provider before opening Domains', async () => {
+  const invalidProviders = [
+    { async list() { return []; } },
+    { identity: Symbol('missing-stat'), async list() { return []; }, async open() {} },
+    { identity: Symbol('missing-open'), async list() { return []; }, async stat() { return undefined; } },
+    { identity: 'not-a-symbol', async list() { return []; }, async stat() { return undefined; }, async open() {} },
+  ];
+
+  for (const sessionPersistence of invalidProviders) {
+    const storage = fakeStorageDomain();
+    await assert.rejects(
+      apply(context(storage, { sessionPersistence })),
+      /sessionPersistence service with identity, list\(\), stat\(\), and open\(\)/,
+    );
+    assert.equal(storage.opened.size, 0);
+  }
+});
+
 test('non-command first message consumes wake eligibility without creating a Worldline', async () => {
   const storage = fakeStorageDomain(), ctx = context(storage);
   await apply(ctx);
