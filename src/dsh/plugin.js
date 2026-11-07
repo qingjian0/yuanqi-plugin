@@ -40,8 +40,14 @@ export async function apply(ctx) {
       typeof ctx.sessionQuery.observeSession !== 'function') {
     throw new Error('YuanQi requires the official DSH sessionQuery service');
   }
-  if (!ctx.sessionPersistence || typeof ctx.sessionPersistence.list !== 'function') {
-    throw new Error('YuanQi requires the DSH sessionPersistence service for cold-history recovery');
+  const persistence = ctx.sessionPersistence;
+  if (!persistence || typeof persistence.identity !== 'symbol' ||
+      typeof persistence.list !== 'function' ||
+      typeof persistence.stat !== 'function' ||
+      typeof persistence.open !== 'function') {
+    throw new Error(
+      'YuanQi requires the DSH sessionPersistence service with identity, list(), stat(), and open() for cold-history recovery',
+    );
   }
 
   const activationObservedAt = Date.now();
