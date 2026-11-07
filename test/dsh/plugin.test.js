@@ -56,11 +56,13 @@ function fakeStorageDomain() {
 function dshEvent(text, id, seq, time) {
   return { type: 'user/message', seq, time, data: { id, role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text }] } };
 }
-function context(storageDomain) {
+function context(storageDomain, options = {}) {
   let listener, flushListener, disposer;
   const warnings = [];
   return {
     storageDomain,
+    sessionPersistence: options.sessionPersistence ?? { async list() { return []; } },
+    sessionQuery: options.sessionQuery ?? { async listSessions() { return []; }, async observeSession() { throw new Error('unexpected Session observation'); } },
     warnings,
     logger: { warn(message) { warnings.push(message); } },
     on(name, callback) { if (name === 'session/event') listener = callback; else if (name === 'session/flush') flushListener = callback; else throw new Error('unexpected event ' + name); },
@@ -212,6 +214,79 @@ test('plugin initialization failure after opening both Domains closes both handl
   await assert.rejects(apply(context(storage)), /simulated table binding failure/);
   assert.equal(storage.opened.get('yuanqi_subject').domain.closed, true);
   assert.equal(storage.opened.get('yuanqi_user_subject').domain.closed, true);
+});
+
+test('startup restores the earliest post-install direct message from cold Session history', async () => {
+  const storage = fakeStorageDomain();
+  const old = dshEvent('启动元炁', 'old', 0, Date.now() - 5000);
+  const first = dshEvent('你好', 'first', 1, Date.now() + 10);
+  const later = dshEvent('启动元炁', 'later', 2, Date.now() + 20);
+  let released = 0;
+  const ctx = context(storage, {
+    sessionQuery: {
+      async listSessions() { return [{ header: { id: 'cold-a' }, live: false, persisted: true }]; },
+      async observeSession(id, options) {
+        assert.equal(id, 'cold-a');
+        assert.deepEqual(options, { projectionMode: 'none' });
+        return {
+          inheritedEventCount: 1,
+          events: [old, first, later],
+          [Symbol.dispose]() { released += 1; },
+        };
+      },
+    },
+  });
+  await apply(ctx);
+  const tables = storage.opened.get('yuanqi_subject').tables;
+  assert.equal(tables.get('first_user_messages').get('yuanqi:primary').first_event_id, 'first');
+  assert.equal(tables.get('first_user_messages').get('yuanqi:primary').trigger_command, null);
+  assert.equal(tables.get('wake_records').has('yuanqi:primary'), false);
+  assert.equal(released, 1);
+  await ctx.disposer();
+});
+
+test('Fork-inherited prefix is excluded from first-message recovery', async () => {
+  const storage = fakeStorageDomain();
+  const inheritedCommand = dshEvent('启动元炁', 'parent-command', 0, Date.now() + 1);
+  const childMessage = dshEvent('普通消息', 'child-message', 1, Date.now() + 2);
+  const ctx = context(storage, {
+    sessionQuery: {
+      async listSessions() { return [{ header: { id: 'fork-child' } }]; },
+      async observeSession() {
+        return { inheritedEventCount: 1, events: [inheritedCommand, childMessage], [Symbol.dispose]() {} };
+      },
+    },
+  });
+  await apply(ctx);
+  const first = storage.opened.get('yuanqi_subject').tables.get('first_user_messages').get('yuanqi:primary');
+  assert.equal(first.first_event_id, 'child-message');
+  assert.equal(first.trigger_command, null);
+  await ctx.disposer();
+});
+
+test('equal earliest timestamps across Sessions fail closed without consuming wake eligibility', async () => {
+  const storage = fakeStorageDomain();
+  const time = Date.now() + 10;
+  const ctx = context(storage, {
+    sessionQuery: {
+      async listSessions() { return [{ header: { id: 's-a' } }, { header: { id: 's-b' } }]; },
+      async observeSession(id) {
+        const event = dshEvent('启动元炁', id + '-event', 0, time);
+        return { inheritedEventCount: 0, events: [event], [Symbol.dispose]() {} };
+      },
+    },
+  });
+  await assert.rejects(apply(ctx), /ambiguous/);
+  const tables = storage.opened.get('yuanqi_subject').tables;
+  assert.equal(tables.get('first_user_messages').has('yuanqi:primary'), false);
+  assert.equal(tables.get('wake_records').has('yuanqi:primary'), false);
+  assert.equal(tables.get('worldlines').has('worldline:main'), false);
+});
+
+test('missing official Session Query or Persistence service fails closed at startup', async () => {
+  const storage = fakeStorageDomain();
+  await assert.rejects(apply({ ...context(storage), sessionQuery: undefined }), /sessionQuery/);
+  await assert.rejects(apply({ ...context(storage), sessionPersistence: undefined }), /sessionPersistence/);
 });
 
 test('installation boundary is reused after restart; live post-activation events are not rejected by clock rollback', async () => {
