@@ -86,11 +86,14 @@ test('actual DSH DomainFacility opens both YuanQi subject schemas, validates rec
   assert.equal(storageDomain.opened.size, 0);
 });
 
-test('YuanQi subject Domain schema rejects malformed activation boundaries', async () => {
+test('actual DSH DomainFacility rejects malformed persisted YuanQi activation boundary on reopen', async () => {
   const storageDomain = createStorageDomain();
   const domains = await openSubjectDomains(storageDomain);
-  await assert.rejects(domains.yuanqiDomain.table('installation_state').put('installation:primary', {
+  // DSH validates records during DomainFacility.open(), not during KvTable.put().
+  await domains.yuanqiDomain.table('installation_state').put('installation:primary', {
     installation_id: 'installation:primary', activated_at_ms: -1, schema_version: 1,
-  }));
+  });
   await domains.close();
+  await assert.rejects(openSubjectDomains(storageDomain));
+  assert.equal(storageDomain.opened.size, 0);
 });
