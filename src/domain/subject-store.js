@@ -10,8 +10,7 @@ function firstMessageFields(e){
  if(!Number.isSafeInteger(e.event_seq)||e.event_seq<0)throw new TypeError('valid DSH event sequence is required');
  if(!Number.isSafeInteger(e.event_time)||e.event_time<0)throw new TypeError('valid DSH event time is required');
  if(typeof e.text!=='string')throw new TypeError('direct user message text is required');
- const text=e.text.trim();
- return {first_session_id:e.session_id,first_event_id:e.event_id,first_event_seq:e.event_seq,first_event_time:e.event_time,source_kind:'user',event_type:'user/message',trigger_command:COMMANDS.has(text)?text:null};
+ return {first_session_id:e.session_id,first_event_id:e.event_id,first_event_seq:e.event_seq,first_event_time:e.event_time,source_kind:'user',event_type:'user/message',trigger_command:COMMANDS.has(e.text)?e.text:null};
 }
 export function createSubjectStore({userDomain,yuanqiDomain,verifyDirectUserEvent,verifyBirthProfileConfirmation}){
  if(!userDomain||!yuanqiDomain)throw new TypeError('both DSH subject domains are required');
