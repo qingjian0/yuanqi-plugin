@@ -285,3 +285,15 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - DSH `Session.snapshotEvents()` 在官方声明中已 deprecated，并标注禁止新增调用；不能为恢复功能直接依赖该弃用接口。下一步必须审查正式 Session Query / History API，并设计不依赖模型输入的可信恢复路径。
 - 该项当前状态：**未修复 / 真实 Host 验收阻断项**。在正式 API 和安装实例时间边界确定前，不得伪造事件、使用模型提供的时间，或把历史消息误判为安装后的新消息。
 - 详细审查：[E00-20J P0 Session Restore Replay Gap](./engineering/E00-20J-P0-SESSION-RESTORE-REPLAY-GAP.md)。
+
+## 20. 2026-11-07 P0 Session Query 正式 API 核验（E00-20K）
+
+- 核对 DSH 源码基准：`deepseek-ai/deepseek-harness@fcc0ad462172522aaf5c93a7b2e01f6b9f0b0159`，发布包版本 `@deepseek-ai/dsh-session-query@0.2.2-rc.1` / `@deepseek-ai/dsh-session-query-sqlite@0.2.2-rc.1`。
+- 正式服务名为 `ctx.sessionQuery`，由 `@deepseek-ai/dsh-session-query-sqlite` 具体后端提供；不是 `ctx.sessions` 的别名，也不是模型工具 `tool-session-query`。
+- 已确认正式 API：`listSessions()`、`readSession(sessionId)`、`observeSession(sessionId, { projectionMode: 'none' })`、`listEvents(sessionId)`、`readEvent(request)`。其中 `readSession()` 返回完整、脱离宿主对象的 replay-validated log；`observeSession()` 返回精确不可变观察，含 `inheritedEventCount`、事件数组与 cursor，且不会把 cold Session 变成 live Session。
+- `inheritedEventCount` 是排除 Fork 继承历史的正式边界；恢复扫描必须忽略 `seq < inheritedEventCount` 的事件，不能把父线历史当作子线新经历。
+- Session Query service 通过 `ctx.sessionPersistence` 动态读取持久化来源；没有该服务时只能观察 live Session，不能保证进程重启后的 cold history 恢复。DSH Base composition 文档列出了 JSONL Session Persistence 与 SQLite Session Query backend，但不能据此推断所有 Android/Profile 组合均已挂载。
+- YuanQi 当前 `src/dsh/plugin.js` 只声明 `inject = ['storageDomain', 'sessions']`；`package.json` 未声明 `@deepseek-ai/dsh-session-query` 与 `@deepseek-ai/dsh-session-persistence` peer dependency。因此当前代码没有实际接入正式历史读取服务。
+- DSH Session 的 `Session.append()` 在宿主内部使用 `Date.now()` 生成 `SessionEvent.time`；该时间戳仍必须直接取自事件对象作为唤醒发生时间。若设计安装边界时间，只能作为筛选边界，不能替代 Wake Record 的 `occurred_at`。
+- DSH Storage Domain `KvTable.update()` 的原子 read-modify-write 只保证同一个 Domain 实例内部的写队列顺序；不能据此宣称跨 Facility / 跨进程 CAS 或分布式锁。
+- 当前结论：正式 Session Query API 已找到；YuanQi 运行时接入、持久化来源强制要求、安装边界、跨 Session 同毫秒事件歧义处理和真实 restore 测试仍未完成。详见 [E00-20K](./engineering/E00-20K-P0-SESSION-QUERY-API-AUDIT.md)。
