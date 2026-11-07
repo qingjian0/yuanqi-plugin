@@ -44,6 +44,7 @@ export async function apply(ctx) {
     throw new Error('YuanQi requires the DSH sessionPersistence service for cold-history recovery');
   }
 
+  const activationObservedAt = Date.now();
   const domains = await openSubjectDomains(ctx.storageDomain);
   let finishStartup;
   let failStartup;
@@ -196,7 +197,7 @@ export async function apply(ctx) {
 
     // The marker is written once and reused after every reload. It is a
     // cutoff only; WakeRecord.occurred_at always comes from the source event.
-    const boundary = await store.getOrCreateInstallationBoundary(Date.now());
+    const boundary = await store.getOrCreateInstallationBoundary(activationObservedAt);
 
     // Register before scanning so events arriving during cold-history reads
     // are buffered and merged with the immutable observations.
