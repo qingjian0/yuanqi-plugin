@@ -37,27 +37,40 @@ function context(storageDomain) {
     get disposer() { return disposer; },
   };
 }
-test('Cordis plugin persists first direct message and does not wake on a later command', async () => {
+test('non-command first message consumes wake eligibility without creating a Worldline', async () => {
   const storage = fakeStorageDomain(), ctx = context(storage);
   await apply(ctx);
   await ctx.listener({ id: 'session-a' }, dshEvent('你好', 'm1', 0, 1793966400000));
   await ctx.flushListener({ id: 'session-a' });
   await ctx.listener({ id: 'session-b' }, dshEvent('启动元炁', 'm2', 0, 1794052800000));
+  await ctx.flushListener({ id: 'session-b' });
   const tables = storage.opened.get('yuanqi_subject').tables;
   assert.equal(tables.get('first_user_messages').get('yuanqi:primary').first_event_id, 'm1');
   assert.equal(tables.get('first_user_messages').get('yuanqi:primary').trigger_command, null);
   assert.equal(tables.get('wake_records').has('yuanqi:primary'), false);
-  assert.equal(tables.get('worldlines').get('worldline:main').status, 'active');
-  assert.equal(tables.get('session_worldline_bindings').get('session-a').worldline_id, 'worldline:main');
-  assert.equal(tables.get('session_worldline_bindings').get('session-b').worldline_id, 'worldline:main');
+  assert.equal(tables.get('worldlines').has('worldline:main'), false);
+  assert.equal(tables.get('session_worldline_bindings').has('session-a'), false);
+  assert.equal(tables.get('session_worldline_bindings').has('session-b'), false);
   await ctx.disposer();
   assert.equal(storage.opened.get('yuanqi_subject').domain.closed, true);
   assert.equal(storage.opened.get('yuanqi_user_subject').domain.closed, true);
+});
+test('whitespace-wrapped command in the first message does not wake YuanQi', async () => {
+  const storage = fakeStorageDomain(), ctx = context(storage);
+  await apply(ctx);
+  await ctx.listener({ id: 'session-a' }, dshEvent(' 启动元炁 ', 'm1', 0, 1793966400000));
+  await ctx.flushListener({ id: 'session-a' });
+  const tables = storage.opened.get('yuanqi_subject').tables;
+  assert.equal(tables.get('first_user_messages').get('yuanqi:primary').trigger_command, null);
+  assert.equal(tables.get('wake_records').has('yuanqi:primary'), false);
+  assert.equal(tables.get('worldlines').has('worldline:main'), false);
+  await ctx.disposer();
 });
 test('Cordis plugin wakes only from the exact first direct user command', async () => {
   const storage = fakeStorageDomain(), ctx = context(storage);
   await apply(ctx);
   await ctx.listener({ id: 'session-a' }, dshEvent('启动元炁', 'm1', 0, 1793966400000));
+  await ctx.flushListener({ id: 'session-a' });
   const wake = storage.opened.get('yuanqi_subject').tables.get('wake_records').get('yuanqi:primary');
   assert.equal(wake.wake_event_ref, 'm1');
   assert.equal(wake.first_session_id, 'session-a');
