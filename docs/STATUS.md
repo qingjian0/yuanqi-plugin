@@ -345,4 +345,4 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - README 与 INSTALLATION 补齐两个 peer dependencies：`@deepseek-ai/dsh-session-query` 与 `@deepseek-ai/dsh-session-persistence`，现在与 package.json 六项 DSH peer 声明一致。
 - 新审计文档：[E00-20M P0 DSH Profile Provider 组合与冷读取契约审计](./engineering/E00-20M-P0-REAL-HOST-PROFILE-AUDIT.md)。
 - **边界：** DSH Base 的官方组合已核实，但任意 Android Profile 的最终合并配置、真实 Android Storage backend、OS 进程强制终止恢复与性能仍未验收。当前 JSONL 集成测试是同进程重建 Context；YuanQi Domain adapter 仍是测试内存实现。
-- 本轮运行时代码与测试已提交；需以本节提交之后最新 GitHub Actions 结果作为验证结论。PR #3 仍为 Draft，不合并 `dev` / `main`。
+- 运行时 guard 与四类不完整 Provider 测试由 PR Run #335（`42380745690`）验证通过：Node.js 24.9.0，63 passed / 0 failed，0 skipped / 0 todo。Run #335 对应 HEAD `7989e34b7330fc78ca399d513708e140e58878d5`，覆盖运行时代码 `97ae4be`、测试 `9d7f5a0` 与 E00-20M 文档；之后另有 README 英文文档同步提交 `060dec5`，其后续 CI 仍需核验。PR #3 仍为 Draft，不合并 `dev` / `main`。
