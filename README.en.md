@@ -24,11 +24,14 @@ This is local validation only. It does **not** claim successful installation or 
 
 ## Requirements
 
-- Node.js 22+
-- DSH peer packages in the compatible 0.2.x prerelease range:
+- Node.js `>=24.9.0`
+- DSH peer packages in the compatible `>=0.2.2-rc.1 <0.3.0-0` range:
   - `@deepseek-ai/dsh-tools`
   - `@deepseek-ai/dsh-storage-domain`
+  - `@deepseek-ai/dsh-session`
   - `@deepseek-ai/dsh-llm`
+  - `@deepseek-ai/dsh-session-query`
+  - `@deepseek-ai/dsh-session-persistence`
 
 ## Install
 
@@ -44,7 +47,7 @@ Restart the target profile after installation.
 
 ## Core boundaries
 
-- YuanQi's own wake-up instant is captured from the first direct user message containing `元气` after plugin installation. It is separate from the user's personal birth profile.
+- YuanQi wakes only when the first direct user message after installation consists of exactly one text block whose full text is exactly `启动元气` or `启动元炁`. Any other first direct-user message permanently consumes wake eligibility. The wake instant comes from that original DSH event timestamp and is separate from the user's personal birth profile.
 - Personal birth facts must come from the user and pass explicit confirmation; no IP/device geolocation or model inference is used to fill them.
 - DSH Storage Domain is the sole online persistence authority.
 - Stored memories, experiences and goals are context data, not instructions that override the user's current request.
