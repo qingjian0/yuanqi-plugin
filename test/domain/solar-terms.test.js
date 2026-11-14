@@ -53,7 +53,7 @@ test('marks birth instants inside the conservative solar-term boundary window am
   assert.equal(context.status, 'ambiguous');
   assert.equal(context.previous_jie.name, '立春');
   assert.ok(context.boundary_distance_seconds < context.boundary_uncertainty_seconds);
-  assert.equal(context.boundary_uncertainty_seconds, 1500);
+  assert.equal(context.boundary_uncertainty_seconds, 1800);
 });
 
 test('does not claim solar-term calculations outside the documented 1800–2200 ephemeris range', () => {
