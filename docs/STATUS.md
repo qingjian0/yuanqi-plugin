@@ -380,7 +380,7 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - `src/dsh/plugin.js` 已将解析器接入真实 Host direct-user `session/event` 处理路径。只有元炁精确唤醒后，用户主体才建立；后续可信 direct-user 消息中的明确出生事实会写入 BirthProfile 候选 revision。
 - 接入精确命令：`核对出生资料` 为当前 UserSubject、候选 revision、Session 和事件时间签发 10 分钟确认挑战；`确认出生资料` 消费挑战并正式保存；`拒绝出生资料` 写入拒绝审计；`撤销出生资料` 撤销已确认档案并保留审计。
 - 新增解析器测试及 DSH 插件消息流集成测试，覆盖显式日期/时间/地点解析、非法日期/时间拒绝、唤醒后候选写入、同 Session challenge 签发和确认事件写入。
-- **产品交互限制：** 当前尚未接入 DSH assistant reply/render API，因此不会在聊天窗口自动显示规范化候选摘要或确认按钮。用户需要核对自己刚提交的原始内容后，主动发送 `核对出生资料`，再发送精确确认命令。该版本是可供集成测试的最小命令流，不是完整 onboarding UX。
+- **产品交互接线：** 插件通过当前 DSH Agent 的 `inject()` 投递 `form: notice` 的用户上下文消息，提示模型在下一次回复中逐字段展示候选摘要、确认挑战说明或操作结果；这不是独立 UI 卡片，最终呈现仍取决于 Agent 正常完成回复。挑战签发后再由同一 Session 的精确确认命令消费。
 - 候选更新会递增 revision 并使旧 challenge 失效。当前解析器每条输入仅生成该条消息明确识别出的字段集合；用户修正资料时应重新提交完整且明确标注的出生资料，避免遗漏字段被视为已确认内容。
 - 最新代码提交：`81a32897c5f8d6f8e3f4afa679ec74f460805906`（README 更新）；此前运行时代码与测试提交分别为 `128e80190a33de8174d998ac297a11651e7c5ba0`、`09030bc98f5cf1f6a5c83dcc8a45832b2216b0a3`、`e67bce5ee670f3ec43d4998ac59555cebf13e50a`、`b89c8c5018f3855cfc58a74329694268da2a453f`。
-- CI 对最新 HEAD 的状态尚未由 Actions 结果确认；GitHub PR #5 仍 Draft，目标 `dev`，未合并。真实 DSH Profile、Android 真机、assistant reply/render API 和 OS 进程强制终止恢复仍待验收。
+- 新增 Agent notice 注入测试，验证候选保存与挑战签发会向对应 Session 的 live Agent 投递可呈现的摘要上下文。CI 对最新 HEAD 的状态尚未由 Actions 结果确认；GitHub PR #5 仍 Draft，目标 `dev`，未合并。真实 DSH Profile 的最终 UI 呈现、Android 真机和 OS 进程强制终止恢复仍待验收。
