@@ -4,7 +4,7 @@
 
 YuanQi 的出生时间不是用户的个人出生时间。它是用户首次在 DSH 会话中直接、单独、精确发送启动命令“启动元气”或“启动元炁”时，对应 DSH `user/message` SessionEvent 的 `time`（Unix 毫秒）。此前可以有普通消息；首次普通消息不会消耗唤醒资格。持久化时转换为 UTC ISO-8601，分别写入 `WakeRecord.birth_time` 与兼容字段 `WakeRecord.occurred_at`。不得用插件加载时间、模型生成时间或后续重试时间替代。
 
-出生地点表示启动瞬间设备/宿主所在位置。插件通过可选的宿主适配器 `ctx.yuanqiLocationProvider.getCurrentPosition()` 读取。适配器应返回：
+出生地点表示启动瞬间设备/宿主所在位置。插件优先使用可注入的 `ctx.yuanqiLocationProvider.getCurrentPosition()`；未注入时，如果 Node 进程存在 `DSH_BRIDGE_TOKEN`，Android 适配器会通过固定回环地址 `http://127.0.0.1:3083/dev/location` 读取本机 Android Host 的定位结果，并在请求头中携带 `X-DSH-Token`。不会访问外网，也不读取 IP 定位。适配器统一返回：
 
 - `latitude`、`longitude`：WGS84 十进制度坐标；
 - `accuracy_meters`：可选水平精度；
@@ -18,15 +18,17 @@ YuanQi 的出生时间不是用户的个人出生时间。它是用户首次在 
 
 `yuanqiLocationProvider` 是 YuanQi 定义的可选宿主能力接口，不是已确认存在于所有 DSH 版本的内建 API。Android 宿主应使用系统定位权限与系统定位服务实现该适配器；Desktop 宿主应通过用户授权的位置提供能力实现。适配器应在授权缺失时返回错误，由插件记录为未知地点。宿主不得把 IP 推断位置伪装成 GPS/系统定位。
 
-当前代码已完成插件侧适配器读取、字段校验、失败降级与持久化；Android/Desktop 宿主适配器本身及真实设备权限弹窗仍需分别集成和验收，不能据此宣称设备定位已实机完成。冷历史扫描会独立查找首次精确启动命令，而不是只检查首条普通消息；如果启动命令只在冷历史中发现，插件不会用当前设备位置冒充事件发生时的位置，该类记录的地点会保持未知。Fork 继承前缀与安装边界之前的事件均不参与候选选择。
+Android 接入已对接项目 `qingjian0/Deepseek-Harness-Local-Android` 现有的 `GET /dev/location` 路由。该路由受 Android `CapabilityGate.LOCATION` 与系统定位权限双重控制；默认能力开关关闭，用户必须在 Android 设备能力设置中显式启用“当前地理位置”，并授予粗略或精确定位权限。Android 侧目前读取的是 `LocationManager.getLastKnownLocation()` 缓存，而非主动请求新鲜 GPS fix，因此 YuanQi 额外要求定位缓存年龄不超过 60 秒，且定位采集时间与 DSH 启动事件时间相差不超过 60 秒；不满足、无权限、开关关闭、无 fix 或桥接超时都会将地点记为 unavailable，但出生时间仍正常落库。坐标采集时间按 Android 返回的 `at - age_ms` 还原，不把 HTTP 查询时间冒充 GPS fix 时间。
+
+冷历史扫描会独立查找首次精确启动命令，而不是只检查首条普通消息；如果启动命令只在冷历史中发现，插件不会用当前设备位置冒充事件发生时的位置，该类记录的地点会保持未知。Fork 继承前缀与安装边界之前的事件均不参与候选选择。
 
 ## DSH 与 Android 宿主能力核验
 
-DSH 的插件模型通过 Cordis Context 注入宿主服务；当前 YuanQi 依赖清单没有声明位置服务，DSH 官方架构/服务目录也没有确认一个通用 `getCurrentPosition()` 宿主服务。因此 `ctx.yuanqiLocationProvider` 只能视为 YuanQi 约定的可选适配接口，不能当作 DSH 已提供的 API。
+DSH 官方插件模型通过 Cordis Context 注入宿主服务；并不存在可供所有 DSH 插件直接调用的通用 GPS API。这里对接的是用户的 Android 宿主项目自身提供的原生桥接，而不是宣称 DSH 核心自带定位服务。
 
-当前公开 Android DSH 项目采用 Capacitor 管理界面、Kotlin 原生运行时层与 Ubuntu/PRoot 内的 Node.js DSH 三层结构。公开能力说明列出 Shizuku 和无障碍授权，但没有说明向 Node/Cordis 插件暴露系统定位 API。要实现真正自动定位，仍需 Android 项目增加明确的原生定位桥接：在原生层请求 `ACCESS_COARSE_LOCATION` / `ACCESS_FINE_LOCATION`（按产品策略择一或两者）、通过 Android Location API 获取一次定位、由受控 IPC/启动注入通道提供给 DSH Host，并在授权拒绝、定位关闭、超时、无可用 provider 时返回 unavailable。不能让 PRoot 内的插件自行假设能调用 Android API，也不能把 Shizuku Shell 权限等同于定位权限。
+`qingjian0/Deepseek-Harness-Local-Android` 的 `AgentBridge.kt` 已将 `GET /dev/location` 注册到本机桥；`LocationCap.kt` 通过 Android `LocationManager` 读取系统位置缓存，`CapabilityGate.LOCATION` 要求独立用户开关和 `ACCESS_FINE_LOCATION` / `ACCESS_COARSE_LOCATION` 权限。`AgentBridge` 在本机回环 HTTP 请求上校验 `X-DSH-Token`，`EngineConfig` 将同一启动周期 token 注入引擎进程环境变量 `DSH_BRIDGE_TOKEN`。YuanQi 通过这个受控本机通道读取位置，不需要另加 Android 权限，也不绕过用户开关。
 
-截至本次审查，Android 原生桥接和桌面宿主 Provider 均未实现；本 PR 只完成插件端 Provider 消费契约、验证、失败降级与记录持久化。
+当前 Android 桥接只提供 last-known fix，不是保证即时定位的单次定位请求。因此 YuanQi 对缓存年龄和事件时间差增加 60 秒限制；该策略优先保证出生地点时间相关性，宁可记为未知也不使用陈旧坐标。Android 宿主侧的权限弹窗、用户开关和真机定位功能属于既有能力，但本轮未在目标手机上完成端到端实机验收。Desktop Host 没有等价 Provider，仍需独立实现。
 
 ## 存储兼容
 
