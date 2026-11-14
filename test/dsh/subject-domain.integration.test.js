@@ -48,8 +48,8 @@ function createStorageDomain() {
 test('actual DSH DomainFacility opens both YuanQi subject schemas, validates records and reopens durable rows', async () => {
   const storageDomain = createStorageDomain();
   assert.equal(userSubjectDomainSpec.version, 1);
-  assert.equal(yuanqiSubjectDomainSpec.version, 8);
-  assert.deepEqual(yuanqiSubjectDomainSpec.compatibleVersions, [3, 4, 5, 6, 7]);
+  assert.equal(yuanqiSubjectDomainSpec.version, 9);
+  assert.deepEqual(yuanqiSubjectDomainSpec.compatibleVersions, [3, 4, 5, 6, 7, 8]);
 
   const first = await openSubjectDomains(storageDomain);
   await first.userDomain.table('identities').put('user:primary', {
