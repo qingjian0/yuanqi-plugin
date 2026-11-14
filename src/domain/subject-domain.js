@@ -64,12 +64,29 @@ const wakeRecord=z.object({
  wake_event_ref:z.string().min(1), trigger_command:z.enum(['启动元气','启动元炁']), occurred_at:z.string().datetime(), birth_time:z.string().datetime().optional(), birth_location:z.object({status:z.enum(['pending','captured','unavailable']),latitude:z.number().min(-90).max(90).nullable(),longitude:z.number().min(-180).max(180).nullable(),accuracy_meters:z.number().nonnegative().nullable(),place_label:z.string().nullable(),time_zone_id:z.string().nullable(),source:z.enum(['host_location_provider','android_location_bridge','unavailable']),captured_at:z.string().datetime().nullable()}).strict().optional(), schema_version:z.union([z.literal(3),z.literal(4)]),
 }).strict();
 
+const solarTermEvent=z.object({
+ name:z.string().min(1), longitude_deg:z.number().min(0).max(360),
+ kind:z.enum(['jie','zhongqi']), month_branch:z.string().nullable(),
+ at_utc:z.string().datetime(),
+}).strict();
+const solarTermContext=z.object({
+ status:z.enum(['ready','ambiguous','unavailable']),
+ engine_version:z.string().min(1),
+ calculation_basis:z.literal('apparent-geocentric-ecliptic-longitude'),
+ sun_apparent_longitude_deg:z.number().min(0).max(360).nullable(),
+ boundary_uncertainty_seconds:z.number().int().nonnegative(),
+ boundary_distance_seconds:z.number().nonnegative().nullable(),
+ previous_term:solarTermEvent.nullable(), next_term:solarTermEvent.nullable(),
+ previous_jie:solarTermEvent.nullable(), next_jie:solarTermEvent.nullable(),
+ last_li_chun:solarTermEvent.nullable(),
+}).strict();
 const yuanqiBirthProfile=z.object({
  profile_id:z.string().min(1), subject_id:z.string().min(1), subject_kind:z.literal('yuanqi'),
  birth_time:z.string().datetime(),
  birth_location:z.object({status:z.enum(['pending','captured','unavailable']),latitude:z.number().min(-90).max(90).nullable(),longitude:z.number().min(-180).max(180).nullable(),accuracy_meters:z.number().nonnegative().nullable(),place_label:z.string().nullable(),time_zone_id:z.string().nullable(),source:z.enum(['host_location_provider','android_location_bridge','unavailable']),captured_at:z.string().datetime().nullable()}).strict(),
  source_wake_event_ref:z.string().min(1), source_event_time_ms:z.number().int().nonnegative(),
  time_context:z.object({status:z.enum(['pending','ready','unavailable']),time_zone_id:z.string().nullable(),local_datetime:z.string().nullable(),utc_offset_minutes:z.number().nullable(),longitude_correction_minutes:z.number().nullable(),equation_of_time_minutes:z.number().nullable(),true_solar_datetime:z.string().nullable(),algorithm_version:z.string().min(1)}).strict(),
+ calendar_context:solarTermContext,
  bazi:z.object({status:z.enum(['pending','calculated','unavailable']),calendar_system:z.literal('jieqi'),pillars:z.object({year:z.string().min(1),month:z.string().min(1),day:z.string().min(1),hour:z.string().min(1)}).strict().nullable(),algorithm_version:z.string().nullable(),calculated_at:z.string().datetime().nullable()}).strict(),
  schema_version:z.literal(1),
 }).strict();
