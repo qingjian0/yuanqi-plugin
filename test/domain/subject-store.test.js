@@ -36,6 +36,7 @@ test('BirthProfile confirmation rejects expired challenges and rejection/revocat
  await s.saveBirthProfileCandidate({subject_id:'u1',facts:{birth_date:'1998-04-21'},field_sources:{birth_date:{source_event_ref:'source',raw_text:'1998-04-21',extraction_kind:'user_explicit'}},source_event:source});
  await s.issueBirthProfileConfirmationChallenge({subject_id:'u1',challenge_id:'expired',session_id:'s1',issued_at_ms:1001,expires_at_ms:1002,issued_from_event_ref:'source'});
  await assert.rejects(s.confirmUserBirthProfile({subject_id:'u1',confirmation_event:event({event_id:'late',event_time:1003,text:'确认出生资料'})}),/stale, expired, or out of scope/);
+ await s.issueBirthProfileConfirmationChallenge({subject_id:'u1',challenge_id:'reject-c1',session_id:'s1',issued_at_ms:1003,expires_at_ms:1500,issued_from_event_ref:'source'});
  const rejected=await s.rejectBirthProfileCandidate({subject_id:'u1',rejection_event:event({event_id:'reject',event_time:1004,text:'拒绝出生资料'})});
  assert.equal(rejected.status,'rejected'); assert.equal(rejected.audit_events.at(-1).action,'rejected');
  await s.saveBirthProfileCandidate({subject_id:'u1',facts:{birth_date:'1998-04-21'},field_sources:{birth_date:{source_event_ref:'source-2',raw_text:'1998-04-21',extraction_kind:'user_explicit'}},source_event:event({event_id:'source-2',event_time:2000})});
