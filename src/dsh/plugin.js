@@ -109,7 +109,12 @@ export async function apply(ctx) {
       userDomain: domains.userDomain,
       yuanqiDomain: domains.yuanqiDomain,
       verifyDirectUserEvent(event) { return isTrustedDirectUserMessageEvent(event) ? event : null; },
-      verifyBirthProfileConfirmation() { return null; },
+      verifyBirthProfileConfirmation(event) {
+        return isTrustedDirectUserMessageEvent(event) &&
+          ['确认出生资料', '拒绝出生资料', '撤销出生资料'].includes(event.text)
+          ? event
+          : null;
+      },
     });
 
     let active = true;
