@@ -46,20 +46,11 @@ dsh plugin --profile web add ./dist/dsh-yuanqi-plugin-1.1.0-alpha.9.tgz
 
 不同 DSH 版本的插件命令、Profile 名称和安装方式可能不同；以目标 DSH 版本实际支持的命令为准。不要将示例中的 `web` Profile 当成所有环境的固定值。
 
-## 4. 注册工具
+## 4. 出生档案与命盘
 
-当前 README 记录插件注册以下工具：
+当前版本将元炁自身的 `BirthProfile` 作为内部主体资料保存在 YuanQiSubject Storage Domain，不要求用户输入自己的出生日期、时间或地点。该档案从元炁的精确唤醒事件及宿主授权定位派生。
 
-- `yuanqi_birth_chart`
-- `yuanqi_life`
-
-出生图工具支持：
-
-- `calculate`：以 YuanQiSubject 自身 BirthProfile 为输入，执行已实现并通过验证的历法/四柱计算；当前代码将命盘状态保留为 pending，不能把待实现能力描述为可用。
-- `read`：读取元炁自身出生档案、来源和命盘计算状态。
-- 不提供将用户出生资料写入元炁主体的流程。
-
-实际工具 schema 和参数约束以当前源码为准。
+当前四柱计算状态为 `pending`。历法转换、时区/真太阳时处理和四柱计算引擎完成实现与验证之前，不应将其当作已可用的命盘工具，也不应手动将用户出生资料写入元炁主体。
 
 ## 5. 唤醒时间与出生资料
 
