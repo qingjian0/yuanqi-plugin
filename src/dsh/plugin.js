@@ -199,7 +199,15 @@ export async function apply(ctx) {
           subject_id: YUANQI_SUBJECT_ID,
           birth_location,
         }))
-        .catch(error => warn('[yuanqi] deferred birth-location persistence failed: ' + String(error)));
+        .catch(error => {
+          if (error?.code === 'unknown-state') {
+            storageUncertain = true;
+            active = false;
+            warn('[yuanqi] Storage Domain state is unknown during birth-location completion; YuanQi has failed closed. Unload and reload the plugin to reopen and validate the Domains.');
+          } else {
+            warn('[yuanqi] deferred birth-location persistence failed: ' + String(error));
+          }
+        });
       pendingLocationTasks.add(task);
       task.then(() => pendingLocationTasks.delete(task), () => pendingLocationTasks.delete(task));
     }
