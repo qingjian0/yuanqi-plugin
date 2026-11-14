@@ -1,6 +1,6 @@
-const DATE_PATTERN = /(?:出生日期|生日|出生于)\\s*[:：为]?\\s*(\\d{4})[-/.年](\\d{1,2})[-/.月](\\d{1,2})日?/u;
-const TIME_PATTERN = /(?:出生时间|出生时刻|出生时|时间)\\s*[:：为]?\\s*(\\d{1,2})[:：](\\d{2})/u;
-const PLACE_PATTERN = /(?:出生地点|出生地)\\s*[:：为]?\\s*([^，,。；;\\n]+)/u;
+const DATE_PATTERN = /(?:出生日期|生日|出生于)\s*[:：为]?\s*(\d{4})[-/.年](\d{1,2})[-/.月](\d{1,2})日?/u;
+const TIME_PATTERN = /(?:出生时间|出生时刻|出生时|时间)\s*[:：为]?\s*(\d{1,2})[:：](\d{2})/u;
+const PLACE_PATTERN = /(?:出生地点|出生地)\s*[:：为]?\s*([^，,。；;\n]+)/u;
 
 function validDate(year, month, day) {
   const value = new Date(Date.UTC(year, month - 1, day));
@@ -24,7 +24,7 @@ export function parseExplicitBirthProfile(text) {
     facts.birth_date = `${String(year).padStart(4, '0')}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
     field_sources.birth_date = { raw_text: date[0], extraction_kind: 'user_explicit' };
     const suffix = text.slice(date.index + date[0].length);
-    const time = /^(?:\\s*[,，]?)\\s*(\\d{1,2})[:：](\\d{2})/u.exec(suffix) ?? TIME_PATTERN.exec(text);
+    const time = /^(?:\s*[,，]?)\s*(\d{1,2})[:：](\d{2})/u.exec(suffix) ?? TIME_PATTERN.exec(text);
     if (time) {
       const hour = Number(time[1]), minute = Number(time[2]);
       if (hour > 23 || minute > 59) return null;
