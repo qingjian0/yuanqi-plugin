@@ -19,3 +19,17 @@ test('installation activation boundary is durable and never refreshed on restart
  assert.deepEqual(first,second);
  assert.equal(first.activated_at_ms,1000);
 });
+
+test('pending birth location can be completed exactly once without changing the wake event',async()=>{
+ const s=store();
+ await s.createYuanQiSubject({subject_id:'y1',created_from_event_ref:'e'});
+ const pending={status:'pending',latitude:null,longitude:null,accuracy_meters:null,place_label:null,time_zone_id:null,source:'unavailable',captured_at:null};
+ const wake=await s.recordInitialWake({subject_id:'y1',direct_user_event:event(),birth_location:pending});
+ const captured={status:'captured',latitude:31.23,longitude:121.47,accuracy_meters:15,place_label:null,time_zone_id:null,source:'host_location_provider',captured_at:new Date(1793966400000).toISOString()};
+ const completed=await s.completeInitialWakeLocation({subject_id:'y1',birth_location:captured});
+ const second=await s.completeInitialWakeLocation({subject_id:'y1',birth_location:{status:'unavailable',latitude:null,longitude:null,accuracy_meters:null,place_label:null,time_zone_id:null,source:'unavailable',captured_at:null}});
+ assert.equal(completed.wake_event_ref,wake.wake_event_ref);
+ assert.equal(completed.birth_time,wake.birth_time);
+ assert.deepEqual(completed.birth_location,captured);
+ assert.deepEqual(second.birth_location,captured);
+});
