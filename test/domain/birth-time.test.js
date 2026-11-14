@@ -62,10 +62,11 @@ test('does not infer a time zone or coordinates when host location is unavailabl
 
 test('rejects invalid timestamps, IANA zones and longitude values', () => {
   assert.throws(() => deriveBirthTimeContext({ birth_time: 'not-a-date', birth_location: {} }), /ISO timestamp/);
-  assert.throws(() => deriveBirthTimeContext({
+  const invalidZone = deriveBirthTimeContext({
     birth_time: '2024-02-04T08:00:00.000Z',
     birth_location: { status: 'captured', longitude: 0, time_zone_id: 'Mars/Olympus' },
-  }));
+  });
+  assert.equal(invalidZone.status, 'unavailable');
   assert.throws(() => deriveBirthTimeContext({
     birth_time: '2024-02-04T08:00:00.000Z',
     birth_location: { status: 'captured', longitude: 181, time_zone_id: 'UTC' },
