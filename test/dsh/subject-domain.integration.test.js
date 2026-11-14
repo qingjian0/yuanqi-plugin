@@ -164,5 +164,6 @@ test('actual DSH DomainFacility atomically completes a pending WakeRecord locati
   };
   await store.completeInitialWakeLocation({ subject_id: 'yuanqi:primary', birth_location: captured });
   assert.deepEqual(store.getWakeRecord('yuanqi:primary').birth_location, captured);
+  assert.deepEqual(store.getYuanQiBirthProfile('yuanqi:primary').birth_location, captured);
   await domains.close();
 });
