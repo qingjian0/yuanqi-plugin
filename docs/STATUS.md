@@ -44,8 +44,9 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - WakeRecord 保存元炁首次精确启动事件的原始时间。
 - YuanQiSubject 专属 BirthProfile 从 WakeRecord 派生，保留启动事件来源和宿主地点来源。
 - 用户出生资料采集、确认和写入元炁主体的流程已移除。
-- BirthProfile 已实现 UTC → IANA 时区当地民用时间、瞬时 UTC 偏移（含 DST）和经度修正；视太阳时采用带版本标记的 NOAA 方程时近似，并明确不作为高精度星历。\n- BirthProfile.calendar_context 已实现 24 节气前后项、最近十二节与最近立春的 UTC 交接定位；USNO 简化太阳黄经公式按 15° 求交，30 分钟边界不确定窗口内标记 ambiguous。
-- 时间转换模块有独立测试，覆盖上海时区、纽约 DST 重复时刻、缺失定位和无效时区；完整节气与四柱计算仍未实现，Bazi 状态保持 pending。
+- BirthProfile 已实现 UTC → IANA 时区当地民用时间、瞬时 UTC 偏移（含 DST）和经度修正；视太阳时采用带版本标记的 NOAA 方程时近似，并明确不作为高精度星历。
+- BirthProfile.calendar_context 已实现 24 节气前后项、最近十二节与最近立春的 UTC 交接定位；USNO 简化太阳黄经公式按 15° 求交，30 分钟边界不确定窗口内标记 ambiguous。
+- 时间转换模块有独立测试，覆盖上海时区、纽约 DST 重复时刻、缺失定位和无效时区；完整四柱计算仍未实现，Bazi 状态保持 pending。
 - 旧版 Meeus、节气定界和完整四柱能力记录不能自动视为当前源码已恢复或已通过测试。
 
 ### 世界线
