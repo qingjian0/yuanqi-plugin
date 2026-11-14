@@ -79,15 +79,13 @@ export async function apply(ctx) {
     }
 
     async function ensureWorldlineForWake(wake) {
-      const first = store.getFirstUserMessage(YUANQI_SUBJECT_ID);
-      if (!wake || !first || first.trigger_command === null) return null;
-
+      if (!wake) return null;
       const createdFromEvent = {
         verified: true,
-        event_id: first.first_event_id,
+        event_id: wake.wake_event_ref,
         source_kind: 'direct_user_event',
-        source_event_ref: first.first_event_id,
-        occurred_at: new Date(first.first_event_time).toISOString(),
+        source_event_ref: wake.wake_event_ref,
+        occurred_at: wake.occurred_at,
       };
       const mainline = await worldlines.createMainline({
         yuanqi_subject_id: YUANQI_SUBJECT_ID,
@@ -95,17 +93,17 @@ export async function apply(ctx) {
         created_from_event: createdFromEvent,
       });
 
-      const existing = worldlines.getSessionBinding(first.first_session_id);
+      const existing = worldlines.getSessionBinding(wake.first_session_id);
       if (!existing) {
         await worldlines.bindSession({
-          session_id: first.first_session_id,
+          session_id: wake.first_session_id,
           yuanqi_subject_id: YUANQI_SUBJECT_ID,
           worldline_id: mainline.worldline_id,
-          bound_from_event_ref: first.first_event_id,
+          bound_from_event_ref: wake.wake_event_ref,
         });
       } else if (existing.yuanqi_subject_id !== YUANQI_SUBJECT_ID ||
                  existing.worldline_id !== mainline.worldline_id) {
-        throw new Error('first Session is bound to a different Worldline');
+        throw new Error('wake Session is bound to a different Worldline');
       }
       return mainline;
     }
@@ -157,9 +155,9 @@ export async function apply(ctx) {
         created_from_event_ref: direct.event_id,
       });
 
-      const existingFirst = store.getFirstUserMessage(YUANQI_SUBJECT_ID);
-      const birthLocation = captureLocation && !existingFirst &&
-        (direct.text === '启动元气' || direct.text === '启动元炁')
+      const isWakeCommand = direct.text === '启动元气' || direct.text === '启动元炁';
+      const birthLocation = captureLocation && isWakeCommand &&
+        !store.getWakeRecord(YUANQI_SUBJECT_ID)
         ? await captureBirthLocation()
         : undefined;
       const wake = await store.recordInitialWake({
@@ -266,7 +264,7 @@ export async function apply(ctx) {
       if (recoveredWake) await ensureWorldlineForWake(recoveredWake);
     }
 
-    if (!store.getFirstUserMessage(YUANQI_SUBJECT_ID)) {
+    if (!store.getFirstUserMessage(YUANQI_SUBJECT_ID) || !store.getWakeRecord(YUANQI_SUBJECT_ID)) {
       const candidates = [];
       const sessions = await ctx.sessionQuery.listSessions();
       for (const record of sessions) {
@@ -290,21 +288,38 @@ export async function apply(ctx) {
         }
       }
 
-      // Include every event admitted while the historical snapshot was read.
+      // Merge live events admitted during cold-history reads with the immutable snapshot.
       for (const item of startupBuffer) {
         const direct = normalizeDirectUserMessageEvent(item.sessionId, item.event);
         if (direct) candidates.push({ ...direct, event: item.event, isLive: true });
       }
-      const first = chooseFirstCandidate(candidates);
-      if (first) await processCandidate(first.session_id, first.event, { captureLocation: first.isLive === true });
+
+      if (!store.getFirstUserMessage(YUANQI_SUBJECT_ID)) {
+        const firstMessage = chooseFirstCandidate(candidates);
+        if (firstMessage) {
+          await processCandidate(firstMessage.session_id, firstMessage.event, {
+            captureLocation: firstMessage.isLive === true,
+          });
+        }
+      }
+
+      if (!store.getWakeRecord(YUANQI_SUBJECT_ID)) {
+        const firstWake = chooseFirstCandidate(candidates.filter(candidate =>
+          candidate.text === '启动元气' || candidate.text === '启动元炁'));
+        if (firstWake) {
+          await processCandidate(firstWake.session_id, firstWake.event, {
+            captureLocation: firstWake.isLive === true,
+          });
+        }
+      }
     }
 
-    // Any messages buffered after the selected first event cannot replace its
-    // durable lock. If no event was found, replay in host admission order.
-    if (!store.getFirstUserMessage(YUANQI_SUBJECT_ID)) {
+    // Replay buffered live events until both the first-message marker and the
+    // first exact wake command have been durably recorded.
+    if (!store.getFirstUserMessage(YUANQI_SUBJECT_ID) || !store.getWakeRecord(YUANQI_SUBJECT_ID)) {
       for (const item of startupBuffer) {
         await processCandidate(item.sessionId, item.event);
-        if (store.getFirstUserMessage(YUANQI_SUBJECT_ID)) break;
+        if (store.getFirstUserMessage(YUANQI_SUBJECT_ID) && store.getWakeRecord(YUANQI_SUBJECT_ID)) break;
       }
     }
     startupBuffer.length = 0;
