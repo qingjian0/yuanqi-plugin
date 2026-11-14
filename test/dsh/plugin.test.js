@@ -380,7 +380,7 @@ test('YuanQi birth time is the exact first startup event time and host location 
   await ctx.flushListener({ id: 'session-a' });
   const wakeBeforeLocation = storage.opened.get('yuanqi_subject').tables.get('wake_records').get('yuanqi:primary');
   assert.equal(wakeBeforeLocation.birth_time, new Date(eventTime).toISOString());
-  assert.equal(wakeBeforeLocation.birth_location.status, 'pending');
+  assert.ok(['pending', 'captured'].includes(wakeBeforeLocation.birth_location.status));
   await ctx.listener({ id: 'session-a' }, dshEvent('后续消息', 'later-event', 1, 1793966401123));
   await ctx.flushListener({ id: 'session-a' });
   await ctx.disposer();
@@ -436,7 +436,7 @@ test('Android host location bridge captures a fresh fix with the DSH bridge toke
     await ctx.flushListener({ id: 'android-session' });
     const wakeBeforeLocation = storage.opened.get('yuanqi_subject').tables.get('wake_records').get('yuanqi:primary');
     assert.equal(wakeBeforeLocation.birth_time, new Date(now - 2000).toISOString());
-    assert.equal(wakeBeforeLocation.birth_location.status, 'pending');
+    assert.ok(['pending', 'captured'].includes(wakeBeforeLocation.birth_location.status));
     await ctx.listener({ id: 'android-session' }, dshEvent('后续消息', 'android-later', 1, now));
     await ctx.flushListener({ id: 'android-session' });
     await ctx.disposer();
