@@ -378,18 +378,20 @@ test('YuanQi birth time is the exact first startup event time and host location 
   const eventTime = Date.parse('2026-11-14T11:23:48.000Z');
   await ctx.listener({ id: 'session-a' }, dshEvent('启动元炁', 'birth-event', 0, eventTime));
   await ctx.flushListener({ id: 'session-a' });
+  const wakeBeforeLocation = storage.opened.get('yuanqi_subject').tables.get('wake_records').get('yuanqi:primary');
+  assert.equal(wakeBeforeLocation.birth_time, new Date(eventTime).toISOString());
+  assert.equal(wakeBeforeLocation.birth_location.status, 'pending');
+  await ctx.listener({ id: 'session-a' }, dshEvent('后续消息', 'later-event', 1, 1793966401123));
+  await ctx.flushListener({ id: 'session-a' });
+  await ctx.disposer();
   const wake = storage.opened.get('yuanqi_subject').tables.get('wake_records').get('yuanqi:primary');
-  assert.equal(wake.birth_time, new Date(eventTime).toISOString());
   assert.equal(wake.occurred_at, wake.birth_time);
   assert.deepEqual(wake.birth_location, {
     status: 'captured', latitude: 31.2304, longitude: 121.4737,
     accuracy_meters: 18, place_label: 'Shanghai', time_zone_id: 'Asia/Shanghai',
     source: 'host_location_provider', captured_at: '2026-11-14T11:23:47.000Z',
   });
-  await ctx.listener({ id: 'session-a' }, dshEvent('后续消息', 'later-event', 1, 1793966401123));
-  await ctx.flushListener({ id: 'session-a' });
   assert.equal(locationReads, 1);
-  await ctx.disposer();
 });
 
 test('missing host location capability records unknown place without fabricating data', async () => {
@@ -397,12 +399,12 @@ test('missing host location capability records unknown place without fabricating
   await apply(ctx);
   await ctx.listener({ id: 'session-a' }, dshEvent('启动元气', 'birth-event', 0, 1793966400123));
   await ctx.flushListener({ id: 'session-a' });
+  await ctx.disposer();
   const wake = storage.opened.get('yuanqi_subject').tables.get('wake_records').get('yuanqi:primary');
   assert.equal(wake.birth_time, new Date(1793966400123).toISOString());
   assert.equal(wake.birth_location.status, 'unavailable');
   assert.equal(wake.birth_location.latitude, null);
   assert.equal(wake.birth_location.longitude, null);
-  await ctx.disposer();
 });
 
 test('Android host location bridge captures a fresh fix with the DSH bridge token', async () => {
@@ -432,6 +434,12 @@ test('Android host location bridge captures a fresh fix with the DSH bridge toke
     await apply(ctx);
     await ctx.listener({ id: 'android-session' }, dshEvent('启动元气', 'android-birth', 0, now - 2000));
     await ctx.flushListener({ id: 'android-session' });
+    const wakeBeforeLocation = storage.opened.get('yuanqi_subject').tables.get('wake_records').get('yuanqi:primary');
+    assert.equal(wakeBeforeLocation.birth_time, new Date(now - 2000).toISOString());
+    assert.equal(wakeBeforeLocation.birth_location.status, 'pending');
+    await ctx.listener({ id: 'android-session' }, dshEvent('后续消息', 'android-later', 1, now));
+    await ctx.flushListener({ id: 'android-session' });
+    await ctx.disposer();
     const wake = storage.opened.get('yuanqi_subject').tables.get('wake_records').get('yuanqi:primary');
     assert.equal(wake.birth_location.status, 'captured');
     assert.equal(wake.birth_location.source, 'android_location_bridge');
@@ -439,10 +447,7 @@ test('Android host location bridge captures a fresh fix with the DSH bridge toke
     assert.equal(wake.birth_location.longitude, 121.4737);
     assert.equal(wake.birth_location.accuracy_meters, 12);
     assert.equal(wake.birth_location.captured_at, new Date(now - 1500).toISOString());
-    await ctx.listener({ id: 'android-session' }, dshEvent('后续消息', 'android-later', 1, now));
-    await ctx.flushListener({ id: 'android-session' });
     assert.equal(calls, 1);
-    await ctx.disposer();
   } finally {
     globalThis.fetch = previousFetch;
     if (previousToken === undefined) delete process.env.DSH_BRIDGE_TOKEN;
