@@ -76,6 +76,7 @@ const solarTermContext=z.object({
  sun_apparent_longitude_deg:z.number().min(0).max(360).nullable(),
  boundary_uncertainty_seconds:z.number().int().nonnegative(),
  boundary_distance_seconds:z.number().nonnegative().nullable(),
+ term_boundary_distance_seconds:z.number().nonnegative().nullable(),
  previous_term:solarTermEvent.nullable(), next_term:solarTermEvent.nullable(),
  previous_jie:solarTermEvent.nullable(), next_jie:solarTermEvent.nullable(),
  last_li_chun:solarTermEvent.nullable(),
