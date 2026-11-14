@@ -111,56 +111,35 @@ test('ordinary conversation does not create a UserSubject before the exact YuanQ
   const userTables = storage.opened.get('yuanqi_user_subject').tables;
   const yuanqiTables = storage.opened.get('yuanqi_subject').tables;
   assert.equal(userTables.get('identities').has('user:primary'), false);
-  assert.equal(userTables.get('birth_profile_workflows').has('user:primary'), false);
   assert.equal(yuanqiTables.get('wake_records').has('yuanqi:primary'), false);
 
   await ctx.listener({ id: 'session-wake' }, dshEvent('启动元炁', 'exact-wake', 0, 1793966401000));
   await ctx.flushListener({ id: 'session-wake' });
-  assert.equal(userTables.get('identities').get('user:primary').created_from_event_ref, 'exact-wake');
+  assert.equal(userTables.get('identities').has('user:primary'), false);
+  const profile = yuanqiTables.get('birth_profiles').get('yuanqi:primary');
+  assert.equal(profile.subject_kind, 'yuanqi');
+  assert.equal(profile.source_wake_event_ref, 'exact-wake');
+  assert.equal(profile.birth_time, new Date(1793966401000).toISOString());
   await ctx.disposer();
 });
 
-test('BirthProfile is collected from explicit user facts and confirmed through a same-Session challenge', async () => {
-  const storage = fakeStorageDomain();
-  const notices = [];
-  const agents = { get(id) {
-    assert.equal(id, 'birth-session');
-    return { inject(message) { notices.push(message); } };
-  } };
-  const ctx = context(storage, { agents });
+test('YuanQi BirthProfile is created from YuanQi wake data, never from user birth facts', async () => {
+  const storage = fakeStorageDomain(), ctx = context(storage);
   await apply(ctx);
-  const session = { id: 'birth-session' };
-  const send = async (text, id, seq, time) => {
-    await ctx.listener(session, dshEvent(text, id, seq, time));
-    await ctx.flushListener(session);
-  };
-  await send('启动元炁', 'wake-birth', 0, 1793966400000);
-  await send('出生日期：1998年4月21日10:31，出生地：云南昆明安宁', 'birth-facts', 1, 1793966401000);
-  let workflow = storage.opened.get('yuanqi_user_subject').tables.get('birth_profile_workflows').get('user:primary');
-  assert.equal(workflow.status, 'collecting');
-  assert.deepEqual(workflow.revisions.at(-1).facts, {
-    birth_date: '1998-04-21', birth_time: '10:31', birth_place: '云南昆明安宁',
-  });
-  assert.equal(workflow.revisions.at(-1).field_sources.birth_date.extraction_kind, 'user_explicit');
-  assert.equal(notices.length, 1);
-  assert.equal(notices[0].source.kind, 'yuanqi-birth-profile');
-  assert.match(notices[0].content[0].text, /逐字段展示/u);
-
-  await send('核对出生资料', 'birth-review', 2, 1793966402000);
-  assert.equal(notices.length, 2);
-  assert.match(notices[1].content[0].text, /确认出生资料/u);
-  workflow = storage.opened.get('yuanqi_user_subject').tables.get('birth_profile_workflows').get('user:primary');
-  assert.equal(workflow.status, 'awaiting_confirmation');
-  assert.equal(workflow.challenge.session_id, 'birth-session');
-  assert.equal(workflow.challenge.status, 'active');
-
-  await send('确认出生资料', 'birth-confirm', 3, 1793966403000);
-  workflow = storage.opened.get('yuanqi_user_subject').tables.get('birth_profile_workflows').get('user:primary');
-  assert.equal(workflow.status, 'confirmed');
-  assert.equal(workflow.confirmed_profile.confirmation_event_ref, 'birth-confirm');
-  assert.deepEqual(workflow.confirmed_profile.facts, {
-    birth_date: '1998-04-21', birth_time: '10:31', birth_place: '云南昆明安宁',
-  });
+  const session = { id: 'yuanqi-birth-session' };
+  await ctx.listener(session, dshEvent('启动元炁', 'yuanqi-wake', 0, 1793966400000));
+  await ctx.flushListener(session);
+  await ctx.listener(session, dshEvent('出生日期：1998年4月21日10:31，出生地：云南昆明安宁', 'unrelated-user-birth', 1, 1793966401000));
+  await ctx.flushListener(session);
+  const userTables = storage.opened.get('yuanqi_user_subject').tables;
+  const yuanqiTables = storage.opened.get('yuanqi_subject').tables;
+  const profile = yuanqiTables.get('birth_profiles').get('yuanqi:primary');
+  assert.equal(profile.subject_kind, 'yuanqi');
+  assert.equal(profile.birth_time, new Date(1793966400000).toISOString());
+  assert.equal(profile.source_wake_event_ref, 'yuanqi-wake');
+  assert.equal(profile.bazi.status, 'pending');
+  assert.equal(profile.birth_location.status, 'unavailable');
+  assert.equal(userTables.get('identities').has('user:primary'), false);
   await ctx.disposer();
 });
 
