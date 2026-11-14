@@ -410,7 +410,7 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 
 - 新增纯函数 `deriveBirthTimeContext()`，输入只接受 YuanQiSubject BirthProfile 的 UTC 出生时刻与对应宿主定位结果。
 - 使用 IANA 时区数据库将 UTC 瞬间转换为当地民用时间；UTC 偏移按该瞬间计算，因此正确区分夏令时回拨时重复出现的本地时刻。
-- 依据宿主经度计算地方平太阳时经度修正，并使用 NOAA fractional-year 方程时近似推导视太阳时。
+- 依据宿主经度计算地方平太阳时经度修正，并使用 NOAA fractional-year 方程时近似推导视太阳时（闰年按 366 天、平年按 365 天）。
 - 将 `utc_offset_minutes`、`longitude_correction_minutes`、`equation_of_time_minutes`、`true_solar_datetime` 和 `algorithm_version` 写入 BirthProfile.time_context。
 - 无定位/无时区/无经度时保持 pending 或 unavailable；无效 IANA 时区 fail-closed 为 unavailable，不阻断 WakeRecord 的原始出生事实持久化。
 - 新增独立测试，覆盖上海当地时间、视太阳时近似、纽约 DST 回拨重复时刻、缺失地点和无效时区；Store 集成测试验证时间上下文写入 BirthProfile。
