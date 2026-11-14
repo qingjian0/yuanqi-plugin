@@ -74,23 +74,15 @@ function unavailableLocation() {
   };
 }
 
-export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserEvent, verifyBirthProfileConfirmation }) {
+export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserEvent }) {
   if (!userDomain || !yuanqiDomain) throw new TypeError('both DSH subject domains are required');
-  if (typeof verifyDirectUserEvent !== 'function' || typeof verifyBirthProfileConfirmation !== 'function') {
-    throw new TypeError('host event verifiers are required');
-  }
+  if (typeof verifyDirectUserEvent !== 'function') throw new TypeError('host event verifier is required');
   const users = userDomain.table('identities');
-  const births = userDomain.table('birth_profiles');
-  const birthWorkflows = userDomain.table('birth_profile_workflows');
-  function requireBirthWorkflowUpdate() {
-    if (typeof birthWorkflows.update !== 'function') {
-      throw new TypeError('BirthProfile workflow operations require DSH Domain table.update');
-    }
-  }
   const yuanqis = yuanqiDomain.table('identities');
   const installationState = yuanqiDomain.table('installation_state');
   const firstMessages = yuanqiDomain.table('first_user_messages');
   const wakes = yuanqiDomain.table('wake_records');
+  const birthProfiles = yuanqiDomain.table('birth_profiles');
   const queues = new Map();
 
   async function identity(table, kind, id, ref) {
@@ -161,6 +153,57 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
     }, birth_location);
   }
 
+  async function ensureYuanQiBirthProfile({ subject_id } = {}) {
+      requiredText(subject_id, 'subject_id');
+      if (!yuanqis.get(subject_id)) throw new Error('YuanQiSubject does not exist');
+      return serializeByKey(queues, 'yuanqi-birth-profile:' + subject_id, async () => {
+        const wake = wakes.get(subject_id);
+        if (!wake) return undefined;
+        const location = clone(wake.birth_location ?? unavailableLocation());
+        const timeZone = location.time_zone_id ?? null;
+        const existing = birthProfiles.get(subject_id);
+        const profile = {
+          profile_id: 'birth-profile:' + subject_id,
+          subject_id,
+          subject_kind: 'yuanqi',
+          birth_time: wake.birth_time ?? wake.occurred_at,
+          birth_location: location,
+          source_wake_event_ref: wake.wake_event_ref,
+          source_event_time_ms: Date.parse(wake.birth_time ?? wake.occurred_at),
+          time_context: {
+            status: location.status === 'unavailable' ? 'unavailable' : (timeZone ? 'ready' : 'pending'),
+            time_zone_id: timeZone,
+            local_datetime: null,
+          },
+          bazi: {
+            status: 'pending',
+            calendar_system: 'jieqi',
+            pillars: null,
+            algorithm_version: null,
+            calculated_at: null,
+          },
+          schema_version: 1,
+        };
+        if (existing === undefined) {
+          return putOnce(birthProfiles, subject_id, profile, 'YuanQi BirthProfile creation conflict');
+        }
+        if (existing.subject_kind !== 'yuanqi' || existing.source_wake_event_ref !== wake.wake_event_ref ||
+            existing.birth_time !== profile.birth_time) {
+          throw new Error('YuanQi BirthProfile source conflict');
+        }
+        if (existing.birth_location?.status === 'pending' && location.status !== 'pending') {
+          if (typeof birthProfiles.update !== 'function') {
+            throw new TypeError('YuanQi BirthProfile location completion requires DSH Domain table.update');
+          }
+          await birthProfiles.update(subject_id, current => current?.birth_location?.status === 'pending'
+            ? { ...current, birth_location: location, time_context: profile.time_context }
+            : current);
+          return clone(birthProfiles.get(subject_id));
+        }
+        return clone(existing);
+      });
+  }
+
   return Object.freeze({
     async getOrCreateInstallationBoundary(now) {
       if (!Number.isSafeInteger(now) || now < 0) throw new TypeError('installation boundary clock must be Unix milliseconds');
@@ -186,270 +229,12 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
     },
     getUserSubject(id) { requiredText(id, 'subject_id'); const value = users.get(id); return value === undefined ? undefined : clone(value); },
     getYuanQiSubject(id) { requiredText(id, 'subject_id'); const value = yuanqis.get(id); return value === undefined ? undefined : clone(value); },
-    async saveBirthProfileCandidate({ subject_id, facts, field_sources, source_event }) {
-      requireBirthWorkflowUpdate();
-      requiredText(subject_id, 'subject_id');
-      if (!users.get(subject_id)) throw new Error('UserSubject does not exist');
-      if (!facts || typeof facts !== 'object' || Array.isArray(facts) || Object.keys(facts).length === 0) {
-        throw new TypeError('facts must be a non-empty object');
-      }
-      if (!field_sources || typeof field_sources !== 'object' || Array.isArray(field_sources)) {
-        throw new TypeError('field_sources must be an object');
-      }
-      const event = verified(verifyDirectUserEvent, source_event, 'birth-profile-candidate');
-      if (event.event_type !== 'user/message' || event.source_kind !== 'user') {
-        throw new Error('BirthProfile candidate source must be a direct user message');
-      }
-      const factKeys = Object.keys(facts).sort();
-      const sourceKeys = Object.keys(field_sources).sort();
-      if (JSON.stringify(factKeys) !== JSON.stringify(sourceKeys)) {
-        throw new Error('every BirthProfile fact must have exactly one field source');
-      }
-      const fields = {};
-      for (const key of factKeys) {
-        const source = field_sources[key];
-        if (!source || typeof source !== 'object' ||
-            source.source_event_ref !== event.event_id ||
-            typeof source.raw_text !== 'string' ||
-            !['user_explicit', 'model_extracted'].includes(source.extraction_kind)) {
-          throw new Error('invalid provenance for BirthProfile field: ' + key);
-        }
-        fields[key] = {
-          source_event_ref: event.event_id,
-          raw_text: source.raw_text,
-          extraction_kind: source.extraction_kind,
-        };
-      }
-      const now = event.event_time;
-      return serializeByKey(queues, 'birth-workflow:' + subject_id, async () => {
-        const buildNext = current => {
-          const prior = current?.revisions?.find(item => item.created_from_event_ref === event.event_id);
-          if (prior) {
-            if (JSON.stringify(prior.facts) === JSON.stringify(facts) &&
-                JSON.stringify(prior.field_sources) === JSON.stringify(fields)) return current;
-            throw new Error('BirthProfile source event was replayed with conflicting candidate data');
-          }
-          if (current?.status === 'confirmed' || current?.status === 'revoked') {
-            throw new Error('confirmed or revoked BirthProfile cannot be edited in place');
-          }
-          const revision = (current?.current_revision ?? 0) + 1;
-          const entry = {
-            revision, facts: clone(facts), field_sources: clone(fields),
-            source_event_refs: [event.event_id], created_from_event_ref: event.event_id,
-            created_at_ms: now,
-          };
-          const audit = {
-            audit_id: 'birth-audit:' + subject_id + ':' + revision + ':candidate',
-            action: current ? 'candidate_revised' : 'candidate_created',
-            revision, event_ref: event.event_id, occurred_at_ms: now, details: {},
-          };
-          return {
-            subject_id, subject_kind: 'user', current_revision: revision,
-            status: 'collecting', revisions: [...(current?.revisions ?? []), entry],
-            challenge: current?.challenge ? { ...current.challenge, status: 'invalidated' } : null,
-            confirmed_profile: null,
-            audit_events: [
-              ...(current?.audit_events ?? []),
-              ...(current?.challenge?.status === 'active' ? [{
-                audit_id: 'birth-audit:' + subject_id + ':' + current.current_revision + ':challenge-invalidated',
-                action: 'challenge_invalidated', revision: current.current_revision,
-                event_ref: event.event_id, occurred_at_ms: now, details: { reason: 'candidate_revised' },
-              }] : []),
-              audit,
-            ],
-            schema_version: 1,
-          };
-        };
-        const existing = birthWorkflows.get(subject_id);
-        if (existing === undefined) {
-          const initial = buildNext(undefined);
-          const created = await putOnce(birthWorkflows, subject_id, initial, 'BirthProfile workflow creation conflict');
-          return created;
-        }
-        let result;
-        await birthWorkflows.update(subject_id, current => {
-          result = buildNext(current);
-          return result;
-        });
-        return clone(result ?? birthWorkflows.get(subject_id));
-      });
+    ensureYuanQiBirthProfile,
+    getYuanQiBirthProfile(id) {
+      requiredText(id, 'subject_id');
+      const value = birthProfiles.get(id);
+      return value === undefined ? undefined : clone(value);
     },
-    async issueBirthProfileConfirmationChallenge({ subject_id, challenge_id, session_id, issued_at_ms, expires_at_ms, issued_from_event_ref } = {}) {
-      requireBirthWorkflowUpdate();
-      requiredText(subject_id, 'subject_id');
-      requiredText(challenge_id, 'challenge_id');
-      requiredText(session_id, 'session_id');
-      requiredText(issued_from_event_ref, 'issued_from_event_ref');
-      if (!Number.isSafeInteger(issued_at_ms) || issued_at_ms < 0 ||
-          !Number.isSafeInteger(expires_at_ms) || expires_at_ms <= issued_at_ms) {
-        throw new TypeError('valid challenge issue and expiry times are required');
-      }
-      return serializeByKey(queues, 'birth-workflow:' + subject_id, async () => {
-        let result;
-        await birthWorkflows.update(subject_id, current => {
-          if (!current || !['collecting', 'awaiting_confirmation'].includes(current.status)) {
-            throw new Error('no editable BirthProfile candidate exists');
-          }
-          const revision = current.current_revision;
-          if (current.challenge?.challenge_id === challenge_id) {
-            const same = current.challenge.revision === revision &&
-              current.challenge.session_id === session_id &&
-              current.challenge.issued_from_event_ref === issued_from_event_ref &&
-              current.challenge.issued_at_ms === issued_at_ms &&
-              current.challenge.expires_at_ms === expires_at_ms;
-            if (!same) throw new Error('BirthProfile challenge ID replayed with conflicting scope');
-            result = current;
-            return current;
-          }
-          const invalidation = current.challenge?.status === 'active' ? [{
-            audit_id: 'birth-audit:' + subject_id + ':' + current.challenge.revision + ':challenge-invalidated:' + current.challenge.challenge_id,
-            action: 'challenge_invalidated', revision: current.challenge.revision,
-            event_ref: issued_from_event_ref, occurred_at_ms: issued_at_ms,
-            details: { reason: 'replaced_by_new_challenge', challenge_id: current.challenge.challenge_id },
-          }] : [];
-          const audit = {
-            audit_id: 'birth-audit:' + subject_id + ':' + revision + ':challenge:' + challenge_id,
-            action: 'challenge_issued', revision, event_ref: issued_from_event_ref,
-            occurred_at_ms: issued_at_ms, details: { challenge_id, session_id, expires_at_ms },
-          };
-          result = {
-            ...current, status: 'awaiting_confirmation',
-            challenge: {
-              challenge_id, revision, session_id, issued_from_event_ref,
-              issued_at_ms, expires_at_ms, status: 'active', consumed_by_event_ref: null,
-            },
-            audit_events: [...current.audit_events, ...invalidation, audit],
-          };
-          return result;
-        });
-        return clone(result ?? birthWorkflows.get(subject_id));
-      });
-    },
-    async confirmUserBirthProfile({ subject_id, confirmation_event } = {}) {
-      requireBirthWorkflowUpdate();
-      requiredText(subject_id, 'subject_id');
-      const event = verified(verifyBirthProfileConfirmation, confirmation_event, 'birth-profile-confirmation');
-      if (event.event_type !== 'user/message' || event.source_kind !== 'user' ||
-          event.text !== '确认出生资料') {
-        throw new Error('confirmation must be the exact direct-user command 确认出生资料');
-      }
-      return serializeByKey(queues, 'birth-workflow:' + subject_id, async () => {
-        let profile;
-        await birthWorkflows.update(subject_id, current => {
-          if (!current) throw new Error('BirthProfile candidate does not exist');
-          if (current.status === 'confirmed') {
-            if (current.confirmed_profile?.confirmation_event_ref === event.event_id) {
-              profile = current.confirmed_profile;
-              return current;
-            }
-            throw new Error('BirthProfile candidate has already been confirmed');
-          }
-          const challenge = current.challenge;
-          if (current.status !== 'awaiting_confirmation' || !challenge ||
-              challenge.status !== 'active') throw new Error('no active BirthProfile confirmation challenge');
-          if (challenge.revision !== current.current_revision ||
-              challenge.session_id !== event.session_id ||
-              event.event_time <= challenge.issued_at_ms ||
-              event.event_time > challenge.expires_at_ms) {
-            throw new Error('BirthProfile confirmation challenge is stale, expired, or out of scope');
-          }
-          const revision = current.revisions.find(item => item.revision === challenge.revision);
-          if (!revision) throw new Error('BirthProfile candidate revision is missing');
-          profile = {
-            profile_id: 'birth-profile:' + subject_id,
-            subject_id, subject_kind: 'user', revision: revision.revision,
-            facts: clone(revision.facts), confirmation_event_ref: event.event_id,
-            confirmed_at_ms: event.event_time, status: 'confirmed',
-          };
-          return {
-            ...current, status: 'confirmed',
-            challenge: { ...challenge, status: 'consumed', consumed_by_event_ref: event.event_id },
-            confirmed_profile: profile,
-            audit_events: [...current.audit_events, {
-              audit_id: 'birth-audit:' + subject_id + ':' + revision.revision + ':confirmed',
-              action: 'confirmed', revision: revision.revision,
-              event_ref: event.event_id, occurred_at_ms: event.event_time,
-              details: { challenge_id: challenge.challenge_id },
-            }],
-          };
-        });
-        return clone(profile);
-      });
-    },
-    async rejectBirthProfileCandidate({ subject_id, rejection_event } = {}) {
-      requireBirthWorkflowUpdate();
-      requiredText(subject_id, 'subject_id');
-      const event = verified(verifyBirthProfileConfirmation, rejection_event, 'birth-profile-rejection');
-      if (event.event_type !== 'user/message' || event.source_kind !== 'user' ||
-          event.text !== '拒绝出生资料') {
-        throw new Error('rejection must be the exact direct-user command 拒绝出生资料');
-      }
-      return serializeByKey(queues, 'birth-workflow:' + subject_id, async () => {
-        let result;
-        await birthWorkflows.update(subject_id, current => {
-          const challenge = current?.challenge;
-          if (current?.status === 'rejected' && challenge?.consumed_by_event_ref === event.event_id) {
-            result = current;
-            return current;
-          }
-          if (!current || current.status !== 'awaiting_confirmation' || !challenge ||
-              challenge.status !== 'active' || challenge.revision !== current.current_revision ||
-              challenge.session_id !== event.session_id ||
-              event.event_time <= challenge.issued_at_ms || event.event_time > challenge.expires_at_ms) {
-            throw new Error('no matching active BirthProfile challenge to reject');
-          }
-          result = {
-            ...current, status: 'rejected',
-            challenge: { ...challenge, status: 'consumed', consumed_by_event_ref: event.event_id },
-            audit_events: [...current.audit_events, {
-              audit_id: 'birth-audit:' + subject_id + ':' + current.current_revision + ':rejected',
-              action: 'rejected', revision: current.current_revision,
-              event_ref: event.event_id, occurred_at_ms: event.event_time,
-              details: { challenge_id: challenge.challenge_id },
-            }],
-          };
-          return result;
-        });
-        return clone(result ?? birthWorkflows.get(subject_id));
-      });
-    },
-    async revokeUserBirthProfile({ subject_id, revocation_event } = {}) {
-      requireBirthWorkflowUpdate();
-      requiredText(subject_id, 'subject_id');
-      const event = verified(verifyBirthProfileConfirmation, revocation_event, 'birth-profile-revocation');
-      if (event.event_type !== 'user/message' || event.source_kind !== 'user' ||
-          event.text !== '撤销出生资料') {
-        throw new Error('revocation must be the exact direct-user command 撤销出生资料');
-      }
-      return serializeByKey(queues, 'birth-workflow:' + subject_id, async () => {
-        let profile;
-        await birthWorkflows.update(subject_id, current => {
-          if (current?.status === 'revoked' &&
-              current.audit_events?.at(-1)?.action === 'revoked' &&
-              current.audit_events.at(-1).event_ref === event.event_id) {
-            profile = current.confirmed_profile;
-            return current;
-          }
-          if (!current || current.status !== 'confirmed' || !current.confirmed_profile) {
-            throw new Error('no confirmed BirthProfile to revoke');
-          }
-          if (event.event_time <= current.confirmed_profile.confirmed_at_ms) {
-            throw new Error('BirthProfile revocation event must follow confirmation');
-          }
-          profile = { ...current.confirmed_profile, status: 'revoked' };
-          return {
-            ...current, status: 'revoked', confirmed_profile: profile, challenge: null,
-            audit_events: [...current.audit_events, {
-              audit_id: 'birth-audit:' + subject_id + ':' + current.current_revision + ':revoked',
-              action: 'revoked', revision: current.current_revision,
-              event_ref: event.event_id, occurred_at_ms: event.event_time, details: {},
-            }],
-          };
-        });
-        return clone(profile);
-      });
-    },
-    getBirthProfileWorkflow(id) { requiredText(id, 'subject_id'); const value = birthWorkflows.get(id); return value === undefined ? undefined : clone(value); },
     recordFirstUserMessage,
     recoverInitialWake,
     async completeInitialWakeLocation({ subject_id, birth_location } = {}) {
@@ -465,6 +250,7 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
           if (current.birth_location?.status !== 'pending') return current;
           return { ...current, birth_location: clone(birth_location) };
         });
+        await ensureYuanQiBirthProfile({ subject_id });
         return clone(wakes.get(subject_id));
       });
     },
@@ -472,11 +258,15 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
       const event = verified(verifyDirectUserEvent, input.direct_user_event, 'initial-wake');
       await recordFirstUserMessage({ subject_id: input.subject_id, direct_user_event: event });
       const existing = wakes.get(input.subject_id);
-      if (existing !== undefined) return clone(existing);
-      return createWakeRecord(input.subject_id, event, input.birth_location);
+      if (existing !== undefined) {
+        await ensureYuanQiBirthProfile({ subject_id: input.subject_id });
+        return clone(existing);
+      }
+      const wake = await createWakeRecord(input.subject_id, event, input.birth_location);
+      if (wake) await ensureYuanQiBirthProfile({ subject_id: input.subject_id });
+      return wake;
     },
     getFirstUserMessage(id) { requiredText(id, 'subject_id'); const value = firstMessages.get(id); return value === undefined ? undefined : clone(value); },
-    getUserBirthProfile(id) { requiredText(id, 'subject_id'); const workflow = birthWorkflows.get(id); if (workflow?.confirmed_profile) return clone(workflow.confirmed_profile); const value = births.get(id); return value === undefined ? undefined : clone(value); },
     getWakeRecord(id) { requiredText(id, 'subject_id'); const value = wakes.get(id); return value === undefined ? undefined : clone(value); },
   });
 }

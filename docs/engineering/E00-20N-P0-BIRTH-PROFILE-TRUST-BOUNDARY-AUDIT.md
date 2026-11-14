@@ -4,6 +4,7 @@
 > 审计基线：PR #3 head `440dce04c0da660527c454f5a7ad8ba837a23658`  
 > 分支：`work/e00-20e-05b-subject-domain-runtime`  
 > 性质：源码审计与实现设计；本文件不代表运行时代码已修复。
+> **历史状态：** 本文原先审计的是 UserSubject 用户出生资料流程。该流程已由 2026-11-14 的 YuanQi 自身出生档案修正取代；当前 BirthProfile 归属于 YuanQiSubject，本文第 2–8 节仅作为历史审计记录，不再是当前实现规格。
 
 ## 1. 结论
 

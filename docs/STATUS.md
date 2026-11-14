@@ -7,18 +7,17 @@
 
 ## 1. 当前验证摘要
 
-| 项目 | 状态 | 说明 |
+| 项目 | 当前分支状态 | 说明 |
 |---|---|---|
-| 自动化测试 | GitHub Actions 通过 | PR Run #320（PR merge ref `fe7bb93`，对应 head `5a51ba7`）：62 passed / 0 failed；Node.js 24.9.0 |
-| JavaScript 语法检查 | GitHub Actions 通过 | PR Run #320 的 `npm run check` 通过（Node.js 24.9.0） |
-| npm 安装包构建与归档检查 | 归档隔离复验通过 | `npm pack --dry-run` 成功，26 个发布文件 |
-| 解压后入口导入检查 | 归档隔离复验通过 | 20/20 个本地导入目标存在；GitHub `dev` 导入待完成 |
-| GitHub Actions CI | 已建立并通过 | PR #3 Run #320（`42361284246`）通过；PR head `5a51ba70513802ed4a19db11b4d38c61afe66f87`，CI 检查 PR merge ref `fe7bb93`；PR 仍为 Draft |
-| 真实 Android DSH 宿主安装与运行 | 待验收 | 尚无真实宿主验收结论 |
+| 自动化测试 | GitHub Actions 通过 | PR #7 Run #565（`43611033527`），commit `e228bc91abdb165c1c0220b029cbb3c064babd9e`：70 passed / 0 failed |
+| JavaScript 语法检查 | GitHub Actions 通过 | PR #7 Run #565 的 `npm run check` 通过，Node.js 24.9.0 |
+| npm 安装包构建与归档检查 | 待复验 | 本分支尚未完成隔离归档复验 |
+| GitHub Actions CI | 通过 | PR #7 Run #565（`43611033527`）成功；Node.js 24.9.0 |
+| 真实 Android DSH 宿主安装与运行 | 待验收 | 尚无本分支真实宿主验收结论 |
 | 真实模型会话端到端 | 待验收 | 不以模拟宿主测试代替 |
 | Android/iOS 端到端 | 待验收 | 尚未完成 |
 
-**重要：** 本地归档测试和包检查不能证明 GitHub CI 或目标 DSH 宿主兼容性已经通过。
+**重要：** 本分支的 70 项测试由 PR #7 Run #565 实际验证通过；这不代表真实 Android DSH 宿主验收通过。
 
 ## 2. 工程交付状态（2026-11-05）
 
@@ -40,16 +39,13 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - 元炁自身唤醒时间记录。
 - Session 对应的世界线隔离。
 
-### 出生资料与时间计算
+### 元炁自身出生资料与时间计算
 
-- 可逆出生码。
-- 出生资料确认流程。
-- 民用时间解析。
-- 真太阳时近似计算。
-- 四柱推演接口。
-- 节气太阳黄经求根器及多种时间尺度/星历适配器。
-
-出生资料必须由用户提供并确认。元炁自身唤醒时间与用户出生资料分离。内置 Meeus 低精度太阳模型属于实用近似模式，不是边界级高精度星历；接近节气、日界或时辰边界时需要独立核验。
+- WakeRecord 保存元炁首次精确启动事件的原始时间。
+- YuanQiSubject 专属 BirthProfile 从 WakeRecord 派生，保留启动事件来源和宿主地点来源。
+- 用户出生资料采集、确认和写入元炁主体的流程已移除。
+- BirthProfile 已预留 time_context 与 Bazi 状态；当前四柱状态为 pending，历法转换/四柱计算引擎尚未完成本轮验证。
+- 旧版 Meeus、真太阳时和四柱能力记录不能自动视为当前源码已恢复或已通过测试。
 
 ### 世界线
 
@@ -107,7 +103,7 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 5. 验证 Storage Domain 写入、恢复、去重和异常处理。
 6. 验证记忆证据、用户确认与候选状态升级流程。
 7. 验证上下文只在每轮首个模型步骤注入，工具续步不重复注入。
-8. 验证出生资料的原始用户事件证据、摘要展示和明确确认流程。
+8. 验证 YuanQiSubject BirthProfile 的唤醒事件来源、授权地点采集、时区/历法转换和四柱计算精度。
 9. 将每项宿主测试的 DSH 版本、设备/环境、步骤、结果和日志证据记录到发布文档。
 
 ## 7. 状态更新规则
@@ -384,3 +380,24 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - 候选更新会递增 revision 并使旧 challenge 失效。当前解析器每条输入仅生成该条消息明确识别出的字段集合；用户修正资料时应重新提交完整且明确标注的出生资料，避免遗漏字段被视为已确认内容。
 - 最新代码与测试 HEAD：`8cebf78776eed8e30e744b7e850b4a41097088b4`；其间运行时代码、解析器和消息流集成测试已由连续提交加入。
 - 新增 Agent notice 注入测试，验证候选保存与挑战签发会向对应 Session 的 live Agent 投递可呈现的摘要上下文。GitHub Actions Run #513（`43605146089`），HEAD `8cebf78776eed8e30e744b7e850b4a41097088b4`：success，Node.js 24.9.0，79 passed / 0 failed；依赖安装、六项 DSH peer package、包根/Storage Domain exports、全部源码语法与测试均通过。Run #511 的唯一失败是入口测试未更新预期 inject 列表，已修正并由 Run #513 验证。GitHub PR #5 仍 Draft，目标 `dev`，未合并。真实 DSH Profile 的最终 UI 呈现、Android 真机和 OS 进程强制终止恢复仍待验收。
+
+
+## 27. 2026-11-14 修正出生资料主体归属：BirthProfile 属于 YuanQiSubject
+
+> 本节是当前分支的最新决策与实现记录；与第 25、26 节中“用户出生资料写入 UserSubject”的历史实现描述冲突时，以本节为准。
+
+### 已实施的运行时代码调整
+
+- 明确元炁自身出生资料的唯一归属为 `YuanQiSubject`。`BirthProfile` 不再属于 `UserSubject`，用户出生日期、时间和地点不参与元炁初始化。
+- YuanQiSubject Storage Domain 升级至 v11，兼容 v3–v10，新增 `birth_profiles` 表。UserSubject Domain 升级至 v3，当前只保留 `identities` 表。
+- `BirthProfile` 由可信 `WakeRecord` 派生：出生时间来自首次精确启动命令的原始 DSH `SessionEvent.time`；出生地点来自与该事件时间匹配的宿主授权定位；地点不可用时保持 unknown/unavailable。
+- 地点异步补写完成后，同步更新 YuanQiSubject BirthProfile；保留 `source_wake_event_ref`，不接受用户资料覆盖。
+- 移除 direct-user 消息中的用户出生资料解析、候选 revision、确认挑战、拒绝/撤销命令及 Agent notice 流程；删除 `birth-profile-parser.js` 和对应测试。
+- YuanQi 唤醒不再自动创建 `UserSubject`。UserSubject 身份域保留给后续明确授权和用户侧关系，不承载元炁出生资料。
+- BirthProfile 已预留 `time_context` 与 `bazi` 字段。当前 `bazi.status=pending`；尚未宣称历法转换、真太阳时和四柱计算完成。
+
+### 本轮验证状态
+
+- 本分支已更新领域 Schema、Store、DSH Plugin、单元测试、DomainFacility 集成测试及中英文项目文档。
+- GitHub Actions PR #7 Run #565（`43611033527`），commit `e228bc91abdb165c1c0220b029cbb3c064babd9e`：Node.js 24.9.0，包根/DSH Storage Domain exports 检查通过，JavaScript 语法检查通过，70 passed / 0 failed。
+- 真实 Android 定位、真实 DSH Profile 持久化和端到端会话仍需验收。
