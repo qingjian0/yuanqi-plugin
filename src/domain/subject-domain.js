@@ -69,7 +69,7 @@ const yuanqiBirthProfile=z.object({
  birth_time:z.string().datetime(),
  birth_location:z.object({status:z.enum(['pending','captured','unavailable']),latitude:z.number().min(-90).max(90).nullable(),longitude:z.number().min(-180).max(180).nullable(),accuracy_meters:z.number().nonnegative().nullable(),place_label:z.string().nullable(),time_zone_id:z.string().nullable(),source:z.enum(['host_location_provider','android_location_bridge','unavailable']),captured_at:z.string().datetime().nullable()}).strict(),
  source_wake_event_ref:z.string().min(1), source_event_time_ms:z.number().int().nonnegative(),
- time_context:z.object({status:z.enum(['pending','ready','unavailable']),time_zone_id:z.string().nullable(),local_datetime:z.string().nullable()}).strict(),
+ time_context:z.object({status:z.enum(['pending','ready','unavailable']),time_zone_id:z.string().nullable(),local_datetime:z.string().nullable(),utc_offset_minutes:z.number().nullable(),longitude_correction_minutes:z.number().nullable(),equation_of_time_minutes:z.number().nullable(),true_solar_datetime:z.string().nullable(),algorithm_version:z.string().min(1)}).strict(),
  bazi:z.object({status:z.enum(['pending','calculated','unavailable']),calendar_system:z.literal('jieqi'),pillars:z.object({year:z.string().min(1),month:z.string().min(1),day:z.string().min(1),hour:z.string().min(1)}).strict().nullable(),algorithm_version:z.string().nullable(),calculated_at:z.string().datetime().nullable()}).strict(),
  schema_version:z.literal(1),
 }).strict();
