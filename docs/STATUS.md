@@ -7,18 +7,17 @@
 
 ## 1. 当前验证摘要
 
-| 项目 | 状态 | 说明 |
+| 项目 | 当前分支状态 | 说明 |
 |---|---|---|
-| 自动化测试 | GitHub Actions 通过 | PR Run #320（PR merge ref `fe7bb93`，对应 head `5a51ba7`）：62 passed / 0 failed；Node.js 24.9.0 |
-| JavaScript 语法检查 | GitHub Actions 通过 | PR Run #320 的 `npm run check` 通过（Node.js 24.9.0） |
-| npm 安装包构建与归档检查 | 归档隔离复验通过 | `npm pack --dry-run` 成功，26 个发布文件 |
-| 解压后入口导入检查 | 归档隔离复验通过 | 20/20 个本地导入目标存在；GitHub `dev` 导入待完成 |
-| GitHub Actions CI | 已建立并通过 | PR #3 Run #320（`42361284246`）通过；PR head `5a51ba70513802ed4a19db11b4d38c61afe66f87`，CI 检查 PR merge ref `fe7bb93`；PR 仍为 Draft |
-| 真实 Android DSH 宿主安装与运行 | 待验收 | 尚无真实宿主验收结论 |
+| 自动化测试 | 待 CI | 历史 PR 的测试记录不代表本分支已通过 |
+| JavaScript 语法检查 | 待 CI | 需由本分支 GitHub Actions 实际执行 |
+| npm 安装包构建与归档检查 | 待复验 | 本分支尚未完成隔离归档复验 |
+| GitHub Actions CI | 已配置，等待本分支结果 | `.github/workflows/ci.yml` 覆盖 `work/**` |
+| 真实 Android DSH 宿主安装与运行 | 待验收 | 尚无本分支真实宿主验收结论 |
 | 真实模型会话端到端 | 待验收 | 不以模拟宿主测试代替 |
 | Android/iOS 端到端 | 待验收 | 尚未完成 |
 
-**重要：** 本地归档测试和包检查不能证明 GitHub CI 或目标 DSH 宿主兼容性已经通过。
+**重要：** PR #5 历史 HEAD 的 79 项通过记录不能代替本分支的 CI；本节只记录当前分支的实际验证状态。
 
 ## 2. 工程交付状态（2026-11-05）
 
