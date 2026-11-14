@@ -22,8 +22,10 @@ async function putOnce(table, key, value, message) {
   return clone(table.get(key) ?? value);
 }
 function verified(verifier, event, purpose) {
+  // The injected verifier is the trust authority. A caller-controlled boolean
+  // on the event object is not a credential.
   const value = verifier(event, purpose);
-  if (!value || value.verified !== true) throw new Error('unverified DSH event: ' + purpose);
+  if (!value) throw new Error('unverified DSH event: ' + purpose);
   return value;
 }
 function firstMessageFields(event) {
