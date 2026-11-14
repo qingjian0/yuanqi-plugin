@@ -265,7 +265,6 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
       return wake;
     },
     getFirstUserMessage(id) { requiredText(id, 'subject_id'); const value = firstMessages.get(id); return value === undefined ? undefined : clone(value); },
-    getUserBirthProfile(id) { requiredText(id, 'subject_id'); const workflow = birthWorkflows.get(id); if (workflow?.confirmed_profile) return clone(workflow.confirmed_profile); const value = births.get(id); return value === undefined ? undefined : clone(value); },
     getWakeRecord(id) { requiredText(id, 'subject_id'); const value = wakes.get(id); return value === undefined ? undefined : clone(value); },
   });
 }
