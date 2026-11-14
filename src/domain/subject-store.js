@@ -1,3 +1,4 @@
+import { deriveSolarTermContext } from './solar-terms.js';
 import { deriveBirthTimeContext } from './birth-time.js';
 const COMMANDS = new Set(['启动元气', '启动元炁']);
 
@@ -173,6 +174,9 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
           time_context: deriveBirthTimeContext({
             birth_time: wake.birth_time ?? wake.occurred_at,
             birth_location: location,
+          }),
+          calendar_context: deriveSolarTermContext({
+            birth_time: wake.birth_time ?? wake.occurred_at,
           }),
           bazi: {
             status: 'pending',
