@@ -44,8 +44,9 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - WakeRecord 保存元炁首次精确启动事件的原始时间。
 - YuanQiSubject 专属 BirthProfile 从 WakeRecord 派生，保留启动事件来源和宿主地点来源。
 - 用户出生资料采集、确认和写入元炁主体的流程已移除。
-- BirthProfile 已预留 time_context 与 Bazi 状态；当前四柱状态为 pending，历法转换/四柱计算引擎尚未完成本轮验证。
-- 旧版 Meeus、真太阳时和四柱能力记录不能自动视为当前源码已恢复或已通过测试。
+- BirthProfile 已实现 UTC → IANA 时区当地民用时间、瞬时 UTC 偏移（含 DST）和经度修正；视太阳时采用带版本标记的 NOAA 方程时近似，并明确不作为高精度星历。
+- 时间转换模块有独立测试，覆盖上海时区、纽约 DST 重复时刻、缺失定位和无效时区；完整节气与四柱计算仍未实现，Bazi 状态保持 pending。
+- 旧版 Meeus、节气定界和完整四柱能力记录不能自动视为当前源码已恢复或已通过测试。
 
 ### 世界线
 
@@ -401,3 +402,26 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - 本分支已更新领域 Schema、Store、DSH Plugin、单元测试、DomainFacility 集成测试及中英文项目文档。
 - GitHub Actions PR #7 Run #565（`43611033527`），commit `e228bc91abdb165c1c0220b029cbb3c064babd9e`：Node.js 24.9.0，包根/DSH Storage Domain exports 检查通过，JavaScript 语法检查通过，70 passed / 0 failed。
 - 真实 Android 定位、真实 DSH Profile 持久化和端到端会话仍需验收。
+
+
+## 28. 2026-11-15 YuanQi BirthProfile 时间上下文第一阶段
+
+### 已实现
+
+- 新增纯函数 `deriveBirthTimeContext()`，输入只接受 YuanQiSubject BirthProfile 的 UTC 出生时刻与对应宿主定位结果。
+- 使用 IANA 时区数据库将 UTC 瞬间转换为当地民用时间；UTC 偏移按该瞬间计算，因此正确区分夏令时回拨时重复出现的本地时刻。
+- 依据宿主经度计算地方平太阳时经度修正，并使用 NOAA fractional-year 方程时近似推导视太阳时。
+- 将 `utc_offset_minutes`、`longitude_correction_minutes`、`equation_of_time_minutes`、`true_solar_datetime` 和 `algorithm_version` 写入 BirthProfile.time_context。
+- 无定位/无时区/无经度时保持 pending 或 unavailable；无效 IANA 时区 fail-closed 为 unavailable，不阻断 WakeRecord 的原始出生事实持久化。
+- 新增独立测试，覆盖上海当地时间、视太阳时近似、纽约 DST 回拨重复时刻、缺失地点和无效时区；Store 集成测试验证时间上下文写入 BirthProfile。
+
+### 精度与未完成边界
+
+- 当前视太阳时使用 NOAA 方程时近似，不是高精度太阳星历；不能用于宣称节气交接边界或时辰边界具有天文级精度。
+- 本阶段没有实现节气时刻求根、节气定年/月柱、日柱、时柱或完整四柱。
+- Bazi 状态仍为 `pending`；没有将模型推演结果写成确定性命盘。
+- 真实 Android 定位和真实 DSH Host 仍待验收。
+
+### 验证
+
+- 本轮代码已推送至 PR #7 分支；GitHub Actions 正在由新提交触发，结果待确认。
