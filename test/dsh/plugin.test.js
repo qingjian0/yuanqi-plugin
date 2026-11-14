@@ -375,10 +375,11 @@ test('YuanQi birth time is the exact first startup event time and host location 
     },
   });
   await apply(ctx);
-  await ctx.listener({ id: 'session-a' }, dshEvent('启动元炁', 'birth-event', 0, 1793966400123));
+  const eventTime = Date.parse('2026-11-14T11:23:48.000Z');
+  await ctx.listener({ id: 'session-a' }, dshEvent('启动元炁', 'birth-event', 0, eventTime));
   await ctx.flushListener({ id: 'session-a' });
   const wake = storage.opened.get('yuanqi_subject').tables.get('wake_records').get('yuanqi:primary');
-  assert.equal(wake.birth_time, new Date(1793966400123).toISOString());
+  assert.equal(wake.birth_time, new Date(eventTime).toISOString());
   assert.equal(wake.occurred_at, wake.birth_time);
   assert.deepEqual(wake.birth_location, {
     status: 'captured', latitude: 31.2304, longitude: 121.4737,
@@ -402,4 +403,78 @@ test('missing host location capability records unknown place without fabricating
   assert.equal(wake.birth_location.latitude, null);
   assert.equal(wake.birth_location.longitude, null);
   await ctx.disposer();
+});
+
+test('Android host location bridge captures a fresh fix with the DSH bridge token', async () => {
+  const storage = fakeStorageDomain();
+  const ctx = context(storage);
+  const previousToken = process.env.DSH_BRIDGE_TOKEN;
+  const previousFetch = globalThis.fetch;
+  const now = Date.now();
+  let calls = 0;
+  process.env.DSH_BRIDGE_TOKEN = 'test-bridge-token';
+  globalThis.fetch = async (url, options) => {
+    calls += 1;
+    assert.equal(url, 'http://127.0.0.1:3083/dev/location');
+    assert.equal(options.headers['X-DSH-Token'], 'test-bridge-token');
+    return {
+      ok: true,
+      status: 200,
+      async json() {
+        return {
+          ok: true, fix: true, lat: 31.2304, lon: 121.4737,
+          accuracy_m: 12, age_ms: 1500, at: now, stale: false,
+        };
+      },
+    };
+  };
+  try {
+    await apply(ctx);
+    await ctx.listener({ id: 'android-session' }, dshEvent('启动元气', 'android-birth', 0, now - 2000));
+    await ctx.flushListener({ id: 'android-session' });
+    const wake = storage.opened.get('yuanqi_subject').tables.get('wake_records').get('yuanqi:primary');
+    assert.equal(wake.birth_location.status, 'captured');
+    assert.equal(wake.birth_location.source, 'android_location_bridge');
+    assert.equal(wake.birth_location.latitude, 31.2304);
+    assert.equal(wake.birth_location.longitude, 121.4737);
+    assert.equal(wake.birth_location.accuracy_meters, 12);
+    assert.equal(wake.birth_location.captured_at, new Date(now - 1500).toISOString());
+    await ctx.listener({ id: 'android-session' }, dshEvent('后续消息', 'android-later', 1, now));
+    await ctx.flushListener({ id: 'android-session' });
+    assert.equal(calls, 1);
+    await ctx.disposer();
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousToken === undefined) delete process.env.DSH_BRIDGE_TOKEN;
+    else process.env.DSH_BRIDGE_TOKEN = previousToken;
+  }
+});
+
+test('Android host location bridge rejects a stale cached fix', async () => {
+  const storage = fakeStorageDomain(), ctx = context(storage);
+  const previousToken = process.env.DSH_BRIDGE_TOKEN;
+  const previousFetch = globalThis.fetch;
+  const now = Date.now();
+  process.env.DSH_BRIDGE_TOKEN = 'test-bridge-token';
+  globalThis.fetch = async () => ({
+    ok: true,
+    status: 200,
+    async json() {
+      return { ok: true, fix: true, lat: 31.2, lon: 121.4, age_ms: 90_000, at: now, stale: false };
+    },
+  });
+  try {
+    await apply(ctx);
+    await ctx.listener({ id: 'android-session' }, dshEvent('启动元炁', 'android-stale', 0, now - 1000));
+    await ctx.flushListener({ id: 'android-session' });
+    const wake = storage.opened.get('yuanqi_subject').tables.get('wake_records').get('yuanqi:primary');
+    assert.equal(wake.birth_time, new Date(now - 1000).toISOString());
+    assert.equal(wake.birth_location.status, 'unavailable');
+    assert.equal(wake.birth_location.latitude, null);
+    await ctx.disposer();
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousToken === undefined) delete process.env.DSH_BRIDGE_TOKEN;
+    else process.env.DSH_BRIDGE_TOKEN = previousToken;
+  }
 });
