@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { DomainFacility } from '@deepseek-ai/dsh-storage-domain';
 import { StorageError } from '@deepseek-ai/dsh-storage';
 import { openSubjectDomains, userSubjectDomainSpec, yuanqiSubjectDomainSpec } from '../../src/domain/subject-domain.js';
+import { createSubjectStore } from '../../src/domain/subject-store.js';
 
 function createStorageDomain() {
   const persisted = new Map();
@@ -96,4 +97,38 @@ test('actual DSH DomainFacility rejects malformed persisted YuanQi activation bo
   await domains.close();
   await assert.rejects(openSubjectDomains(storageDomain));
   assert.equal(storageDomain.opened.size, 0);
+});
+
+test('actual DSH DomainFacility atomically completes a pending WakeRecord location', async () => {
+  const storageDomain = createStorageDomain();
+  const domains = await openSubjectDomains(storageDomain);
+  const store = createSubjectStore({
+    userDomain: domains.userDomain,
+    yuanqiDomain: domains.yuanqiDomain,
+    verifyDirectUserEvent: event => event?.verified === true ? event : null,
+    verifyBirthProfileConfirmation: () => null,
+  });
+  await store.createYuanQiSubject({ subject_id: 'yuanqi:primary', created_from_event_ref: 'wake-event-1' });
+  const eventTime = 1794048000100;
+  const pending = {
+    status: 'pending', latitude: null, longitude: null, accuracy_meters: null,
+    place_label: null, time_zone_id: null, source: 'unavailable', captured_at: null,
+  };
+  await store.recordInitialWake({
+    subject_id: 'yuanqi:primary',
+    direct_user_event: {
+      verified: true, event_type: 'user/message', source_kind: 'user',
+      session_id: 'session:wake', event_id: 'wake-event-1', event_seq: 0,
+      event_time: eventTime, text: '启动元炁',
+    },
+    birth_location: pending,
+  });
+  const captured = {
+    status: 'captured', latitude: 31.23, longitude: 121.47, accuracy_meters: 12,
+    place_label: null, time_zone_id: null, source: 'android_location_bridge',
+    captured_at: new Date(eventTime).toISOString(),
+  };
+  await store.completeInitialWakeLocation({ subject_id: 'yuanqi:primary', birth_location: captured });
+  assert.deepEqual(store.getWakeRecord('yuanqi:primary').birth_location, captured);
+  await domains.close();
 });
