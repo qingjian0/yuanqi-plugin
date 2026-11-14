@@ -195,6 +195,8 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
     async recordInitialWake(input) {
       const event = verified(verifyDirectUserEvent, input.direct_user_event, 'initial-wake');
       await recordFirstUserMessage({ subject_id: input.subject_id, direct_user_event: event });
+      const existing = wakes.get(input.subject_id);
+      if (existing !== undefined) return clone(existing);
       return createWakeRecord(input.subject_id, event, input.birth_location);
     },
     getFirstUserMessage(id) { requiredText(id, 'subject_id'); const value = firstMessages.get(id); return value === undefined ? undefined : clone(value); },
