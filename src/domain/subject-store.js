@@ -248,6 +248,7 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
           if (current.birth_location?.status !== 'pending') return current;
           return { ...current, birth_location: clone(birth_location) };
         });
+        await this.ensureYuanQiBirthProfile({ subject_id });
         return clone(wakes.get(subject_id));
       });
     },
@@ -255,8 +256,13 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
       const event = verified(verifyDirectUserEvent, input.direct_user_event, 'initial-wake');
       await recordFirstUserMessage({ subject_id: input.subject_id, direct_user_event: event });
       const existing = wakes.get(input.subject_id);
-      if (existing !== undefined) return clone(existing);
-      return createWakeRecord(input.subject_id, event, input.birth_location);
+      if (existing !== undefined) {
+        await this.ensureYuanQiBirthProfile({ subject_id: input.subject_id });
+        return clone(existing);
+      }
+      const wake = await createWakeRecord(input.subject_id, event, input.birth_location);
+      if (wake) await this.ensureYuanQiBirthProfile({ subject_id: input.subject_id });
+      return wake;
     },
     getFirstUserMessage(id) { requiredText(id, 'subject_id'); const value = firstMessages.get(id); return value === undefined ? undefined : clone(value); },
     getUserBirthProfile(id) { requiredText(id, 'subject_id'); const workflow = birthWorkflows.get(id); if (workflow?.confirmed_profile) return clone(workflow.confirmed_profile); const value = births.get(id); return value === undefined ? undefined : clone(value); },
