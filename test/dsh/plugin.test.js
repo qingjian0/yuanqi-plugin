@@ -354,3 +354,49 @@ test('historical event at the exact activation millisecond is excluded conservat
   assert.equal(storage.opened.get('yuanqi_subject').tables.get('first_user_messages').has('yuanqi:primary'), false);
   await restarted.disposer();
 });
+
+
+test('YuanQi birth time is the exact first startup event time and host location is captured once', async () => {
+  const storage = fakeStorageDomain();
+  let locationReads = 0;
+  const ctx = context(storage, {
+    yuanqiLocationProvider: {
+      async getCurrentPosition() {
+        locationReads += 1;
+        return {
+          latitude: 31.2304, longitude: 121.4737, accuracy_meters: 18,
+          place_label: 'Shanghai', time_zone_id: 'Asia/Shanghai',
+          captured_at: '2026-11-14T11:23:47.000Z',
+        };
+      },
+    },
+  });
+  await apply(ctx);
+  await ctx.listener({ id: 'session-a' }, dshEvent('启动元炁', 'birth-event', 0, 1793966400123));
+  await ctx.flushListener({ id: 'session-a' });
+  const wake = storage.opened.get('yuanqi_subject').tables.get('wake_records').get('yuanqi:primary');
+  assert.equal(wake.birth_time, new Date(1793966400123).toISOString());
+  assert.equal(wake.occurred_at, wake.birth_time);
+  assert.deepEqual(wake.birth_location, {
+    status: 'captured', latitude: 31.2304, longitude: 121.4737,
+    accuracy_meters: 18, place_label: 'Shanghai', time_zone_id: 'Asia/Shanghai',
+    source: 'host_location_provider', captured_at: '2026-11-14T11:23:47.000Z',
+  });
+  await ctx.listener({ id: 'session-a' }, dshEvent('后续消息', 'later-event', 1, 1793966401123));
+  await ctx.flushListener({ id: 'session-a' });
+  assert.equal(locationReads, 1);
+  await ctx.disposer();
+});
+
+test('missing host location capability records unknown place without fabricating data', async () => {
+  const storage = fakeStorageDomain(), ctx = context(storage);
+  await apply(ctx);
+  await ctx.listener({ id: 'session-a' }, dshEvent('启动元气', 'birth-event', 0, 1793966400123));
+  await ctx.flushListener({ id: 'session-a' });
+  const wake = storage.opened.get('yuanqi_subject').tables.get('wake_records').get('yuanqi:primary');
+  assert.equal(wake.birth_time, new Date(1793966400123).toISOString());
+  assert.equal(wake.birth_location.status, 'unavailable');
+  assert.equal(wake.birth_location.latitude, null);
+  assert.equal(wake.birth_location.longitude, null);
+  await ctx.disposer();
+});
