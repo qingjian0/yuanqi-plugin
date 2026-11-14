@@ -21,9 +21,9 @@ function createAndroidLocationProvider() {
   return {
     async getCurrentPosition() {
       const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 2500);
+      const timeout = setTimeout(() => controller.abort(), 10_000);
       try {
-        const response = await fetch('http://127.0.0.1:3083/dev/location', {
+        const response = await fetch('http://127.0.0.1:3083/dev/location?fresh=true', {
           method: 'GET',
           headers: { 'X-DSH-Token': token },
           signal: controller.signal,
