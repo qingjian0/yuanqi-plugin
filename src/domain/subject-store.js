@@ -1,3 +1,4 @@
+import { deriveBirthTimeContext } from './birth-time.js';
 const COMMANDS = new Set(['启动元气', '启动元炁']);
 
 function requiredText(value, field) {
@@ -170,11 +171,10 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
           birth_location: location,
           source_wake_event_ref: wake.wake_event_ref,
           source_event_time_ms: Date.parse(wake.birth_time ?? wake.occurred_at),
-          time_context: {
-            status: location.status === 'unavailable' ? 'unavailable' : (timeZone ? 'ready' : 'pending'),
-            time_zone_id: timeZone,
-            local_datetime: null,
-          },
+          time_context: deriveBirthTimeContext({
+            birth_time: wake.birth_time ?? wake.occurred_at,
+            birth_location: location,
+          }),
           bazi: {
             status: 'pending',
             calendar_system: 'jieqi',
