@@ -27,6 +27,11 @@ function fakeStorageDomain() {
           if (!rows) throw new Error('unknown table: ' + name);
           return {
             get: key => rows.get(key),
+            async update(key, updater) {
+              const current = rows.get(key);
+              const next = updater(current);
+              rows.set(key, structuredClone(next));
+            },
             async put(key, value) {
               if (spec.name === 'yuanqi_subject' && name === 'worldlines') {
                 storage.worldlineWriteAttempts += 1;
