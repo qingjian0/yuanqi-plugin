@@ -12,13 +12,13 @@ YuanQi 的出生时间不是用户的个人出生时间。它是用户首次在 
 - `time_zone_id`：可选 IANA 时区；
 - `captured_at`：适配器采集坐标的 ISO-8601 时间。
 
-插件会验证坐标、精度和采集时间。定位权限被拒、超时、适配器不存在或返回无效数据时，出生时间仍正常落库，地点明确记录为 `unavailable`，不猜测 IP 地址、不使用服务器所在地，也不伪造坐标。地点数据只在首次启动命令事件处理时采集一次；后续消息、重启和重放不得覆盖出生资料。
+插件先将首次启动事件、原始事件时间和 `birth_location.status=pending` 持久化，再异步执行一次有时限的地点采集；地点采集不阻塞 `session/flush`。采集完成后只允许将 `pending` 状态补写为 `captured` 或 `unavailable`，后续消息和重复补写不能覆盖已完成地点。若进程在采集期间退出，重启后可恢复 `pending` 并重新尝试；仍须验证定位时间与原始唤醒事件相差不超过 60 秒，历史事件不会使用当前坐标伪装。定位权限被拒、超时、适配器不存在或返回无效数据时，出生时间仍已持久化，地点最终记录为 `unavailable`，不猜测 IP 地址、不使用服务器所在地，也不伪造坐标。
 
 ## Host 接入要求
 
 `yuanqiLocationProvider` 是 YuanQi 定义的可选宿主能力接口，不是已确认存在于所有 DSH 版本的内建 API。Android 宿主应使用系统定位权限与系统定位服务实现该适配器；Desktop 宿主应通过用户授权的位置提供能力实现。适配器应在授权缺失时返回错误，由插件记录为未知地点。宿主不得把 IP 推断位置伪装成 GPS/系统定位。
 
-Android 接入已对接项目 `qingjian0/Deepseek-Harness-Local-Android` 现有的 `GET /dev/location?fresh=true` 路由。该路由受 Android `CapabilityGate.LOCATION` 与系统定位权限双重控制；默认能力开关关闭，用户必须在 Android 设备能力设置中显式启用“当前地理位置”，授予粗略或精确定位权限，并开启系统位置服务。Android 11+ 会通过 `LocationManager.getCurrentLocation()` 对启用的 GPS/network/passive provider 发起并行单次定位请求，原生等待最多 8 秒；若无新 fix 或等待超时才回退到缓存位置。Android 10 及更早版本仅使用缓存路径。YuanQi 额外要求定位结果年龄不超过 60 秒，且定位采集时间与 DSH 启动事件时间相差不超过 60 秒；不满足、无权限、开关关闭、无 fix 或桥接超时都会将地点记为 unavailable，但出生时间仍正常落库。坐标采集时间按 Android 返回的 `at - age_ms` 还原，不把 HTTP 查询时间冒充 GPS fix 时间。
+Android 接入已对接项目 `qingjian0/Deepseek-Harness-Local-Android` 现有的 `GET /dev/location?fresh=true` 路由。该路由受 Android `CapabilityGate.LOCATION` 与系统定位权限双重控制；默认能力开关关闭，用户必须在 Android 设备能力设置中显式启用“当前地理位置”，授予粗略或精确定位权限，并开启系统位置服务。Android 11+ 会通过 `LocationManager.getCurrentLocation()` 对启用的 GPS/network/passive provider 发起并行单次定位请求，原生等待最多 8 秒；若无新 fix 或等待超时才回退到缓存位置。Android 10 及更早版本仅使用缓存路径。YuanQi 额外要求定位结果年龄不超过 60 秒，且定位采集时间与 DSH 启动事件时间相差不超过 60 秒；不满足、无权限、开关关闭、无 fix 或桥接超时都会将地点记为 unavailable，但出生时间仍正常落库。坐标采集时间优先使用 Android 原生返回的 `fix_time_ms`；同时在响应时按该时间戳重新计算 `age_ms`，不把 HTTP 查询时间冒充 GPS fix 时间。
 
 冷历史扫描会独立查找首次精确启动命令，而不是只检查首条普通消息；如果启动命令只在冷历史中发现，插件不会用当前设备位置冒充事件发生时的位置，该类记录的地点会保持未知。Fork 继承前缀与安装边界之前的事件均不参与候选选择。
 
@@ -32,4 +32,4 @@ DSH 官方插件模型通过 Cordis Context 注入宿主服务；并不存在可
 
 ## 存储兼容
 
-YuanQi Subject Domain 升级至 v9。旧 v3 WakeRecord 仍可读取（出生地点字段可缺省）；新建记录写入 schema v4，并包含 birth_time 与 birth_location。升级不改写既有唤醒时间，不补造历史地点。
+YuanQi Subject Domain 升级至 v10。旧 v3 WakeRecord 仍可读取（出生地点字段可缺省）；新建记录写入 schema v4，并包含 birth_time 与 birth_location；地点状态支持 `pending`、`captured` 和 `unavailable`，仅允许 pending 完成一次。升级不改写既有唤醒时间，不补造历史地点。
