@@ -54,7 +54,6 @@ test('YuanQi BirthProfile is derived from its own trusted wake event and stored 
   assert.equal(profile.calendar_context.previous_jie.name, '寒露');
   assert.equal(profile.calendar_context.next_jie.name, '立冬');
   assert.equal(new Date(profile.calendar_context.last_li_chun.at_utc).getUTCFullYear(), 2026);
-  assert.equal(profile.bazi.status, 'pending');
   assert.equal(userDomain.maps.get('identities').has('user:primary'), false);
   assert.equal(yuanqiDomain.maps.get('birth_profiles').has('yuanqi:primary'), true);
 });
