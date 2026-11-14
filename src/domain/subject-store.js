@@ -222,8 +222,7 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
       }
       const now = event.event_time;
       return serializeByKey(queues, 'birth-workflow:' + subject_id, async () => {
-        let result;
-        await birthWorkflows.update(subject_id, current => {
+        const buildNext = current => {
           if (current?.status === 'confirmed' || current?.status === 'revoked') {
             throw new Error('confirmed or revoked BirthProfile cannot be edited in place');
           }
@@ -238,7 +237,7 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
             action: current ? 'candidate_revised' : 'candidate_created',
             revision, event_ref: event.event_id, occurred_at_ms: now, details: {},
           };
-          result = {
+          return {
             subject_id, subject_kind: 'user', current_revision: revision,
             status: 'collecting', revisions: [...(current?.revisions ?? []), entry],
             challenge: current?.challenge ? { ...current.challenge, status: 'invalidated' } : null,
@@ -254,6 +253,16 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
             ],
             schema_version: 1,
           };
+        };
+        const existing = birthWorkflows.get(subject_id);
+        if (existing === undefined) {
+          const initial = buildNext(undefined);
+          const created = await putOnce(birthWorkflows, subject_id, initial, 'BirthProfile workflow creation conflict');
+          return created;
+        }
+        let result;
+        await birthWorkflows.update(subject_id, current => {
+          result = buildNext(current);
           return result;
         });
         return clone(result ?? birthWorkflows.get(subject_id));
