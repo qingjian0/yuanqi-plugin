@@ -55,3 +55,5 @@
 - 真实 Android DSH 宿主验证：尚未完成。
 
 详细信息见 [项目状态](./STATUS.md) 与 [归档恢复验证](./engineering/E00-20E-02-ARCHIVE-RECOVERY-VERIFICATION.md)。
+
+- [YuanQi 唤醒出生资料与地点采集](engineering/E00-21-P0-YUANQI-BIRTH-RECORD-LOCATION.md)
