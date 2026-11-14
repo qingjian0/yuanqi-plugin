@@ -16,6 +16,15 @@ test('BirthProfile candidates persist field provenance and revisions; edits inva
  assert.equal(revised.current_revision,2); assert.equal(revised.challenge.status,'invalidated'); assert.equal(revised.status,'collecting');
  assert.equal(revised.audit_events.at(-2).action,'challenge_invalidated');
 });
+test('BirthProfile source replay is idempotent and conflicting replay is rejected',async()=>{
+ const s=store(); await s.createUserSubject({subject_id:'u1',created_from_event_ref:'e'});
+ const source=event({event_id:'birth-source',text:'出生日期1998-04-21'});
+ const input={subject_id:'u1',facts:{birth_date:'1998-04-21'},field_sources:{birth_date:{source_event_ref:'birth-source',raw_text:'1998-04-21',extraction_kind:'user_explicit'}},source_event:source};
+ const first=await s.saveBirthProfileCandidate(input);
+ const replay=await s.saveBirthProfileCandidate(input);
+ assert.deepEqual(replay,first); assert.equal(replay.current_revision,1);
+ await assert.rejects(s.saveBirthProfileCandidate({...input,facts:{birth_date:'1998-04-22'}}),/conflicting candidate data/);
+});
 test('BirthProfile confirmation is one-time, exact, session-bound and revision-bound',async()=>{
  const s=store(); await s.createUserSubject({subject_id:'u1',created_from_event_ref:'e'});
  const source=event({event_id:'source',event_time:1000,text:'出生日期为1998-04-21'});
