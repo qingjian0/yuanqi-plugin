@@ -65,7 +65,7 @@ dsh plugin --profile web add ./dist/dsh-yuanqi-plugin-1.1.0-alpha.9.tgz
 
 元炁自身的唤醒时间与用户个人出生资料相互独立。
 
-当前实现的唤醒条件：只有安装后第一条 direct-user `user/message` 事件同时满足以下条件才允许唤醒：消息来源为真实 direct user（`source.kind === 'user'`）；消息内容数组恰好包含一个文本块；该文本完整精确等于“启动元气”或“启动元炁”。前后空格、换行、引号、标点、附加文字、多文本块、助手输出和注入上下文均不触发。首次直接用户消息不是启动命令时，永久消耗本次安装实例的首次唤醒资格，不创建唤醒记录、主线 Worldline 或 Session 绑定；后续 Session 再发送命令也不能补触发。唤醒时间必须使用该 DSH `SessionEvent.time`。详见 [E00-20F P0 唤醒与 Host 集成审查](./engineering/E00-20F-P0-WAKE-AND-HOST-REVIEW.md)。
+当前实现的唤醒条件：安装后可以先有普通 direct-user 消息；元炁会等待首次满足以下条件的事件：DSH `user/message` 来源为真实 direct user（`source.kind === 'user'`），消息内容数组恰好包含一个文本块，且该文本完整精确等于“启动元气”或“启动元炁”。前后空格、换行、引号、标点、附加文字、多文本块、助手输出和注入上下文均不触发。普通首条消息只记录首次消息事实，不消耗启动资格，也不会创建唤醒记录、主线 Worldline 或 Session 绑定。首次精确启动命令的唤醒时间必须使用该 DSH `SessionEvent.time`。冷历史恢复会排除安装边界之前和 Fork 继承前缀中的事件；若启动命令只在冷历史中发现，不会用当前设备位置冒充历史地点。详见 [E00-21 P0 唤醒出生资料与地点采集](./engineering/E00-21-P0-YUANQI-BIRTH-RECORD-LOCATION.md)。
 
 用户出生资料必须由用户明确提供并确认。不得通过 IP、设备定位或模型推断补全出生地点或出生事实。
 
