@@ -106,7 +106,17 @@ export function deriveBirthTimeContext({ birth_time, birth_location } = {}) {
     };
   }
   finiteNumber(longitude, 'birth_location.longitude', -180, 180);
-  const formatter = formatterFor(timeZone);
+  let formatter;
+  try {
+    formatter = formatterFor(timeZone);
+  } catch {
+    return {
+      status: 'unavailable', time_zone_id: timeZone, local_datetime: null,
+      utc_offset_minutes: null, longitude_correction_minutes: null,
+      equation_of_time_minutes: null, true_solar_datetime: null,
+      algorithm_version: 'noaa-eot-approx-v1',
+    };
+  }
   const parts = localParts(formatter, instant);
   const utcOffset = offsetMinutesAt(formatter, instant, parts);
   const longitudeCorrection = longitude * 4;
