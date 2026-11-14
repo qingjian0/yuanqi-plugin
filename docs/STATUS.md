@@ -9,15 +9,15 @@
 
 | 项目 | 当前分支状态 | 说明 |
 |---|---|---|
-| 自动化测试 | 待 CI | 历史 PR 的测试记录不代表本分支已通过 |
-| JavaScript 语法检查 | 待 CI | 需由本分支 GitHub Actions 实际执行 |
+| 自动化测试 | GitHub Actions 通过 | PR #7 Run #565（`43611033527`），commit `e228bc91abdb165c1c0220b029cbb3c064babd9e`：70 passed / 0 failed |
+| JavaScript 语法检查 | GitHub Actions 通过 | PR #7 Run #565 的 `npm run check` 通过，Node.js 24.9.0 |
 | npm 安装包构建与归档检查 | 待复验 | 本分支尚未完成隔离归档复验 |
-| GitHub Actions CI | 已配置，等待本分支结果 | `.github/workflows/ci.yml` 覆盖 `work/**` |
+| GitHub Actions CI | 通过 | PR #7 Run #565（`43611033527`）成功；Node.js 24.9.0 |
 | 真实 Android DSH 宿主安装与运行 | 待验收 | 尚无本分支真实宿主验收结论 |
 | 真实模型会话端到端 | 待验收 | 不以模拟宿主测试代替 |
 | Android/iOS 端到端 | 待验收 | 尚未完成 |
 
-**重要：** PR #5 历史 HEAD 的 79 项通过记录不能代替本分支的 CI；本节只记录当前分支的实际验证状态。
+**重要：** 本分支的 70 项测试由 PR #7 Run #565 实际验证通过；这不代表真实 Android DSH 宿主验收通过。
 
 ## 2. 工程交付状态（2026-11-05）
 
@@ -399,5 +399,5 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 ### 本轮验证状态
 
 - 本分支已更新领域 Schema、Store、DSH Plugin、单元测试、DomainFacility 集成测试及中英文项目文档。
-- 当前分支 CI 尚未运行完成；不得沿用 PR #5 旧 HEAD 的 79 项通过记录作为本分支验证结果。
+- GitHub Actions PR #7 Run #565（`43611033527`），commit `e228bc91abdb165c1c0220b029cbb3c064babd9e`：Node.js 24.9.0，包根/DSH Storage Domain exports 检查通过，JavaScript 语法检查通过，70 passed / 0 failed。
 - 真实 Android 定位、真实 DSH Profile 持久化和端到端会话仍需验收。
