@@ -223,8 +223,7 @@ export async function apply(ctx) {
       if (!direct) return;
 
       // YuanQi's runtime identity may be established while locating the
-      // first exact wake command, but a UserSubject (and therefore any
-      // BirthProfile workflow) is not created by ordinary conversation.
+      // first exact wake command. UserSubject is not created by YuanQi wake.
       await store.createYuanQiSubject({
         subject_id: YUANQI_SUBJECT_ID,
         created_from_event_ref: direct.event_id,
