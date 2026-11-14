@@ -30,7 +30,8 @@ function createAndroidLocationProvider() {
         });
         if (!response.ok) throw new Error('Android location bridge returned HTTP ' + response.status);
         const value = await response.json();
-        if (value?.ok !== true || value.fix !== true) {
+        if (value?.ok !== true || value.fix !== true || value.location_enabled !== true ||
+            !['fine', 'coarse'].includes(value.permission)) {
           throw new Error('Android location bridge has no authorized location fix');
         }
         if (!Number.isSafeInteger(value.at) || !Number.isFinite(value.age_ms) ||
