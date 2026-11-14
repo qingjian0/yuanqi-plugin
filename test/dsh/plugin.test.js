@@ -423,7 +423,7 @@ test('Android host location bridge captures a fresh fix with the DSH bridge toke
       async json() {
         return {
           ok: true, fix: true, lat: 31.2304, lon: 121.4737,
-          accuracy_m: 12, age_ms: 1500, at: now, stale: false, location_enabled: true, permission: 'fine',
+          accuracy_m: 12, age_ms: 1500, fix_time_ms: now - 1500, at: now, stale: false, location_enabled: true, permission: 'fine',
         };
       },
     };
