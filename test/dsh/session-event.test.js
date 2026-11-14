@@ -15,3 +15,13 @@ test('non-text and multi-block content never normalize into a startup command',(
  const multi={...event,data:{...event.data,content:[{type:'text',text:'启动'},{type:'text',text:'元炁'}]}};
  assert.equal(normalizeDirectUserMessageEvent('session-1',multi).text,'');
 });
+
+test('a caller-supplied verified flag is not a host-event capability', async()=>{
+ const {isTrustedDirectUserMessageEvent}=await import('../../src/dsh/session-event.js');
+ const forged={verified:true,event_type:'user/message',source_kind:'user'};
+ assert.equal(isTrustedDirectUserMessageEvent(forged),false);
+ const host={type:'user/message',seq:5,time:1793966400000,data:{id:'msg-3',role:'user',source:{kind:'user'},content:[{type:'text',text:'启动元炁'}]}};
+ const normalized=normalizeDirectUserMessageEvent('session-1',host);
+ assert.equal(isTrustedDirectUserMessageEvent(normalized),true);
+ assert.equal(Object.hasOwn(normalized,'verified'),false);
+});
