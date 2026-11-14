@@ -3,11 +3,12 @@ import { openSubjectDomains } from '../domain/subject-domain.js';
 import { isTrustedDirectUserMessageEvent, normalizeDirectUserMessageEvent } from './session-event.js';
 import { createWorldlineStore } from '../worldline/runtime.js';
 import { parseExplicitBirthProfile } from '../domain/birth-profile-parser.js';
+import { createUserMessage } from '@deepseek-ai/dsh-llm';
 
 export const name = 'dsh-yuanqi-plugin';
 // Session Query supplies validated live/cold observations; persistence is
 // required because live SessionStore state alone cannot recover after restart.
-export const inject = ['storageDomain', 'sessions', 'sessionQuery', 'sessionPersistence'];
+export const inject = ['storageDomain', 'sessions', 'sessionQuery', 'sessionPersistence', 'agents'];
 
 const USER_SUBJECT_ID = 'user:primary';
 const YUANQI_SUBJECT_ID = 'yuanqi:primary';
@@ -127,6 +128,20 @@ export async function apply(ctx) {
 
     function warn(message) {
       try { ctx.logger?.warn?.(message); } catch {}
+    }
+
+    function notifyBirthProfile(sessionId, summary, instruction) {
+      const agent = ctx.agents?.get?.(sessionId);
+      if (!agent || typeof agent.inject !== 'function') {
+        warn('[yuanqi] BirthProfile notice could not be queued because the live DSH Agent is unavailable');
+        return false;
+      }
+      const message = createUserMessage({
+        source: { kind: 'yuanqi-birth-profile', form: 'notice', summary: summary.slice(0, 120) },
+        content: [{ type: 'text', text: instruction }],
+      });
+      agent.inject(message);
+      return true;
     }
 
     async function ensureWorldlineForWake(wake) {
@@ -287,10 +302,20 @@ export async function apply(ctx) {
               .map(([key, source]) => [key, { ...source, source_event_ref: direct.event_id }])),
             source_event: direct,
           });
+          const workflow = store.getBirthProfileWorkflow(USER_SUBJECT_ID);
+          const revision = workflow?.revisions?.at(-1);
+          if (revision) {
+            notifyBirthProfile(sessionId, '出生资料候选已记录，请核对', [
+              '元炁已记录一份出生资料候选。请在本轮回复中逐字段展示以下内容，明确说明未提供的字段保持未知；不得推断或补全。',
+              '候选 revision：' + revision.revision,
+              '候选事实：' + JSON.stringify(revision.facts),
+              '请用户核对；如需修改，要求重新提交完整且明确标注的资料。用户核对后可发送“核对出生资料”进入一次性确认流程。',
+            ].join('\n'));
+          }
         } else if (direct.text === '核对出生资料') {
           const workflow = store.getBirthProfileWorkflow(USER_SUBJECT_ID);
           if (workflow && ['collecting', 'awaiting_confirmation'].includes(workflow.status)) {
-            await store.issueBirthProfileConfirmationChallenge({
+            const challenged = await store.issueBirthProfileConfirmationChallenge({
               subject_id: USER_SUBJECT_ID,
               challenge_id: 'birth-challenge:' + direct.event_id,
               session_id: direct.session_id,
@@ -298,13 +323,28 @@ export async function apply(ctx) {
               expires_at_ms: direct.event_time + 10 * 60_000,
               issued_from_event_ref: direct.event_id,
             });
+            const revision = challenged.revisions.find(item => item.revision === challenged.current_revision);
+            notifyBirthProfile(sessionId, '出生资料确认挑战已签发', [
+              '用户已请求核对出生资料。请逐字段展示当前候选，不得推断或补全。',
+              '候选 revision：' + challenged.current_revision,
+              '候选事实：' + JSON.stringify(revision?.facts ?? {}),
+              '确认挑战有效期 10 分钟且绑定当前会话。明确提示用户：确认无误后发送精确命令“确认出生资料”；若有误，重新提交完整资料；也可发送“拒绝出生资料”。不要替用户确认。',
+            ].join('\n'));
           }
         } else if (direct.text === '确认出生资料') {
-          await store.confirmUserBirthProfile({ subject_id: USER_SUBJECT_ID, confirmation_event: direct });
+          const profile = await store.confirmUserBirthProfile({ subject_id: USER_SUBJECT_ID, confirmation_event: direct });
+          notifyBirthProfile(sessionId, '出生资料已由用户确认并保存', [
+            'BirthProfile 已通过当前会话的有效一次性挑战确认并持久化。',
+            '已确认 revision：' + profile.revision,
+            '正式档案事实：' + JSON.stringify(profile.facts),
+            '仅告知用户保存成功，不要声称已推断或补全任何字段。',
+          ].join('\n'));
         } else if (direct.text === '拒绝出生资料') {
           await store.rejectBirthProfileCandidate({ subject_id: USER_SUBJECT_ID, rejection_event: direct });
+          notifyBirthProfile(sessionId, '出生资料候选已拒绝', '用户已拒绝当前 BirthProfile 候选。告知候选未成为正式档案。');
         } else if (direct.text === '撤销出生资料') {
           await store.revokeUserBirthProfile({ subject_id: USER_SUBJECT_ID, revocation_event: direct });
+          notifyBirthProfile(sessionId, '出生资料已撤销', '用户已撤销正式 BirthProfile。告知档案状态已撤销，审计来源记录仍保留。');
         }
       } catch (error) {
         warn('[yuanqi] BirthProfile operation rejected: ' + String(error));
