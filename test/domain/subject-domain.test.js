@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import { userSubjectDomainSpec, yuanqiSubjectDomainSpec } from '../../src/domain/subject-domain.js';
 test('DSH domains enforce separate subject ownership and fenced Worldline state tables', () => {
   assert.equal(userSubjectDomainSpec.name, 'yuanqi_user_subject');
-  assert.equal(userSubjectDomainSpec.version, 1);
-  assert.deepEqual(Object.keys(userSubjectDomainSpec.tables).sort(), ['birth_profiles', 'identities']);
+  assert.equal(userSubjectDomainSpec.version, 2);
+  assert.deepEqual(userSubjectDomainSpec.compatibleVersions, [1]);
+  assert.deepEqual(Object.keys(userSubjectDomainSpec.tables).sort(), ['birth_profile_workflows', 'birth_profiles', 'identities']);
   assert.equal(yuanqiSubjectDomainSpec.name, 'yuanqi_subject');
   assert.equal(yuanqiSubjectDomainSpec.version, 10);
   assert.deepEqual(yuanqiSubjectDomainSpec.compatibleVersions, [3, 4, 5, 6, 7, 8, 9]);
