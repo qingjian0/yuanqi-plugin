@@ -15,6 +15,46 @@ function candidateKey(candidate) {
   return candidate.session_id + '\u0000' + candidate.event_seq + '\u0000' + candidate.event_id;
 }
 
+function createAndroidLocationProvider() {
+  const token = typeof process !== 'undefined' ? process.env?.DSH_BRIDGE_TOKEN : undefined;
+  if (typeof token !== 'string' || token.length === 0) return null;
+  return {
+    async getCurrentPosition() {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 2500);
+      try {
+        const response = await fetch('http://127.0.0.1:3083/dev/location', {
+          method: 'GET',
+          headers: { 'X-DSH-Token': token },
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error('Android location bridge returned HTTP ' + response.status);
+        const value = await response.json();
+        if (value?.ok !== true || value.fix !== true) {
+          throw new Error('Android location bridge has no authorized location fix');
+        }
+        if (!Number.isSafeInteger(value.at) || !Number.isFinite(value.age_ms) ||
+            value.age_ms < 0 || value.age_ms > 60_000 || value.stale === true) {
+          throw new Error('Android location fix is older than the 60-second wake-location limit');
+        }
+        return {
+          latitude: value.lat,
+          longitude: value.lon,
+          accuracy_meters: Number.isFinite(value.accuracy_m) && value.accuracy_m >= 0
+            ? value.accuracy_m
+            : null,
+          place_label: null,
+          time_zone_id: null,
+          captured_at: new Date(value.at - value.age_ms).toISOString(),
+          source: 'android_location_bridge',
+        };
+      } finally {
+        clearTimeout(timeout);
+      }
+    },
+  };
+}
+
 function chooseFirstCandidate(candidates) {
   const unique = new Map();
   for (const candidate of candidates) unique.set(candidateKey(candidate), candidate);
@@ -108,8 +148,8 @@ export async function apply(ctx) {
       return mainline;
     }
 
-    async function captureBirthLocation() {
-      const provider = ctx.yuanqiLocationProvider;
+    async function captureBirthLocation(eventTime) {
+      const provider = ctx.yuanqiLocationProvider ?? createAndroidLocationProvider();
       if (!provider || typeof provider.getCurrentPosition !== 'function') {
         return { status: 'unavailable', latitude: null, longitude: null, accuracy_meters: null, place_label: null, time_zone_id: null, source: 'unavailable', captured_at: null };
       }
@@ -126,14 +166,19 @@ export async function apply(ctx) {
           throw new TypeError('location provider returned invalid accuracy');
         }
         const capturedAt = value.captured_at;
-        if (typeof capturedAt !== 'string' || !Number.isFinite(Date.parse(capturedAt))) {
+        const capturedAtMs = typeof capturedAt === 'string' ? Date.parse(capturedAt) : NaN;
+        if (!Number.isFinite(capturedAtMs)) {
           throw new TypeError('location provider must supply its capture timestamp');
+        }
+        if (Number.isFinite(eventTime) && Math.abs(capturedAtMs - eventTime) > 60_000) {
+          throw new TypeError('location fix is not close enough to the wake event time');
         }
         return {
           status: 'captured', latitude, longitude, accuracy_meters: accuracy,
           place_label: typeof value.place_label === 'string' ? value.place_label : null,
           time_zone_id: typeof value.time_zone_id === 'string' ? value.time_zone_id : null,
-          source: 'host_location_provider', captured_at: new Date(capturedAt).toISOString(),
+          source: value.source === 'android_location_bridge' ? 'android_location_bridge' : 'host_location_provider',
+          captured_at: new Date(capturedAtMs).toISOString(),
         };
       } catch (error) {
         warn('[yuanqi] birth location unavailable at wake: ' + String(error));
@@ -158,7 +203,7 @@ export async function apply(ctx) {
       const isWakeCommand = direct.text === '启动元气' || direct.text === '启动元炁';
       const birthLocation = captureLocation && isWakeCommand &&
         !store.getWakeRecord(YUANQI_SUBJECT_ID)
-        ? await captureBirthLocation()
+        ? await captureBirthLocation(direct.event_time)
         : undefined;
       const wake = await store.recordInitialWake({
         subject_id: YUANQI_SUBJECT_ID,
