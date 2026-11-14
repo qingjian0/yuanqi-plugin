@@ -2,6 +2,7 @@ import { createSubjectStore } from '../domain/subject-store.js';
 import { openSubjectDomains } from '../domain/subject-domain.js';
 import { isTrustedDirectUserMessageEvent, normalizeDirectUserMessageEvent } from './session-event.js';
 import { createWorldlineStore } from '../worldline/runtime.js';
+import { parseExplicitBirthProfile } from '../domain/birth-profile-parser.js';
 
 export const name = 'dsh-yuanqi-plugin';
 // Session Query supplies validated live/cold observations; persistence is
@@ -271,6 +272,42 @@ export async function apply(ctx) {
       } else if (binding.yuanqi_subject_id !== YUANQI_SUBJECT_ID ||
                  binding.worldline_id !== mainline.worldline_id) {
         throw new Error('Session is bound to a different YuanQiSubject or Worldline');
+      }
+
+      // BirthProfile collection is deliberately opt-in after YuanQi wake.
+      // The parser accepts only explicitly labelled facts from this trusted
+      // direct-user event; it never fills missing date/time/place fields.
+      const parsedBirthFacts = parseExplicitBirthProfile(direct.text);
+      try {
+        if (parsedBirthFacts) {
+          await store.saveBirthProfileCandidate({
+            subject_id: USER_SUBJECT_ID,
+            facts: parsedBirthFacts.facts,
+            field_sources: Object.fromEntries(Object.entries(parsedBirthFacts.field_sources)
+              .map(([key, source]) => [key, { ...source, source_event_ref: direct.event_id }])),
+            source_event: direct,
+          });
+        } else if (direct.text === '核对出生资料') {
+          const workflow = store.getBirthProfileWorkflow(USER_SUBJECT_ID);
+          if (workflow && ['collecting', 'awaiting_confirmation'].includes(workflow.status)) {
+            await store.issueBirthProfileConfirmationChallenge({
+              subject_id: USER_SUBJECT_ID,
+              challenge_id: 'birth-challenge:' + direct.event_id,
+              session_id: direct.session_id,
+              issued_at_ms: direct.event_time,
+              expires_at_ms: direct.event_time + 10 * 60_000,
+              issued_from_event_ref: direct.event_id,
+            });
+          }
+        } else if (direct.text === '确认出生资料') {
+          await store.confirmUserBirthProfile({ subject_id: USER_SUBJECT_ID, confirmation_event: direct });
+        } else if (direct.text === '拒绝出生资料') {
+          await store.rejectBirthProfileCandidate({ subject_id: USER_SUBJECT_ID, rejection_event: direct });
+        } else if (direct.text === '撤销出生资料') {
+          await store.revokeUserBirthProfile({ subject_id: USER_SUBJECT_ID, revocation_event: direct });
+        }
+      } catch (error) {
+        warn('[yuanqi] BirthProfile operation rejected: ' + String(error));
       }
     }
 
