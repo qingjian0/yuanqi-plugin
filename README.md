@@ -30,7 +30,7 @@
 | 项目阶段 | Developer Preview |
 | 软件包 | `dsh-yuanqi-plugin` |
 | 运行环境 | DeepSeek Harness（DSH） |
-| Node.js | `>=22` |
+| Node.js | `>=24.9.0` |
 | 持久化 | DSH Storage Domain |
 | 本地测试记录 | alpha.9 历史发布记录：96 项通过，0 项失败；当前快照不可复核 |
 | 许可证 | GNU GPL-3.0-only |
@@ -146,9 +146,20 @@ flowchart TB
 
 ### 唤醒时间与用户出生资料
 
-元炁自身的唤醒时间与用户个人出生资料是两件独立的事。当前实现中，插件安装后首次出现包含“元气”的 direct-user 消息时，使用该 DSH 事件时间记录元炁自身唤醒时刻；助手输出和注入上下文不会触发唤醒。
+元炁自身的唤醒时间与用户个人出生资料是两件独立的事。首次直接用户消息可以是普通内容；元炁会等待用户首次单独、精确发送“启动元气”或“启动元炁”，并以该条 DSH `user/message` SessionEvent 的原始 `time` 作为唤醒/出生时间。前后空格、引号、标点、附加文字、多文本块、助手输出和注入上下文均不触发。冷历史恢复会排除安装边界之前及 Fork 继承前缀中的事件；如果启动命令只在冷历史中发现，地点不会使用当前设备位置冒充历史地点。当前实现与验证边界见 [E00-21 P0 唤醒出生资料与地点采集](./docs/engineering/E00-21-P0-YUANQI-BIRTH-RECORD-LOCATION.md)。 Android 宿主可通过本机受鉴权 `/dev/location?fresh=true` 桥接请求一次新定位（Android 11+，最多等待 8 秒；旧版本或超时回退缓存），只接受与启动事件相差不超过 60 秒的定位结果；用户还必须显式启用“当前地理位置”能力并授予系统定位权限。唤醒事件及出生时间会先持久化，地点采集随后异步执行并最多补写一次；地点尚在采集时记录为 pending，采集失败后为 unavailable。定位过程不阻塞 Session flush；进程在采集完成前退出时，重启可恢复 pending 状态并重新尝试，但仍必须通过事件时间差校验。没有权限、开关关闭、定位过期或只在冷历史中发现启动命令时，地点保持未知，唤醒时间仍正常记录。
 
 用户出生资料必须由用户明确提供并确认。不得通过 IP、设备定位或模型推断补全出生地点或出生事实。
+
+### BirthProfile 当前试用交互
+
+当前分支已把最小的显式资料采集与确认命令接入 DSH direct-user 消息事件。唤醒后，在同一 DSH 会话中按顺序发送：
+
+1. 提供明确标注的出生事实，例如：`出生日期：1998年4月21日10:31，出生地：云南昆明安宁`。目前确定性解析器只识别明确的出生日期、出生时间和出生地点；缺失字段保持缺失，不会自动补全。
+2. 检查自己刚才提交的内容后，发送精确命令：`核对出生资料`。系统为当前候选 revision 和当前 Session 签发 10 分钟的一次性确认挑战。
+3. 在同一 Session 中发送精确命令：`确认出生资料`，正式档案才会写入。也可发送 `拒绝出生资料`；已确认后可发送 `撤销出生资料`。
+
+**交互边界：** 插件会通过当前 DSH Agent 的 `inject()` 投递 `notice` 上下文，提示模型在下一次回复中逐字段展示候选摘要或确认结果；这不是独立确认卡片，最终展示仍取决于当前 Agent 正常完成回复。用户必须核对摘要后再发送“核对出生资料”；若输入有误，重新提交完整且明确标注的修正资料会建立新 revision 并使旧挑战失效。不要在未核对内容时确认。真实 DSH Profile 的 UI 呈现和消息链路仍需端到端验收。
+
 
 ### 出生计算精度边界
 
@@ -177,7 +188,7 @@ flowchart TB
 
 ### 环境要求
 
-- Node.js 22 或更高版本。
+- Node.js 24.9.0 或更高版本（与当前 DSH 0.2.2-rc.1 运行时要求对齐）。
 - npm。
 - 可运行的 DSH 环境。
 
@@ -200,13 +211,16 @@ dsh plugin --profile web add ./dist/dsh-yuanqi-plugin-1.1.0-alpha.9.tgz
 
 将安装包添加到目标 DSH Profile 后，重启该 Profile。实际安装命令和目标宿主要求请以 [安装说明](./docs/INSTALLATION.md) 及目标 DSH 版本为准。
 
-当前声明的 DSH peer dependency 范围为：
+当前声明的 DSH peer dependency 范围为（包含运行时直接依赖的 Session Query / Persistence 服务定义）：
 
-- `@deepseek-ai/dsh-tools`：`>=0.2.0-0 <0.3.0-0`
-- `@deepseek-ai/dsh-storage-domain`：`>=0.2.0-0 <0.3.0-0`
-- `@deepseek-ai/dsh-llm`：`>=0.2.0-0 <0.3.0-0`
+- `@deepseek-ai/dsh-tools`：`>=0.2.2-rc.1 <0.3.0-0`
+- `@deepseek-ai/dsh-storage-domain`：`>=0.2.2-rc.1 <0.3.0-0`
+- `@deepseek-ai/dsh-session`：`>=0.2.2-rc.1 <0.3.0-0`
+- `@deepseek-ai/dsh-llm`：`>=0.2.2-rc.1 <0.3.0-0`
+- `@deepseek-ai/dsh-session-query`：`>=0.2.2-rc.1 <0.3.0-0`
+- `@deepseek-ai/dsh-session-persistence`：`>=0.2.2-rc.1 <0.3.0-0`
 
-这是依赖兼容性声明，不代表范围内所有宿主版本均已通过真实运行验证。
+当前 CI 在 Node.js 24.9.0 上解析六个 DSH peer packages 为 0.2.2-rc.1，并验证 DSH Storage Domain API 契约；这是依赖/API 兼容性验证，不代表范围内所有宿主版本均已通过真实运行验证。
 
 ## 安全与隐私边界
 

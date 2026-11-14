@@ -14,7 +14,9 @@
 
 ## 工程落地
 
+- [E00-20N P0 BirthProfile 可信确认边界审计](./engineering/E00-20N-P0-BIRTH-PROFILE-TRUST-BOUNDARY-AUDIT.md)：核对现有 onboarding、Subject Domain 与 DSH Host 入口；给出候选版本、逐字段来源、一次性确认挑战、拒绝/撤销审计和持久化恢复设计。**这是审计文档，不代表运行时代码已修复。**
 - [E00-20E 工程落地执行计划](./engineering/E00-20E-EXECUTION-PLAN.md)：工程阶段、阻断项和验收标准。
+- [E00-20M P0 DSH Profile Provider 组合与冷读取契约审计](./engineering/E00-20M-P0-REAL-HOST-PROFILE-AUDIT.md)：官方 Base Profile 的 Session Provider 组合、精确冷读取能力、YuanQi 启动契约校验与 Android 验收清单。
 - [E00-20E 仓库基线审计](./engineering/E00-20E-BASELINE-AUDIT.md)：真实 Git Tree、入口依赖、测试与 CI 证据。
 - [E00-20E 源码恢复排查记录](./engineering/E00-20E-SOURCE-RECOVERY.md)：公开 GitHub 来源排查结果、历史归档恢复证据和当前导入状态。
 - [E00-20E-02 alpha.9 归档恢复验证](./engineering/E00-20E-02-ARCHIVE-RECOVERY-VERIFICATION.md)：归档清单、20 个入口依赖核对、96 项测试复验与恢复包说明。
@@ -53,3 +55,5 @@
 - 真实 Android DSH 宿主验证：尚未完成。
 
 详细信息见 [项目状态](./STATUS.md) 与 [归档恢复验证](./engineering/E00-20E-02-ARCHIVE-RECOVERY-VERIFICATION.md)。
+
+- [YuanQi 唤醒出生资料与地点采集](engineering/E00-21-P0-YUANQI-BIRTH-RECORD-LOCATION.md)
