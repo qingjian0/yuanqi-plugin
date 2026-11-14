@@ -48,7 +48,8 @@ function createStorageDomain() {
 
 test('actual DSH DomainFacility opens both YuanQi subject schemas, validates records and reopens durable rows', async () => {
   const storageDomain = createStorageDomain();
-  assert.equal(userSubjectDomainSpec.version, 1);
+  assert.equal(userSubjectDomainSpec.version, 2);
+  assert.deepEqual(userSubjectDomainSpec.compatibleVersions, [1]);
   assert.equal(yuanqiSubjectDomainSpec.version, 10);
   assert.deepEqual(yuanqiSubjectDomainSpec.compatibleVersions, [3, 4, 5, 6, 7, 8, 9]);
 
@@ -97,6 +98,50 @@ test('actual DSH DomainFacility rejects malformed persisted YuanQi activation bo
   await domains.close();
   await assert.rejects(openSubjectDomains(storageDomain));
   assert.equal(storageDomain.opened.size, 0);
+});
+
+
+test('actual DSH DomainFacility persists BirthProfile candidate revisions and confirmation workflow', async () => {
+  const storageDomain = createStorageDomain();
+  const domains = await openSubjectDomains(storageDomain);
+  const store = createSubjectStore({
+    userDomain: domains.userDomain, yuanqiDomain: domains.yuanqiDomain,
+    verifyDirectUserEvent: event => event?.verified === true ? event : null,
+    verifyBirthProfileConfirmation: event => event?.verified === true ? event : null,
+  });
+  await store.createUserSubject({ subject_id: 'user:primary', created_from_event_ref: 'user-created' });
+  const source = {
+    verified: true, event_type: 'user/message', source_kind: 'user',
+    session_id: 'birth-session', event_id: 'birth-source', event_seq: 1,
+    event_time: 1794048000100, text: '我的出生日期是1998年4月21日',
+  };
+  await store.saveBirthProfileCandidate({
+    subject_id: 'user:primary', facts: { birth_date: '1998-04-21' },
+    field_sources: { birth_date: { source_event_ref: 'birth-source', raw_text: '1998年4月21日', extraction_kind: 'model_extracted' } },
+    source_event: source,
+  });
+  await store.issueBirthProfileConfirmationChallenge({
+    subject_id: 'user:primary', challenge_id: 'challenge-1', session_id: 'birth-session',
+    issued_at_ms: source.event_time + 1, expires_at_ms: source.event_time + 60_000,
+    issued_from_event_ref: source.event_id,
+  });
+  const confirmed = await store.confirmUserBirthProfile({
+    subject_id: 'user:primary',
+    confirmation_event: { ...source, event_id: 'birth-confirm', event_seq: 2, event_time: source.event_time + 2, text: '确认出生资料' },
+  });
+  assert.equal(confirmed.facts.birth_date, '1998-04-21');
+  assert.equal(store.getBirthProfileWorkflow('user:primary').challenge.status, 'consumed');
+  await domains.close();
+
+  const reopened = await openSubjectDomains(storageDomain);
+  const restored = createSubjectStore({
+    userDomain: reopened.userDomain, yuanqiDomain: reopened.yuanqiDomain,
+    verifyDirectUserEvent: event => event?.verified === true ? event : null,
+    verifyBirthProfileConfirmation: event => event?.verified === true ? event : null,
+  });
+  assert.equal(restored.getBirthProfileWorkflow('user:primary').confirmed_profile.confirmation_event_ref, 'birth-confirm');
+  assert.equal(restored.getUserBirthProfile('user:primary').revision, 1);
+  await reopened.close();
 });
 
 test('actual DSH DomainFacility atomically completes a pending WakeRecord location', async () => {
