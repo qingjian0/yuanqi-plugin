@@ -110,6 +110,39 @@ export async function apply(ctx) {
       return mainline;
     }
 
+    async function captureBirthLocation() {
+      const provider = ctx.yuanqiLocationProvider;
+      if (!provider || typeof provider.getCurrentPosition !== 'function') {
+        return { status: 'unavailable', latitude: null, longitude: null, accuracy_meters: null, place_label: null, time_zone_id: null, source: 'unavailable', captured_at: null };
+      }
+      try {
+        const value = await provider.getCurrentPosition();
+        const latitude = value?.latitude;
+        const longitude = value?.longitude;
+        if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 ||
+            !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+          throw new TypeError('location provider returned invalid coordinates');
+        }
+        const accuracy = value.accuracy_meters ?? null;
+        if (accuracy !== null && (!Number.isFinite(accuracy) || accuracy < 0)) {
+          throw new TypeError('location provider returned invalid accuracy');
+        }
+        const capturedAt = value.captured_at;
+        if (typeof capturedAt !== 'string' || !Number.isFinite(Date.parse(capturedAt))) {
+          throw new TypeError('location provider must supply its capture timestamp');
+        }
+        return {
+          status: 'captured', latitude, longitude, accuracy_meters: accuracy,
+          place_label: typeof value.place_label === 'string' ? value.place_label : null,
+          time_zone_id: typeof value.time_zone_id === 'string' ? value.time_zone_id : null,
+          source: 'host_location_provider', captured_at: new Date(capturedAt).toISOString(),
+        };
+      } catch (error) {
+        warn('[yuanqi] birth location unavailable at wake: ' + String(error));
+        return { status: 'unavailable', latitude: null, longitude: null, accuracy_meters: null, place_label: null, time_zone_id: null, source: 'unavailable', captured_at: null };
+      }
+    }
+
     async function processCandidate(sessionId, event) {
       if (!active || storageUncertain) return;
       const direct = normalizeDirectUserMessageEvent(sessionId, event);
