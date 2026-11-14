@@ -34,7 +34,7 @@ jobs:
           const root = await import('./index.js');
           const domain = await import('./src/domain/index.js');
           const storage = await import('@deepseek-ai/dsh-storage-domain');
-          for (const key of ['createSubjectStore', 'deriveBirthTimeContext', 'openSubjectDomains', 'userSubjectDomainSpec', 'yuanqiSubjectDomainSpec']) {
+          for (const key of ['createSubjectStore', 'deriveBirthTimeContext', 'deriveSolarTermContext', 'apparentSunLongitudeDegrees', 'SOLAR_TERMS', 'openSubjectDomains', 'userSubjectDomainSpec', 'yuanqiSubjectDomainSpec']) {
             if (!(key in root) || !(key in domain)) throw new Error('missing package export: ' + key);
           }
           for (const key of ['defineDomain', 'domainTable', 'DomainError', 'DomainFacility']) {
