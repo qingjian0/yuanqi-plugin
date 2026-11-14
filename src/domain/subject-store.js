@@ -153,32 +153,7 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
     }, birth_location);
   }
 
-  return Object.freeze({
-    async getOrCreateInstallationBoundary(now) {
-      if (!Number.isSafeInteger(now) || now < 0) throw new TypeError('installation boundary clock must be Unix milliseconds');
-      return serializeByKey(queues, 'installation:primary', async () => {
-        const old = installationState.get('installation:primary');
-        if (old !== undefined) {
-          if (old.installation_id !== 'installation:primary' || old.schema_version !== 1 ||
-              !Number.isSafeInteger(old.activated_at_ms) || old.activated_at_ms < 0) {
-            throw new Error('persisted YuanQi installation boundary is invalid');
-          }
-          return clone(old);
-        }
-        return putOnce(installationState, 'installation:primary', {
-          installation_id: 'installation:primary', activated_at_ms: now, schema_version: 1,
-        }, 'installation boundary conflict');
-      });
-    },
-    createUserSubject({ subject_id, created_from_event_ref }) {
-      return identity(users, 'user', subject_id, created_from_event_ref);
-    },
-    createYuanQiSubject({ subject_id, created_from_event_ref }) {
-      return identity(yuanqis, 'yuanqi', subject_id, created_from_event_ref);
-    },
-    getUserSubject(id) { requiredText(id, 'subject_id'); const value = users.get(id); return value === undefined ? undefined : clone(value); },
-    getYuanQiSubject(id) { requiredText(id, 'subject_id'); const value = yuanqis.get(id); return value === undefined ? undefined : clone(value); },
-    async ensureYuanQiBirthProfile({ subject_id } = {}) {
+  async ensureYuanQiBirthProfile({ subject_id } = {}) {
       requiredText(subject_id, 'subject_id');
       if (!yuanqis.get(subject_id)) throw new Error('YuanQiSubject does not exist');
       return serializeByKey(queues, 'yuanqi-birth-profile:' + subject_id, async () => {
@@ -227,7 +202,34 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
         }
         return clone(existing);
       });
+  }
+
+  return Object.freeze({
+    async getOrCreateInstallationBoundary(now) {
+      if (!Number.isSafeInteger(now) || now < 0) throw new TypeError('installation boundary clock must be Unix milliseconds');
+      return serializeByKey(queues, 'installation:primary', async () => {
+        const old = installationState.get('installation:primary');
+        if (old !== undefined) {
+          if (old.installation_id !== 'installation:primary' || old.schema_version !== 1 ||
+              !Number.isSafeInteger(old.activated_at_ms) || old.activated_at_ms < 0) {
+            throw new Error('persisted YuanQi installation boundary is invalid');
+          }
+          return clone(old);
+        }
+        return putOnce(installationState, 'installation:primary', {
+          installation_id: 'installation:primary', activated_at_ms: now, schema_version: 1,
+        }, 'installation boundary conflict');
+      });
     },
+    createUserSubject({ subject_id, created_from_event_ref }) {
+      return identity(users, 'user', subject_id, created_from_event_ref);
+    },
+    createYuanQiSubject({ subject_id, created_from_event_ref }) {
+      return identity(yuanqis, 'yuanqi', subject_id, created_from_event_ref);
+    },
+    getUserSubject(id) { requiredText(id, 'subject_id'); const value = users.get(id); return value === undefined ? undefined : clone(value); },
+    getYuanQiSubject(id) { requiredText(id, 'subject_id'); const value = yuanqis.get(id); return value === undefined ? undefined : clone(value); },
+    ensureYuanQiBirthProfile,
     getYuanQiBirthProfile(id) {
       requiredText(id, 'subject_id');
       const value = birthProfiles.get(id);
@@ -248,7 +250,7 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
           if (current.birth_location?.status !== 'pending') return current;
           return { ...current, birth_location: clone(birth_location) };
         });
-        await this.ensureYuanQiBirthProfile({ subject_id });
+        await ensureYuanQiBirthProfile({ subject_id });
         return clone(wakes.get(subject_id));
       });
     },
@@ -257,7 +259,7 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
       await recordFirstUserMessage({ subject_id: input.subject_id, direct_user_event: event });
       const existing = wakes.get(input.subject_id);
       if (existing !== undefined) {
-        await this.ensureYuanQiBirthProfile({ subject_id: input.subject_id });
+        await ensureYuanQiBirthProfile({ subject_id: input.subject_id });
         return clone(existing);
       }
       const wake = await createWakeRecord(input.subject_id, event, input.birth_location);
