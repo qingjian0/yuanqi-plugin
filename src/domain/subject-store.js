@@ -29,7 +29,8 @@ export function createSubjectStore({userDomain,yuanqiDomain,verifyDirectUserEven
   const first=firstMessages.get(subject_id);if(!first||first.trigger_command===null)return undefined;
   return serializeByKey(queues,'wake:'+subject_id,async()=>{const old=wakes.get(subject_id);if(old!==undefined)return clone(old);
    const date=new Date(first.first_event_time);if(!Number.isFinite(date.getTime()))throw new TypeError('valid persisted DSH event time is required');
-   const location=birth_location&&typeof birth_location==='object'?clone(birth_location):{status:'unavailable',latitude:null,longitude:null,accuracy_meters:null,place_label:null,time_zone_id:null,source:'unavailable',captured_at:null};\n   return putOnce(wakes,subject_id,{wake_record_id:'wake:'+subject_id,subject_id,subject_kind:'yuanqi',first_conversation_event_ref:first.first_event_id,first_session_id:first.first_session_id,first_event_seq:first.first_event_seq,wake_event_ref:first.first_event_id,trigger_command:first.trigger_command,occurred_at:date.toISOString(),birth_time:date.toISOString(),birth_location:location,schema_version:4},'wake record conflict');
+   const location=birth_location&&typeof birth_location==='object'?clone(birth_location):{status:'unavailable',latitude:null,longitude:null,accuracy_meters:null,place_label:null,time_zone_id:null,source:'unavailable',captured_at:null};
+   return putOnce(wakes,subject_id,{wake_record_id:'wake:'+subject_id,subject_id,subject_kind:'yuanqi',first_conversation_event_ref:first.first_event_id,first_session_id:first.first_session_id,first_event_seq:first.first_event_seq,wake_event_ref:first.first_event_id,trigger_command:first.trigger_command,occurred_at:date.toISOString(),birth_time:date.toISOString(),birth_location:location,schema_version:4},'wake record conflict');
   });
  }
  return Object.freeze({
