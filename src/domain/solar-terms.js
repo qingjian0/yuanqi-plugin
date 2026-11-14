@@ -99,6 +99,7 @@ function unavailableContext() {
     sun_apparent_longitude_deg: null,
     boundary_uncertainty_seconds: BOUNDARY_UNCERTAINTY_SECONDS,
     boundary_distance_seconds: null,
+    term_boundary_distance_seconds: null,
     previous_term: null,
     next_term: null,
     previous_jie: null,
@@ -141,7 +142,10 @@ export function deriveSolarTermContext({ birth_time } = {}) {
 
   const previousDistance = (instant.getTime() - Date.parse(previous.at_utc)) / 1000;
   const nextDistance = (Date.parse(next.at_utc) - instant.getTime()) / 1000;
-  const boundaryDistance = Math.min(previousDistance, nextDistance);
+  const termBoundaryDistance = Math.min(previousDistance, nextDistance);
+  const previousJieDistance = (instant.getTime() - Date.parse(previousJie.at_utc)) / 1000;
+  const nextJieDistance = (Date.parse(nextJie.at_utc) - instant.getTime()) / 1000;
+  const boundaryDistance = Math.min(previousJieDistance, nextJieDistance);
   return {
     status: boundaryDistance <= BOUNDARY_UNCERTAINTY_SECONDS ? 'ambiguous' : 'ready',
     engine_version: ENGINE_VERSION,
@@ -149,6 +153,7 @@ export function deriveSolarTermContext({ birth_time } = {}) {
     sun_apparent_longitude_deg: Number(longitude.toFixed(8)),
     boundary_uncertainty_seconds: BOUNDARY_UNCERTAINTY_SECONDS,
     boundary_distance_seconds: Number(boundaryDistance.toFixed(3)),
+    term_boundary_distance_seconds: Number(termBoundaryDistance.toFixed(3)),
     previous_term: previous,
     next_term: next,
     previous_jie: previousJie,
