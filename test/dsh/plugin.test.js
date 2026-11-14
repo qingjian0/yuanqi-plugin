@@ -61,6 +61,7 @@ function context(storageDomain, options = {}) {
   const warnings = [];
   return {
     storageDomain,
+    yuanqiLocationProvider: options.yuanqiLocationProvider,
     sessionPersistence: options.sessionPersistence ?? {
       identity: Symbol('test-session-persistence'),
       async list() { return []; },
