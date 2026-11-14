@@ -32,4 +32,4 @@ DSH 官方插件模型通过 Cordis Context 注入宿主服务；并不存在可
 
 ## 存储兼容
 
-YuanQi Subject Domain 升级至 v10。旧 v3 WakeRecord 仍可读取（出生地点字段可缺省）；新建记录写入 schema v4，并包含 birth_time 与 birth_location；地点状态支持 `pending`、`captured` 和 `unavailable`，仅允许 pending 完成一次。升级不改写既有唤醒时间，不补造历史地点。
+YuanQi Subject Domain 升级至 v11，兼容 v3–v10；新增 YuanQiSubject 专属 `birth_profiles` 表。旧 v3 WakeRecord 仍可读取（出生地点字段可缺省）；新建记录写入 schema v4，并包含 birth_time 与 birth_location；地点状态支持 `pending`、`captured` 和 `unavailable`，仅允许 pending 完成一次。UserSubject Domain v3 仅保留用户身份表，不再定义用户出生资料工作流。升级不改写既有唤醒时间，不补造历史地点，也不把历史用户资料迁移为元炁资料。
