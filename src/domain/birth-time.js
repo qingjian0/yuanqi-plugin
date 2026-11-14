@@ -95,6 +95,14 @@ export function deriveBirthTimeContext({ birth_time, birth_location } = {}) {
       algorithm_version: 'noaa-eot-approx-v1',
     };
   }
+  if (location.status !== 'captured') {
+    return {
+      status: 'pending', time_zone_id: null, local_datetime: null,
+      utc_offset_minutes: null, longitude_correction_minutes: null,
+      equation_of_time_minutes: null, true_solar_datetime: null,
+      algorithm_version: 'noaa-eot-approx-v1',
+    };
+  }
   const timeZone = typeof location.time_zone_id === 'string' ? location.time_zone_id : null;
   const longitude = location.longitude;
   if (!timeZone || longitude == null) {
