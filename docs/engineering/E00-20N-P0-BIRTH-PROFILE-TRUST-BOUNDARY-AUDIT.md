@@ -167,3 +167,32 @@ confirmed
 ## 8. 安全验收原则
 
 任何实现都必须先证明“确认来自真实用户、针对当前资料版本、只消费一次”，然后才允许写入正式 BirthProfile。若 Host 无法提供可信事件来源或 Domain 无法提供足够的持久化一致性能力，则保持 fail-closed，并明确报告阻断原因；不得降低确认门槛以追求演示成功。
+
+
+## 9. 2026-11-14 实现复核：持久化候选与一次性确认协议（第一阶段）
+
+本节更新运行时代码状态；前述审计设计仍作为完整验收目标，不能将未接线的产品交互视为已交付。
+
+### 9.1 已落地代码
+
+- `src/dsh/session-event.js` 使用模块私有 `WeakSet` 为由 Host listener + SessionEvent 规范化的对象打能力标记。对象上的 `verified: true` 字段不能自行取得该能力。
+- `src/dsh/plugin.js` 的 BirthProfile verifier 只接受该私有能力标记，并限定精确命令“确认出生资料”“拒绝出生资料”“撤销出生资料”。
+- UserSubject Domain 已升级为 v2，声明兼容 v1。新增 `birth_profile_workflows`，将候选 revision、字段来源、challenge、确认档案快照和审计事件放入同一 Subject 聚合记录；旧 `birth_profiles` 表保留为兼容结构。
+- 每个 revision 保存事实字段、字段级来源事件引用、原始文本、`user_explicit` / `model_extracted` 区分、创建事件和事件时间。模型抽取值仍然是候选，必须经过后续确认。
+- 候选更新递增 revision，并使旧 challenge 失效。相同来源事件重放幂等，携带不同候选数据的冲突重放拒绝。
+- Challenge 绑定 Subject、revision、Session、发起事件引用和有效期。确认要求精确文本、同 Session、确认事件晚于 challenge 且未超过 expiry；同一确认事件重放幂等。拒绝和撤销保留追加审计。
+- 确认后的正式档案快照当前保存在 `birth_profile_workflows.confirmed_profile`，而不是跨表双写到旧 `birth_profiles` 表；读取 API 优先从聚合记录读取。
+
+### 9.2 验证证据
+
+- GitHub Actions Run #478（`43598666851`），commit `0826dc814ad83313650b5801b473671f678a051f`：75 passed / 0 failed。
+- 覆盖候选 revision、字段来源、挑战失效、精确/一次性确认、Session 绑定、过期挑战、拒绝、撤销、来源事件重放，以及官方 DSH DomainFacility 的关闭/重开持久化读取。
+- 该 DomainFacility 集成测试使用测试内存 KV backend，验证 DSH DomainFacility/Domain schema/update API 的行为；不等于目标 Android Profile 的生产 backend 验收。
+
+### 9.3 仍然阻断产品交付的事项
+
+- 候选写入与 challenge 签发 API 尚未接入 DSH direct-user 消息流和 onboarding；没有自然语言资料抽取、字段澄清、候选摘要展示和交互式 challenge 签发。
+- 旧 v1 `birth_profiles` 记录没有迁移为 v2 workflow 聚合；旧表结构仍保留。
+- 初次 workflow 聚合创建通过 put-once；后续同一聚合更新通过单记录 `table.update`。串行队列仅保护单个插件实例；不宣称跨进程分布式 CAS 或并发创建互斥。
+- OS 进程强制终止故障注入、Android 真机及目标 DSH Profile 端到端确认仍未完成。
+- 因此，本阶段是 **持久化协议与 Host 事件信任边界的第一阶段实现**，不是 BirthProfile onboarding 产品流程完成。Host 可信确认不再固定 fail-closed，但没有挑战的精确确认事件仍会被 Store 拒绝。
