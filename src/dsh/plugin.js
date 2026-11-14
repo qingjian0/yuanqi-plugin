@@ -229,10 +229,9 @@ export async function apply(ctx) {
       const direct = normalizeDirectUserMessageEvent(sessionId, event);
       if (!direct) return;
 
-      await store.createUserSubject({
-        subject_id: USER_SUBJECT_ID,
-        created_from_event_ref: direct.event_id,
-      });
+      // YuanQi's runtime identity may be established while locating the
+      // first exact wake command, but a UserSubject (and therefore any
+      // BirthProfile workflow) is not created by ordinary conversation.
       await store.createYuanQiSubject({
         subject_id: YUANQI_SUBJECT_ID,
         created_from_event_ref: direct.event_id,
@@ -250,6 +249,10 @@ export async function apply(ctx) {
         } : undefined,
       });
       if (!wake) return;
+      await store.createUserSubject({
+        subject_id: USER_SUBJECT_ID,
+        created_from_event_ref: wake.wake_event_ref,
+      });
       // Persist the immutable wake event first. Location is best-effort metadata
       // and must never delay Session flush or prevent recovery of birth_time.
       if (shouldCaptureLocation && wake.birth_location?.status === 'pending') {
