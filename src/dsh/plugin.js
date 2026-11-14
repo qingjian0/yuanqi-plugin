@@ -157,9 +157,15 @@ export async function apply(ctx) {
         created_from_event_ref: direct.event_id,
       });
 
+      const existingFirst = store.getFirstUserMessage(YUANQI_SUBJECT_ID);
+      const birthLocation = captureLocation && !existingFirst &&
+        (direct.text === '启动元气' || direct.text === '启动元炁')
+        ? await captureBirthLocation()
+        : undefined;
       const wake = await store.recordInitialWake({
         subject_id: YUANQI_SUBJECT_ID,
         direct_user_event: direct,
+        birth_location: birthLocation,
       });
       if (!wake) return;
 
