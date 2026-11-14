@@ -1,0 +1,57 @@
+name: YuanQi Package
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - dev
+    paths:
+      - "package.json"
+      - "package-lock.json"
+      - "index.js"
+      - "src/**"
+      - "cordis.patch.yml"
+      - ".github/workflows/package.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: Check and pack plugin
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 24.9.0
+          cache: npm
+
+      - name: Install dependencies
+        run: npm install --ignore-scripts --no-package-lock
+
+      - name: Run checks
+        run: npm run check
+
+      - name: Create npm package
+        run: |
+          mkdir -p dist
+          npm pack --pack-destination dist
+          PACKAGE_NAME="$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).name")"
+          PACKAGE_VERSION="$(node -p "JSON.parse(require('fs').readFileSync('package.json', 'utf8')).version")"
+          PACKAGE_FILE="dist/${PACKAGE_NAME}-${PACKAGE_VERSION}.tgz"
+          test -s "$PACKAGE_FILE"
+          tar -tzf "$PACKAGE_FILE"
+          echo "PACKAGE_FILE=$PACKAGE_FILE" >> "$GITHUB_ENV"
+          echo "Package created: $PACKAGE_FILE"
+
+      - name: Upload installable package
+        uses: actions/upload-artifact@v7
+        with:
+          name: yuanqi-plugin-${{ github.sha }}
+          path: ${{ env.PACKAGE_FILE }}
+          if-no-files-found: error
+          retention-days: 14
