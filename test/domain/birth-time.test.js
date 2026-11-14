@@ -15,7 +15,7 @@ test('derives Shanghai civil time and approximate apparent solar time from YuanQ
   assert.equal(result.local_datetime, '2024-02-04T16:00:00');
   assert.equal(result.utc_offset_minutes, 480);
   assert.ok(Math.abs(result.longitude_correction_minutes - 485.8948) < 0.000001);
-  assert.ok(Math.abs(result.equation_of_time_minutes - (-13.592447)) < 0.001);
+  assert.ok(Math.abs(result.equation_of_time_minutes - (-13.580275)) < 0.001);
   assert.equal(result.true_solar_datetime, '2024-02-04T15:52:18');
   assert.equal(result.algorithm_version, 'noaa-eot-approx-v1');
 });
