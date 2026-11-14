@@ -50,7 +50,7 @@ test('keeps time context pending when the authorized host time zone or longitude
   assert.equal(missingLongitude.status, 'pending');
 });
 
-test('does not infer a time zone or coordinates when host location is unavailable', () => {
+test('does not derive civil time until the host location is marked captured', () => {\n  const pending = deriveBirthTimeContext({\n    birth_time: '2024-02-04T08:00:00.000Z',\n    birth_location: { status: 'pending', longitude: 121.4737, time_zone_id: 'Asia/Shanghai' },\n  });\n  assert.equal(pending.status, 'pending');\n  assert.equal(pending.local_datetime, null);\n});\n\ntest('does not infer a time zone or coordinates when host location is unavailable', () => {
   const result = deriveBirthTimeContext({
     birth_time: '2024-02-04T08:00:00.000Z',
     birth_location: { status: 'unavailable' },
