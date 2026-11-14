@@ -394,6 +394,36 @@ test('YuanQi birth time is the exact first startup event time and host location 
   assert.equal(locationReads, 1);
 });
 
+test('wake event is durable and Session flush does not wait for a pending location provider', async () => {
+  const storage = fakeStorageDomain();
+  let resolveFix;
+  const ctx = context(storage, {
+    yuanqiLocationProvider: {
+      getCurrentPosition() {
+        return new Promise(resolve => { resolveFix = resolve; });
+      },
+    },
+  });
+  await apply(ctx);
+  const eventTime = Date.parse('2026-11-14T11:23:48.000Z');
+  await ctx.listener({ id: 'session-deferred' }, dshEvent('启动元炁', 'deferred-wake', 0, eventTime));
+  await Promise.resolve();
+  await ctx.flushListener({ id: 'session-deferred' });
+  const wakeWhileProviderPending = storage.opened.get('yuanqi_subject').tables.get('wake_records').get('yuanqi:primary');
+  assert.equal(wakeWhileProviderPending.birth_time, new Date(eventTime).toISOString());
+  assert.equal(wakeWhileProviderPending.birth_location.status, 'pending');
+  assert.equal(typeof resolveFix, 'function');
+
+  resolveFix({
+    latitude: 31.2304, longitude: 121.4737, accuracy_meters: 10,
+    captured_at: new Date(eventTime).toISOString(),
+  });
+  await ctx.disposer();
+  const completed = storage.opened.get('yuanqi_subject').tables.get('wake_records').get('yuanqi:primary');
+  assert.equal(completed.birth_location.status, 'captured');
+  assert.equal(completed.birth_location.latitude, 31.2304);
+});
+
 test('missing host location capability records unknown place without fabricating data', async () => {
   const storage = fakeStorageDomain(), ctx = context(storage);
   await apply(ctx);
