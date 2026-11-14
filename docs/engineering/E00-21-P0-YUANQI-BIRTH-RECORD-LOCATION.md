@@ -48,3 +48,22 @@ BirthProfile 建立后，运行时调用 `deriveBirthTimeContext()`，仅使用�
 视太阳时结果是近似 wall-clock 字符串，不是 UTC instant，也不是高精度星历。缺少完整 captured Host location 时不计算；无效 IANA 时区标记 unavailable，不阻断 WakeRecord 原始时间持久化。
 
 该模块不计算节气、干支、四柱或命盘解释。四柱状态继续为 pending，直到节气时刻算法、历法规则、边界处理和独立测试全部完成。
+
+
+## 节气上下文派生（2026-11-15）
+
+新增 `deriveSolarTermContext()`，只使用 YuanQi WakeRecord 的 UTC `birth_time`，不使用用户出生资料，也不依赖 Host 地理位置。太阳节气由视地心黄道经度定义，按 15° 间隔求交点；结果以 UTC instant 保存。
+
+- 使用 USNO《Computing Approximate Solar Coordinates》公开公式：J2000 日数、太阳平黄经、平近点角及视地心黄道经度。
+- 为出生时刻定位前后节气、前后十二节（Jie）和最近一次立春；每个事件保留名称、目标黄经、Jie/Zhongqi 分类、对应月支（仅 Jie）和 UTC 交接时刻。
+- 24 项节气按 15° 排列，12 个 Jie 与 12 个 Zhongqi 分开标记；月支映射参考《渊海子平》卷一《论节候歌》和《三命通会》卷二《论四时节气》。
+- USNO 简化公式标称约 1 角分精度（1800–2200）；太阳黄经变化速度约 1°/日，因此边界时间可能有十几至二十多分钟误差。实现采用 30 分钟保守不确定窗口：距节气交接不超过 1800 秒时，`calendar_context.status=ambiguous`，不得强制选定边界一侧。
+- 超出 1801–2199 出生年份时返回 unavailable；不向模型提供伪造的节气时刻。
+
+该模块只提供天文节气事实，不直接生成四柱。Bazi 仍为 pending，待年柱/月柱规则、日界规则、时辰规则和跨边界测试确定后再计算。
+
+### 参考资料
+
+- USNO, [Computing Approximate Solar Coordinates](https://aa.usno.navy.mil/faq/sun_approx)。
+- USNO, *Explanatory Supplement to the Astronomical Almanac*, §15.8.3, Table 15.13（24 节气与太阳黄经）。
+- 《渊海子平》卷一《论节候歌》；《三命通会》卷二《论四时节气》。
