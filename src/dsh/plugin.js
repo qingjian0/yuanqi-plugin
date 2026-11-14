@@ -1,6 +1,6 @@
 import { createSubjectStore } from '../domain/subject-store.js';
 import { openSubjectDomains } from '../domain/subject-domain.js';
-import { normalizeDirectUserMessageEvent } from './session-event.js';
+import { isTrustedDirectUserMessageEvent, normalizeDirectUserMessageEvent } from './session-event.js';
 import { createWorldlineStore } from '../worldline/runtime.js';
 
 export const name = 'dsh-yuanqi-plugin';
@@ -108,7 +108,7 @@ export async function apply(ctx) {
     const store = createSubjectStore({
       userDomain: domains.userDomain,
       yuanqiDomain: domains.yuanqiDomain,
-      verifyDirectUserEvent(event) { return event?.verified === true ? event : null; },
+      verifyDirectUserEvent(event) { return isTrustedDirectUserMessageEvent(event) ? event : null; },
       verifyBirthProfileConfirmation() { return null; },
     });
 
