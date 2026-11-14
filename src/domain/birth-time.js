@@ -56,7 +56,10 @@ function equationOfTimeMinutes(instant) {
   ) - yearStart) / 86400000) + 1;
   const utcHour = instant.getUTCHours() + instant.getUTCMinutes() / 60 +
     instant.getUTCSeconds() / 3600 + instant.getUTCMilliseconds() / 3600000;
-  const gamma = (2 * Math.PI / 365) * (dayOfYear - 1 + (utcHour - 12) / 24);
+  const year = instant.getUTCFullYear();
+  const leapYear = year % 4 === 0 && (year % 100 !== 0 || year % 400 === 0);
+  const daysInYear = leapYear ? 366 : 365;
+  const gamma = (2 * Math.PI / daysInYear) * (dayOfYear - 1 + (utcHour - 12) / 24);
   return 229.18 * (0.000075 + 0.001868 * Math.cos(gamma) -
     0.032077 * Math.sin(gamma) - 0.014615 * Math.cos(2 * gamma) -
     0.040849 * Math.sin(2 * gamma));
