@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {createSubjectStore} from '../../src/domain/subject-store.js';
-function memoryDomain(names){const maps=new Map(names.map(n=>[n,new Map()]));return{table(n){const m=maps.get(n);if(!m)throw Error('unknown table '+n);return{get:k=>m.get(k),async put(k,v){m.set(k,structuredClone(v));}};}};}
+function memoryDomain(names){const maps=new Map(names.map(n=>[n,new Map()]));return{table(n){const m=maps.get(n);if(!m)throw Error('unknown table '+n);return{get:k=>m.get(k),async put(k,v){m.set(k,structuredClone(v));},async update(k,fn){const v=fn(m.get(k));m.set(k,structuredClone(v));}};}};}
 function store(){const u=memoryDomain(['identities','birth_profiles']),y=memoryDomain(['identities','installation_state','first_user_messages','wake_records']);return createSubjectStore({userDomain:u,yuanqiDomain:y,verifyDirectUserEvent:e=>e?.trusted&&e?.event_type==='user/message'&&e?.source_kind==='user'?{...e,verified:true}:null,verifyBirthProfileConfirmation:e=>e?.trusted&&e?.explicit?{...e,verified:true}:null});}
 const event=(v={})=>({trusted:true,event_type:'user/message',source_kind:'user',session_id:'s1',event_id:'e1',event_seq:0,event_time:1793966400000,text:'启动元炁',...v});
 test('UserSubject and YuanQiSubject namespaces are isolated',async()=>{const s=store();await s.createUserSubject({subject_id:'same',created_from_event_ref:'u'});await s.createYuanQiSubject({subject_id:'same',created_from_event_ref:'y'});assert.equal(s.getUserSubject('same').subject_kind,'user');assert.equal(s.getYuanQiSubject('same').subject_kind,'yuanqi');});
