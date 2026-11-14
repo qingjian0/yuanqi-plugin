@@ -42,7 +42,7 @@ BirthProfile 建立后，运行时调用 `deriveBirthTimeContext()`，仅使用�
 1. 通过 `Intl.DateTimeFormat` 的 IANA 时区数据库计算当地民用时间。
 2. 对原始 UTC 瞬间计算实际 UTC offset，不能只用固定时区标准偏移；夏令时切换/重复小时必须保留原始 UTC 时间作为唯一时间线。
 3. 用经度 × 4 分钟计算地方平太阳时相对 UTC 的经度修正。
-4. 用 NOAA fractional-year equation-of-time 近似计算视太阳时，并记录 `noaa-eot-approx-v1` 算法版本。
+4. 用 NOAA fractional-year equation-of-time 近似计算视太阳时，按公历闰年使用 366 天、平年使用 365 天，并记录 `noaa-eot-approx-v1` 算法版本。
 5. 将当地时间、UTC offset、经度修正、方程时和视太阳时存入 YuanQiSubject BirthProfile.time_context。
 
 视太阳时结果是近似 wall-clock 字符串，不是 UTC instant，也不是高精度星历。缺少完整 captured Host location 时不计算；无效 IANA 时区标记 unavailable，不阻断 WakeRecord 原始时间持久化。
