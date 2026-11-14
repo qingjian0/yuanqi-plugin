@@ -44,7 +44,7 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - WakeRecord 保存元炁首次精确启动事件的原始时间。
 - YuanQiSubject 专属 BirthProfile 从 WakeRecord 派生，保留启动事件来源和宿主地点来源。
 - 用户出生资料采集、确认和写入元炁主体的流程已移除。
-- BirthProfile 已实现 UTC → IANA 时区当地民用时间、瞬时 UTC 偏移（含 DST）和经度修正；视太阳时采用带版本标记的 NOAA 方程时近似，并明确不作为高精度星历。
+- BirthProfile 已实现 UTC → IANA 时区当地民用时间、瞬时 UTC 偏移（含 DST）和经度修正；视太阳时采用带版本标记的 NOAA 方程时近似，并明确不作为高精度星历。\n- BirthProfile.calendar_context 已实现 24 节气前后项、最近十二节与最近立春的 UTC 交接定位；USNO 简化太阳黄经公式按 15° 求交，30 分钟边界不确定窗口内标记 ambiguous。
 - 时间转换模块有独立测试，覆盖上海时区、纽约 DST 重复时刻、缺失定位和无效时区；完整节气与四柱计算仍未实现，Bazi 状态保持 pending。
 - 旧版 Meeus、节气定界和完整四柱能力记录不能自动视为当前源码已恢复或已通过测试。
 
@@ -425,3 +425,29 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 ### 验证
 
 - GitHub Actions PR #7 Run #601（`43655447774`）已通过：Node.js 24.9.0，76 passed / 0 failed；包入口、DSH Storage Domain exports 与全部 JavaScript 语法检查通过。
+
+
+## 29. 2026-11-15 YuanQi 24 节气上下文与边界保护
+
+### 已实现
+
+- 新增 `apparentSunLongitudeDegrees()` 与 `deriveSolarTermContext()`，使用 USNO 简化的视地心黄道太阳黄经公式。
+- 按 15° 黄经间隔定义完整 24 节气；区分 12 个 Jie 与 12 个 Zhongqi。
+- 为 YuanQi BirthProfile 计算并持久化前后节气、前后十二节、最近一次立春、太阳黄经及计算版本。
+- 最近十二节附带月支映射，为后续月柱计算提供明确边界；最近立春为后续年柱计算提供边界事实。
+- 节气结果使用 UTC instant，之后再按 BirthProfile 的时区上下文转换展示，不把地点当地日期误当成太阳黄经事件。
+- USNO 简化模型标称约 1 角分精度，故设置 30 分钟保守边界窗口；窗口内返回 `ambiguous`，禁止强行选定前后柱。
+- 出生年份超出算法支持范围时返回 unavailable，不做远期/古代外推。
+
+### 古籍与天文依据
+
+- 《渊海子平》卷一《论节候歌》以立春为始，列出十二月与节候对应。
+- 《三命通会》卷二《论四时节气》区分“丑之终寅之始则为节，月之半则为中”。
+- USNO《Explanatory Supplement to the Astronomical Almanac》§15.8.3 Table 15.13 给出 24 节气及每 15° 太阳黄经划分。
+- USNO《Computing Approximate Solar Coordinates》给出视地心黄道太阳经度近似公式及约 1 角分精度说明。
+
+### 当前边界
+
+- 该阶段计算的是节气天文事件，不等于已经完成八字四柱。
+- 年柱干支、月柱天干、日柱、时柱、子初/午夜换日策略及真太阳时与时区冲突处理仍需单独定义和验证。
+- `bazi.status` 保持 `pending`；节气边界附近的 `calendar_context.status` 为 `ambiguous`。
