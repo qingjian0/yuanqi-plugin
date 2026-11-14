@@ -4,7 +4,7 @@ import * as entry from '../index.js';
 test('package root exposes implemented Cordis, subject, Worldline and SelfModel capabilities', () => {
   assert.equal(typeof entry.apply, 'function');
   assert.equal(entry.name, 'dsh-yuanqi-plugin');
-  assert.deepEqual(entry.inject, ['storageDomain', 'sessions', 'sessionQuery', 'sessionPersistence']);
+  assert.deepEqual(entry.inject, ['storageDomain', 'sessions', 'sessionQuery', 'sessionPersistence', 'agents']);
   assert.equal(typeof entry.createSubjectStore, 'function');
   assert.equal(typeof entry.createWorldlineStore, 'function');
   assert.deepEqual(entry.SELF_MODEL_CENTER_IDS, [
