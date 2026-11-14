@@ -346,3 +346,15 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - 新审计文档：[E00-20M P0 DSH Profile Provider 组合与冷读取契约审计](./engineering/E00-20M-P0-REAL-HOST-PROFILE-AUDIT.md)。
 - **边界：** DSH Base 的官方组合已核实，但任意 Android Profile 的最终合并配置、真实 Android Storage backend、OS 进程强制终止恢复与性能仍未验收。当前 JSONL 集成测试是同进程重建 Context；YuanQi Domain adapter 仍是测试内存实现。
 - 运行时 guard 与四类不完整 Provider 测试由 PR Run #335（`42380745690`）验证通过：Node.js 24.9.0，63 passed / 0 failed，0 skipped / 0 todo。随后英文 README 同步提交 `060dec5`、状态记录提交 `20e022c` 与最终状态同步提交 `ab446b3` 均触发 CI；最新 PR Run #340（`42380890930`）在 HEAD `ab446b3ba328c1c477ba67363f25456d77d35859` 上成功，Node.js 24.9.0，63 passed / 0 failed，0 skipped / 0 todo；依赖、六项 peer package、入口/导出、语法和测试步骤全部通过。PR #3 仍为 Draft，不合并 `dev` / `main`。
+
+
+## 24. 2026-11-14 P0 唤醒地点集成与 BirthProfile 边界复核
+
+- 当前主候选开发 PR：[#5](https://github.com/qingjian0/yuanqi-plugin/pull/5)，分支 `work/p0-birth-profile-runtime`，目标 `dev`，仍为 Draft；本轮没有合并 PR，也没有修改 `dev` / `main`。
+- PR #5 HEAD `f8dfc98d83176b92c9dc0a80a6f2addd3636e329` 的 GitHub Actions Run #445 已完成，结果 success；CI 使用 Node.js 24.9.0。该结果是自动化验证，不代表 Android 真机或真实目标 Profile 验收。
+- PR #3 与 PR #4 的提交图已分叉；PR #4 相对 PR #3 有 28 个独有提交，PR #3 有 51 个相对 PR #4 独有提交。PR #5 与 PR #4 也已分叉：PR #5 有 107 个独有提交，PR #4 有 28 个独有提交。禁止将 PR #4 作为 PR #5 的直接祖先或整体合并；按契约选择性复用。
+- PR #5 当前唤醒语义：安装后普通 direct-user 消息不会消耗唤醒资格；首次精确发送唯一文本块 `启动元气` 或 `启动元炁` 时才创建 WakeRecord，唤醒时间来自该 DSH 事件原始时间。冷历史中的启动事件不会使用当前设备位置冒充历史地点。
+- 已修正文档不一致：`README.en.md` 与 `docs/INSTALLATION.md` 原先仍写“第一条普通消息会永久消耗唤醒资格”，现已与当前运行时代码统一。相关提交：`8de062ed17b12897007e240c60e2fc8df58bdefb`、`2777ce0fa9093bc71487809c2fbb3948fb08067c`。
+- 用户 BirthProfile 与 YuanQi 自身 WakeRecord 必须分开。当前 BirthProfile 正式写入仍 fail-closed：Host verifier 固定拒绝；onboarding 仍是内存状态机；候选版本、字段级来源、一次性确认挑战、撤销审计与持久化恢复尚未实现。不得通过放宽 verifier 伪造确认成功。
+- Android 宿主新鲜定位桥接位于另一个仓库的 Draft PR #16，目标 `main`；真机定位与目标 DSH Profile provider 组合尚未验收。YuanQi 的自动化测试不能替代 Android 实机验证。
+- 本轮之后的 CI 需以最新文档提交 HEAD 重新确认；在该 CI 完成前，不把文档提交标为 CI 通过。
