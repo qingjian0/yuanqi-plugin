@@ -115,6 +115,7 @@ export async function apply(ctx) {
     let ready = false;
     let storageUncertain = false;
     const pendingBySession = new Map();
+    const pendingLocationTasks = new Set();
     const startupBuffer = [];
 
     function warn(message) {
@@ -189,6 +190,20 @@ export async function apply(ctx) {
       }
     }
 
+    function scheduleBirthLocationCapture(eventTime) {
+      const pending = store.getWakeRecord(YUANQI_SUBJECT_ID);
+      if (!pending || pending.birth_location?.status !== 'pending') return;
+      const task = Promise.resolve()
+        .then(() => captureBirthLocation(eventTime))
+        .then(birth_location => store.completeInitialWakeLocation({
+          subject_id: YUANQI_SUBJECT_ID,
+          birth_location,
+        }))
+        .catch(error => warn('[yuanqi] deferred birth-location persistence failed: ' + String(error)));
+      pendingLocationTasks.add(task);
+      task.then(() => pendingLocationTasks.delete(task), () => pendingLocationTasks.delete(task));
+    }
+
     async function processCandidate(sessionId, event, { captureLocation = true } = {}) {
       if (!active || storageUncertain) return;
       const direct = normalizeDirectUserMessageEvent(sessionId, event);
@@ -204,16 +219,22 @@ export async function apply(ctx) {
       });
 
       const isWakeCommand = direct.text === '启动元气' || direct.text === '启动元炁';
-      const birthLocation = captureLocation && isWakeCommand &&
-        !store.getWakeRecord(YUANQI_SUBJECT_ID)
-        ? await captureBirthLocation(direct.event_time)
-        : undefined;
+      const shouldCaptureLocation = captureLocation && isWakeCommand &&
+        !store.getWakeRecord(YUANQI_SUBJECT_ID);
       const wake = await store.recordInitialWake({
         subject_id: YUANQI_SUBJECT_ID,
         direct_user_event: direct,
-        birth_location: birthLocation,
+        birth_location: shouldCaptureLocation ? {
+          status: 'pending', latitude: null, longitude: null, accuracy_meters: null,
+          place_label: null, time_zone_id: null, source: 'unavailable', captured_at: null,
+        } : undefined,
       });
       if (!wake) return;
+      // Persist the immutable wake event first. Location is best-effort metadata
+      // and must never delay Session flush or prevent recovery of birth_time.
+      if (shouldCaptureLocation && wake.birth_location?.status === 'pending') {
+        scheduleBirthLocationCapture(direct.event_time);
+      }
 
       const mainline = await ensureWorldlineForWake(wake);
       const binding = worldlines.getSessionBinding(sessionId);
@@ -309,7 +330,12 @@ export async function apply(ctx) {
     // crash after the first-message/wake sidecar write but before Worldline.
     if (store.getYuanQiSubject(YUANQI_SUBJECT_ID)) {
       const recoveredWake = await store.recoverInitialWake({ subject_id: YUANQI_SUBJECT_ID });
-      if (recoveredWake) await ensureWorldlineForWake(recoveredWake);
+      if (recoveredWake) {
+        await ensureWorldlineForWake(recoveredWake);
+        if (recoveredWake.birth_location?.status === 'pending') {
+          scheduleBirthLocationCapture(Date.parse(recoveredWake.occurred_at));
+        }
+      }
     }
 
     if (!store.getFirstUserMessage(YUANQI_SUBJECT_ID) || !store.getWakeRecord(YUANQI_SUBJECT_ID)) {
@@ -378,6 +404,7 @@ export async function apply(ctx) {
       active = false;
       const pending = [...pendingBySession.values()].flatMap(tasks => [...tasks]);
       const results = await Promise.allSettled(pending.map(entry => entry.promise));
+      await Promise.allSettled([...pendingLocationTasks]);
       await domains.close();
       const errors = results.filter(result => result.status === 'rejected').map(result => result.reason);
       if (errors.length) throw new AggregateError(errors, 'YuanQi session writes failed during plugin teardown');
