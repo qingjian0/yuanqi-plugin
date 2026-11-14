@@ -10,6 +10,7 @@ export const inject = ['storageDomain', 'sessions', 'sessionQuery', 'sessionPers
 
 const USER_SUBJECT_ID = 'user:primary';
 const YUANQI_SUBJECT_ID = 'yuanqi:primary';
+const LOCATION_PROVIDER_TIMEOUT_MS = 11_000;
 
 function candidateKey(candidate) {
   return candidate.session_id + '\u0000' + candidate.event_seq + '\u0000' + candidate.event_id;
@@ -157,8 +158,12 @@ export async function apply(ctx) {
       if (!provider || typeof provider.getCurrentPosition !== 'function') {
         return { status: 'unavailable', latitude: null, longitude: null, accuracy_meters: null, place_label: null, time_zone_id: null, source: 'unavailable', captured_at: null };
       }
+      let timeout;
       try {
-        const value = await provider.getCurrentPosition();
+        const timeoutPromise = new Promise((_, reject) => {
+          timeout = setTimeout(() => reject(new Error('location provider exceeded the bounded capture window')), LOCATION_PROVIDER_TIMEOUT_MS);
+        });
+        const value = await Promise.race([provider.getCurrentPosition(), timeoutPromise]);
         const latitude = value?.latitude;
         const longitude = value?.longitude;
         if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 ||
@@ -187,6 +192,8 @@ export async function apply(ctx) {
       } catch (error) {
         warn('[yuanqi] birth location unavailable at wake: ' + String(error));
         return { status: 'unavailable', latitude: null, longitude: null, accuracy_meters: null, place_label: null, time_zone_id: null, source: 'unavailable', captured_at: null };
+      } finally {
+        clearTimeout(timeout);
       }
     }
 
