@@ -415,7 +415,7 @@ test('Android host location bridge captures a fresh fix with the DSH bridge toke
   process.env.DSH_BRIDGE_TOKEN = 'test-bridge-token';
   globalThis.fetch = async (url, options) => {
     calls += 1;
-    assert.equal(url, 'http://127.0.0.1:3083/dev/location');
+    assert.equal(url, 'http://127.0.0.1:3083/dev/location?fresh=true');
     assert.equal(options.headers['X-DSH-Token'], 'test-bridge-token');
     return {
       ok: true,
