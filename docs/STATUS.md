@@ -382,5 +382,5 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - 新增解析器测试及 DSH 插件消息流集成测试，覆盖显式日期/时间/地点解析、非法日期/时间拒绝、唤醒后候选写入、同 Session challenge 签发和确认事件写入。
 - **产品交互接线：** 插件通过当前 DSH Agent 的 `inject()` 投递 `form: notice` 的用户上下文消息，提示模型在下一次回复中逐字段展示候选摘要、确认挑战说明或操作结果；这不是独立 UI 卡片，最终呈现仍取决于 Agent 正常完成回复。挑战签发后再由同一 Session 的精确确认命令消费。
 - 候选更新会递增 revision 并使旧 challenge 失效。当前解析器每条输入仅生成该条消息明确识别出的字段集合；用户修正资料时应重新提交完整且明确标注的出生资料，避免遗漏字段被视为已确认内容。
-- 最新代码提交：`81a32897c5f8d6f8e3f4afa679ec74f460805906`（README 更新）；此前运行时代码与测试提交分别为 `128e80190a33de8174d998ac297a11651e7c5ba0`、`09030bc98f5cf1f6a5c83dcc8a45832b2216b0a3`、`e67bce5ee670f3ec43d4998ac59555cebf13e50a`、`b89c8c5018f3855cfc58a74329694268da2a453f`。
-- 新增 Agent notice 注入测试，验证候选保存与挑战签发会向对应 Session 的 live Agent 投递可呈现的摘要上下文。CI 对最新 HEAD 的状态尚未由 Actions 结果确认；GitHub PR #5 仍 Draft，目标 `dev`，未合并。真实 DSH Profile 的最终 UI 呈现、Android 真机和 OS 进程强制终止恢复仍待验收。
+- 最新代码与测试 HEAD：`8cebf78776eed8e30e744b7e850b4a41097088b4`；其间运行时代码、解析器和消息流集成测试已由连续提交加入。
+- 新增 Agent notice 注入测试，验证候选保存与挑战签发会向对应 Session 的 live Agent 投递可呈现的摘要上下文。GitHub Actions Run #513（`43605146089`），HEAD `8cebf78776eed8e30e744b7e850b4a41097088b4`：success，Node.js 24.9.0，79 passed / 0 failed；依赖安装、六项 DSH peer package、包根/Storage Domain exports、全部源码语法与测试均通过。Run #511 的唯一失败是入口测试未更新预期 inject 列表，已修正并由 Run #513 验证。GitHub PR #5 仍 Draft，目标 `dev`，未合并。真实 DSH Profile 的最终 UI 呈现、Android 真机和 OS 进程强制终止恢复仍待验收。
