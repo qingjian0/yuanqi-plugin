@@ -192,6 +192,21 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
     },
     recordFirstUserMessage,
     recoverInitialWake,
+    async completeInitialWakeLocation({ subject_id, birth_location } = {}) {
+      requiredText(subject_id, 'subject_id');
+      if (!birth_location || typeof birth_location !== 'object' || Array.isArray(birth_location) ||
+          !['captured', 'unavailable'].includes(birth_location.status)) {
+        throw new TypeError('birth_location must be a captured or unavailable location result');
+      }
+      return serializeByKey(queues, 'wake:' + subject_id, async () => {
+        const old = wakes.get(subject_id);
+        if (old === undefined) throw new Error('WakeRecord does not exist');
+        if (old.birth_location?.status !== 'pending') return clone(old);
+        const updated = { ...old, birth_location: clone(birth_location) };
+        await wakes.put(subject_id, updated);
+        return clone(updated);
+      });
+    },
     async recordInitialWake(input) {
       const event = verified(verifyDirectUserEvent, input.direct_user_event, 'initial-wake');
       await recordFirstUserMessage({ subject_id: input.subject_id, direct_user_event: event });
