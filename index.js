@@ -1,6 +1,7 @@
 // YuanQi package entry point: implemented Cordis host integration and domain capabilities only.
 export {
   createSubjectStore,
+  deriveBirthTimeContext,
   createWorldlineStore,
   SELF_MODEL_CENTER_IDS,
   openSubjectDomains,
