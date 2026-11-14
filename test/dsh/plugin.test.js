@@ -102,6 +102,23 @@ test('plugin startup rejects an incomplete SessionPersistence provider before op
   }
 });
 
+test('ordinary conversation does not create a UserSubject before the exact YuanQi wake command', async () => {
+  const storage = fakeStorageDomain(), ctx = context(storage);
+  await apply(ctx);
+  await ctx.listener({ id: 'session-before-wake' }, dshEvent('你好，先聊聊', 'ordinary-before-wake', 0, 1793966400000));
+  await ctx.flushListener({ id: 'session-before-wake' });
+  const userTables = storage.opened.get('yuanqi_user_subject').tables;
+  const yuanqiTables = storage.opened.get('yuanqi_subject').tables;
+  assert.equal(userTables.get('identities').has('user:primary'), false);
+  assert.equal(userTables.get('birth_profile_workflows').has('user:primary'), false);
+  assert.equal(yuanqiTables.get('wake_records').has('yuanqi:primary'), false);
+
+  await ctx.listener({ id: 'session-wake' }, dshEvent('启动元炁', 'exact-wake', 0, 1793966401000));
+  await ctx.flushListener({ id: 'session-wake' });
+  assert.equal(userTables.get('identities').get('user:primary').created_from_event_ref, 'exact-wake');
+  await ctx.disposer();
+});
+
 test('first exact startup command wakes even after an earlier ordinary message in another Session', async () => {
   const storage = fakeStorageDomain(), ctx = context(storage);
   await apply(ctx);
