@@ -2,6 +2,9 @@
 export {
   createSubjectStore,
   deriveBirthTimeContext,
+  apparentSunLongitudeDegrees,
+  deriveSolarTermContext,
+  SOLAR_TERMS,
   createWorldlineStore,
   SELF_MODEL_CENTER_IDS,
   openSubjectDomains,
