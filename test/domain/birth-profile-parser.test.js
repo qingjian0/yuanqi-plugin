@@ -21,7 +21,7 @@ test('does not infer missing fields or accept ambiguous and invalid dates', () =
   assert.deepEqual(parseExplicitBirthProfile('出生地：云南昆明').facts, {
     birth_place: '云南昆明',
   });
-  assert.equal(parseExplicitBirthProfile('我大概是1998年春天出生').facts, undefined);
+  assert.equal(parseExplicitBirthProfile('我大概是1998年春天出生'), null);
   assert.equal(parseExplicitBirthProfile('出生日期：1998年2月30日'), null);
   assert.equal(parseExplicitBirthProfile('出生日期：1998年4月21日 出生时间：25:70'), null);
 });
