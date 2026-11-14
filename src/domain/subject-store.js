@@ -82,7 +82,11 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
   const users = userDomain.table('identities');
   const births = userDomain.table('birth_profiles');
   const birthWorkflows = userDomain.table('birth_profile_workflows');
-  if (typeof birthWorkflows.update !== 'function') throw new TypeError('BirthProfile workflow table must support atomic update');
+  function requireBirthWorkflowUpdate() {
+    if (typeof birthWorkflows.update !== 'function') {
+      throw new TypeError('BirthProfile workflow operations require DSH Domain table.update');
+    }
+  }
   const yuanqis = yuanqiDomain.table('identities');
   const installationState = yuanqiDomain.table('installation_state');
   const firstMessages = yuanqiDomain.table('first_user_messages');
@@ -183,6 +187,7 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
     getUserSubject(id) { requiredText(id, 'subject_id'); const value = users.get(id); return value === undefined ? undefined : clone(value); },
     getYuanQiSubject(id) { requiredText(id, 'subject_id'); const value = yuanqis.get(id); return value === undefined ? undefined : clone(value); },
     async saveBirthProfileCandidate({ subject_id, facts, field_sources, source_event }) {
+      requireBirthWorkflowUpdate();
       requiredText(subject_id, 'subject_id');
       if (!users.get(subject_id)) throw new Error('UserSubject does not exist');
       if (!facts || typeof facts !== 'object' || Array.isArray(facts) || Object.keys(facts).length === 0) {
@@ -255,6 +260,7 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
       });
     },
     async issueBirthProfileConfirmationChallenge({ subject_id, challenge_id, session_id, issued_at_ms, expires_at_ms, issued_from_event_ref } = {}) {
+      requireBirthWorkflowUpdate();
       requiredText(subject_id, 'subject_id');
       requiredText(challenge_id, 'challenge_id');
       requiredText(session_id, 'session_id');
@@ -289,6 +295,7 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
       });
     },
     async confirmUserBirthProfile({ subject_id, confirmation_event } = {}) {
+      requireBirthWorkflowUpdate();
       requiredText(subject_id, 'subject_id');
       const event = verified(verifyBirthProfileConfirmation, confirmation_event, 'birth-profile-confirmation');
       if (event.event_type !== 'user/message' || event.source_kind !== 'user' ||
@@ -339,6 +346,7 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
       });
     },
     async rejectBirthProfileCandidate({ subject_id, rejection_event } = {}) {
+      requireBirthWorkflowUpdate();
       requiredText(subject_id, 'subject_id');
       const event = verified(verifyBirthProfileConfirmation, rejection_event, 'birth-profile-rejection');
       if (event.event_type !== 'user/message' || event.source_kind !== 'user' ||
@@ -371,6 +379,7 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
       });
     },
     async revokeUserBirthProfile({ subject_id, revocation_event } = {}) {
+      requireBirthWorkflowUpdate();
       requiredText(subject_id, 'subject_id');
       const event = verified(verifyBirthProfileConfirmation, revocation_event, 'birth-profile-revocation');
       if (event.event_type !== 'user/message' || event.source_kind !== 'user' ||
