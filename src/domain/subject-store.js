@@ -161,7 +161,6 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
         const wake = wakes.get(subject_id);
         if (!wake) return undefined;
         const location = clone(wake.birth_location ?? unavailableLocation());
-        const timeZone = location.time_zone_id ?? null;
         const existing = birthProfiles.get(subject_id);
         const profile = {
           profile_id: 'birth-profile:' + subject_id,
