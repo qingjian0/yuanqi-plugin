@@ -199,12 +199,13 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
         throw new TypeError('birth_location must be a captured or unavailable location result');
       }
       return serializeByKey(queues, 'wake:' + subject_id, async () => {
-        const old = wakes.get(subject_id);
-        if (old === undefined) throw new Error('WakeRecord does not exist');
-        if (old.birth_location?.status !== 'pending') return clone(old);
-        const updated = { ...old, birth_location: clone(birth_location) };
-        await wakes.put(subject_id, updated);
-        return clone(updated);
+        if (wakes.get(subject_id) === undefined) throw new Error('WakeRecord does not exist');
+        await wakes.update(subject_id, current => {
+          if (current === undefined) throw new Error('WakeRecord does not exist');
+          if (current.birth_location?.status !== 'pending') return current;
+          return { ...current, birth_location: clone(birth_location) };
+        });
+        return clone(wakes.get(subject_id));
       });
     },
     async recordInitialWake(input) {
