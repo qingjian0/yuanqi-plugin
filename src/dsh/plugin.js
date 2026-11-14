@@ -46,7 +46,9 @@ function createAndroidLocationProvider() {
             : null,
           place_label: null,
           time_zone_id: null,
-          captured_at: new Date(value.at - value.age_ms).toISOString(),
+          captured_at: new Date(Number.isSafeInteger(value.fix_time_ms)
+            ? value.fix_time_ms
+            : value.at - value.age_ms).toISOString(),
           source: 'android_location_bridge',
         };
       } finally {
