@@ -223,6 +223,12 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
       const now = event.event_time;
       return serializeByKey(queues, 'birth-workflow:' + subject_id, async () => {
         const buildNext = current => {
+          const prior = current?.revisions?.find(item => item.created_from_event_ref === event.event_id);
+          if (prior) {
+            if (JSON.stringify(prior.facts) === JSON.stringify(facts) &&
+                JSON.stringify(prior.field_sources) === JSON.stringify(fields)) return current;
+            throw new Error('BirthProfile source event was replayed with conflicting candidate data');
+          }
           if (current?.status === 'confirmed' || current?.status === 'revoked') {
             throw new Error('confirmed or revoked BirthProfile cannot be edited in place');
           }
@@ -285,6 +291,22 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
             throw new Error('no editable BirthProfile candidate exists');
           }
           const revision = current.current_revision;
+          if (current.challenge?.challenge_id === challenge_id) {
+            const same = current.challenge.revision === revision &&
+              current.challenge.session_id === session_id &&
+              current.challenge.issued_from_event_ref === issued_from_event_ref &&
+              current.challenge.issued_at_ms === issued_at_ms &&
+              current.challenge.expires_at_ms === expires_at_ms;
+            if (!same) throw new Error('BirthProfile challenge ID replayed with conflicting scope');
+            result = current;
+            return current;
+          }
+          const invalidation = current.challenge?.status === 'active' ? [{
+            audit_id: 'birth-audit:' + subject_id + ':' + current.challenge.revision + ':challenge-invalidated:' + current.challenge.challenge_id,
+            action: 'challenge_invalidated', revision: current.challenge.revision,
+            event_ref: issued_from_event_ref, occurred_at_ms: issued_at_ms,
+            details: { reason: 'replaced_by_new_challenge', challenge_id: current.challenge.challenge_id },
+          }] : [];
           const audit = {
             audit_id: 'birth-audit:' + subject_id + ':' + revision + ':challenge:' + challenge_id,
             action: 'challenge_issued', revision, event_ref: issued_from_event_ref,
@@ -296,7 +318,7 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
               challenge_id, revision, session_id, issued_from_event_ref,
               issued_at_ms, expires_at_ms, status: 'active', consumed_by_event_ref: null,
             },
-            audit_events: [...current.audit_events, audit],
+            audit_events: [...current.audit_events, ...invalidation, audit],
           };
           return result;
         });
@@ -366,6 +388,10 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
         let result;
         await birthWorkflows.update(subject_id, current => {
           const challenge = current?.challenge;
+          if (current?.status === 'rejected' && challenge?.consumed_by_event_ref === event.event_id) {
+            result = current;
+            return current;
+          }
           if (!current || current.status !== 'awaiting_confirmation' || !challenge ||
               challenge.status !== 'active' || challenge.revision !== current.current_revision ||
               challenge.session_id !== event.session_id ||
@@ -398,6 +424,12 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
       return serializeByKey(queues, 'birth-workflow:' + subject_id, async () => {
         let profile;
         await birthWorkflows.update(subject_id, current => {
+          if (current?.status === 'revoked' &&
+              current.audit_events?.at(-1)?.action === 'revoked' &&
+              current.audit_events.at(-1).event_ref === event.event_id) {
+            profile = current.confirmed_profile;
+            return current;
+          }
           if (!current || current.status !== 'confirmed' || !current.confirmed_profile) {
             throw new Error('no confirmed BirthProfile to revoke');
           }
