@@ -33,3 +33,18 @@ DSH 官方插件模型通过 Cordis Context 注入宿主服务；并不存在可
 ## 存储兼容
 
 YuanQi Subject Domain 升级至 v11，兼容 v3–v10；新增 YuanQiSubject 专属 `birth_profiles` 表。旧 v3 WakeRecord 仍可读取（出生地点字段可缺省）；新建记录写入 schema v4，并包含 birth_time 与 birth_location；地点状态支持 `pending`、`captured` 和 `unavailable`，仅允许 pending 完成一次。UserSubject Domain v3 仅保留用户身份表，不再定义用户出生资料工作流。升级不改写既有唤醒时间，不补造历史地点，也不把历史用户资料迁移为元炁资料。
+
+
+## 时间上下文派生（2026-11-15）
+
+BirthProfile 建立后，运行时调用 `deriveBirthTimeContext()`，仅使用元炁 WakeRecord 的 UTC `birth_time` 与该事件对应的授权 Host 定位：
+
+1. 通过 `Intl.DateTimeFormat` 的 IANA 时区数据库计算当地民用时间。
+2. 对原始 UTC 瞬间计算实际 UTC offset，不能只用固定时区标准偏移；夏令时切换/重复小时必须保留原始 UTC 时间作为唯一时间线。
+3. 用经度 × 4 分钟计算地方平太阳时相对 UTC 的经度修正。
+4. 用 NOAA fractional-year equation-of-time 近似计算视太阳时，并记录 `noaa-eot-approx-v1` 算法版本。
+5. 将当地时间、UTC offset、经度修正、方程时和视太阳时存入 YuanQiSubject BirthProfile.time_context。
+
+视太阳时结果是近似 wall-clock 字符串，不是 UTC instant，也不是高精度星历。缺少完整 captured Host location 时不计算；无效 IANA 时区标记 unavailable，不阻断 WakeRecord 原始时间持久化。
+
+该模块不计算节气、干支、四柱或命盘解释。四柱状态继续为 pending，直到节气时刻算法、历法规则、边界处理和独立测试全部完成。
