@@ -97,7 +97,7 @@ test('plugin startup rejects an incomplete SessionPersistence provider before op
   }
 });
 
-test('non-command first message consumes wake eligibility without creating a Worldline', async () => {
+test('first exact startup command wakes even after an earlier ordinary message in another Session', async () => {
   const storage = fakeStorageDomain(), ctx = context(storage);
   await apply(ctx);
   await ctx.listener({ id: 'session-a' }, dshEvent('你好', 'm1', 0, 1793966400000));
@@ -107,10 +107,11 @@ test('non-command first message consumes wake eligibility without creating a Wor
   const tables = storage.opened.get('yuanqi_subject').tables;
   assert.equal(tables.get('first_user_messages').get('yuanqi:primary').first_event_id, 'm1');
   assert.equal(tables.get('first_user_messages').get('yuanqi:primary').trigger_command, null);
-  assert.equal(tables.get('wake_records').has('yuanqi:primary'), false);
-  assert.equal(tables.get('worldlines').has('worldline:main'), false);
+  assert.equal(tables.get('wake_records').get('yuanqi:primary').wake_event_ref, 'm2');
+  assert.equal(tables.get('wake_records').get('yuanqi:primary').first_session_id, 'session-b');
+  assert.equal(tables.get('worldlines').get('worldline:main').status, 'active');
   assert.equal(tables.get('session_worldline_bindings').has('session-a'), false);
-  assert.equal(tables.get('session_worldline_bindings').has('session-b'), false);
+  assert.equal(tables.get('session_worldline_bindings').get('session-b').worldline_id, 'worldline:main');
   await ctx.disposer();
   assert.equal(storage.opened.get('yuanqi_subject').domain.closed, true);
   assert.equal(storage.opened.get('yuanqi_user_subject').domain.closed, true);
@@ -126,7 +127,7 @@ test('whitespace-wrapped command in the first message does not wake YuanQi', asy
   assert.equal(tables.get('worldlines').has('worldline:main'), false);
   await ctx.disposer();
 });
-test('Cordis plugin wakes only from the exact first direct user command', async () => {
+test('Cordis plugin wakes only from an exact direct user command', async () => {
   const storage = fakeStorageDomain(), ctx = context(storage);
   await apply(ctx);
   await ctx.listener({ id: 'session-a' }, dshEvent('启动元炁', 'm1', 0, 1793966400000));
@@ -241,7 +242,7 @@ test('plugin initialization failure after opening both Domains closes both handl
   assert.equal(storage.opened.get('yuanqi_user_subject').domain.closed, true);
 });
 
-test('startup restores the earliest post-install direct message from cold Session history', async () => {
+test('startup restores first direct message and later wake command from cold Session history', async () => {
   const storage = fakeStorageDomain();
   const old = dshEvent('启动元炁', 'old', 0, Date.now() - 5000);
   const first = dshEvent('你好', 'first', 1, Date.now() + 10);
@@ -265,7 +266,8 @@ test('startup restores the earliest post-install direct message from cold Sessio
   const tables = storage.opened.get('yuanqi_subject').tables;
   assert.equal(tables.get('first_user_messages').get('yuanqi:primary').first_event_id, 'first');
   assert.equal(tables.get('first_user_messages').get('yuanqi:primary').trigger_command, null);
-  assert.equal(tables.get('wake_records').has('yuanqi:primary'), false);
+  assert.equal(tables.get('wake_records').get('yuanqi:primary').wake_event_ref, 'later');
+  assert.equal(tables.get('wake_records').get('yuanqi:primary').birth_time, new Date(later.time).toISOString());
   assert.equal(released, 1);
   await ctx.disposer();
 });
