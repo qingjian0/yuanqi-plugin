@@ -67,6 +67,7 @@ function context(storageDomain, options = {}) {
   return {
     storageDomain,
     yuanqiLocationProvider: options.yuanqiLocationProvider,
+    agents: options.agents,
     sessionPersistence: options.sessionPersistence ?? {
       identity: Symbol('test-session-persistence'),
       async list() { return []; },
@@ -120,7 +121,13 @@ test('ordinary conversation does not create a UserSubject before the exact YuanQ
 });
 
 test('BirthProfile is collected from explicit user facts and confirmed through a same-Session challenge', async () => {
-  const storage = fakeStorageDomain(), ctx = context(storage);
+  const storage = fakeStorageDomain();
+  const notices = [];
+  const agents = { get(id) {
+    assert.equal(id, 'birth-session');
+    return { inject(message) { notices.push(message); } };
+  } };
+  const ctx = context(storage, { agents });
   await apply(ctx);
   const session = { id: 'birth-session' };
   const send = async (text, id, seq, time) => {
@@ -135,8 +142,13 @@ test('BirthProfile is collected from explicit user facts and confirmed through a
     birth_date: '1998-04-21', birth_time: '10:31', birth_place: '云南昆明安宁',
   });
   assert.equal(workflow.revisions.at(-1).field_sources.birth_date.extraction_kind, 'user_explicit');
+  assert.equal(notices.length, 1);
+  assert.equal(notices[0].source.kind, 'yuanqi-birth-profile');
+  assert.match(notices[0].content[0].text, /逐字段展示/u);
 
   await send('核对出生资料', 'birth-review', 2, 1793966402000);
+  assert.equal(notices.length, 2);
+  assert.match(notices[1].content[0].text, /确认出生资料/u);
   workflow = storage.opened.get('yuanqi_user_subject').tables.get('birth_profile_workflows').get('user:primary');
   assert.equal(workflow.status, 'awaiting_confirmation');
   assert.equal(workflow.challenge.session_id, 'birth-session');
