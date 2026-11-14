@@ -1,4 +1,17 @@
 /**
+ * Host-normalized direct DSH user events.
+ *
+ * The WeakSet is a process-local capability: callers cannot make an arbitrary
+ * object trusted by adding a `verified: true` property. Only this adapter can
+ * brand an event after it has received the host SessionId and SessionEvent.
+ */
+const trustedDirectUserEvents = new WeakSet();
+
+export function isTrustedDirectUserMessageEvent(event) {
+  return Boolean(event && typeof event === 'object' && trustedDirectUserEvents.has(event));
+}
+
+/**
  * Normalize the documented DSH SessionEvent shape.
  * sessionId must come from the trusted host listener context, never model/tool input.
  */
@@ -26,8 +39,7 @@ export function normalizeDirectUserMessageEvent(sessionId, event) {
     ? content[0].text
     : '';
 
-  return {
-    verified: true,
+  const normalized = {
     event_type: 'user/message',
     source_kind: 'user',
     session_id: sessionId,
@@ -36,4 +48,6 @@ export function normalizeDirectUserMessageEvent(sessionId, event) {
     event_time: event.time,
     text,
   };
+  trustedDirectUserEvents.add(normalized);
+  return normalized;
 }
