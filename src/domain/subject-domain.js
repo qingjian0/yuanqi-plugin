@@ -64,7 +64,55 @@ const wakeRecord=z.object({
  first_conversation_event_ref:z.string().min(1), first_session_id:z.string().min(1), first_event_seq:z.number().int().nonnegative(),
  wake_event_ref:z.string().min(1), trigger_command:z.enum(['启动元气','启动元炁']), occurred_at:z.string().datetime(), birth_time:z.string().datetime().optional(), birth_location:z.object({status:z.enum(['pending','captured','unavailable']),latitude:z.number().min(-90).max(90).nullable(),longitude:z.number().min(-180).max(180).nullable(),accuracy_meters:z.number().nonnegative().nullable(),place_label:z.string().nullable(),time_zone_id:z.string().nullable(),source:z.enum(['host_location_provider','android_location_bridge','unavailable']),captured_at:z.string().datetime().nullable()}).strict().optional(), schema_version:z.union([z.literal(3),z.literal(4)]),
 }).strict();
-export const userSubjectDomainSpec=defineDomain({name:'yuanqi_user_subject',version:1,tables:{identities:domainTable(identitySchema('user')),birth_profiles:domainTable(birthProfile)}});
+
+const birthProfileRevision=z.object({
+ revision:z.number().int().positive(),
+ facts:z.record(z.string(),z.unknown()),
+ field_sources:z.record(z.string(),z.object({
+  source_event_ref:z.string().min(1),
+  raw_text:z.string(),
+  extraction_kind:z.enum(['user_explicit','model_extracted']),
+ }).strict()),
+ source_event_refs:z.array(z.string().min(1)).min(1),
+ created_from_event_ref:z.string().min(1),
+ created_at_ms:z.number().int().nonnegative(),
+}).strict();
+const birthProfileChallenge=z.object({
+ challenge_id:z.string().min(1),
+ revision:z.number().int().positive(),
+ session_id:z.string().min(1),
+ issued_from_event_ref:z.string().min(1),
+ issued_at_ms:z.number().int().nonnegative(),
+ expires_at_ms:z.number().int().positive(),
+ status:z.enum(['active','consumed','invalidated','expired']),
+ consumed_by_event_ref:z.string().min(1).nullable(),
+}).strict();
+const birthProfileAuditEvent=z.object({
+ audit_id:z.string().min(1),
+ action:z.enum(['candidate_created','candidate_revised','challenge_issued','challenge_invalidated','confirmed','rejected','revoked']),
+ revision:z.number().int().positive(),
+ event_ref:z.string().min(1).nullable(),
+ occurred_at_ms:z.number().int().nonnegative(),
+ details:z.record(z.string(),z.unknown()),
+}).strict();
+const birthProfileWorkflow=z.object({
+ subject_id:z.string().min(1),
+ subject_kind:z.literal('user'),
+ current_revision:z.number().int().positive(),
+ status:z.enum(['collecting','awaiting_confirmation','confirmed','rejected','revoked']),
+ revisions:z.array(birthProfileRevision).min(1),
+ challenge:birthProfileChallenge.nullable(),
+ confirmed_profile:z.object({
+  profile_id:z.string().min(1), subject_id:z.string().min(1), subject_kind:z.literal('user'),
+  revision:z.number().int().positive(), facts:z.record(z.string(),z.unknown()),
+  confirmation_event_ref:z.string().min(1), confirmed_at_ms:z.number().int().nonnegative(),
+  status:z.enum(['confirmed','superseded','revoked']),
+ }).strict().nullable(),
+ audit_events:z.array(birthProfileAuditEvent),
+ schema_version:z.literal(1),
+}).strict();
+
+export const userSubjectDomainSpec=defineDomain({name:'yuanqi_user_subject',version:2,compatibleVersions:[1],tables:{identities:domainTable(identitySchema('user')),birth_profiles:domainTable(birthProfile),birth_profile_workflows:domainTable(birthProfileWorkflow)}});
 export const yuanqiSubjectDomainSpec=defineDomain({name:'yuanqi_subject',version:10,compatibleVersions:[3,4,5,6,7,8,9],tables:{installation_state:domainTable(installationState),identities:domainTable(identitySchema('yuanqi')),first_user_messages:domainTable(firstUserMessage),wake_records:domainTable(wakeRecord),worldlines:domainTable(worldline),worldline_mainlines:domainTable(worldlineMainline),worldline_snapshots:domainTable(worldlineSnapshot),worldline_heads:domainTable(worldlineHead),worldline_snapshot_archive_entries:domainTable(snapshotArchiveEntry),worldline_snapshot_archive_manifests:domainTable(snapshotArchiveManifest),evidence_records:domainTable(evidenceRecord),evidence_revocations:domainTable(evidenceRevocation),evidence_assessments:domainTable(evidenceAssessment),transfer_authorizations:domainTable(transferAuthorization),transfer_authorization_revocations:domainTable(transferAuthorizationRevocation),evidence_transfers:domainTable(evidenceTransfer),worldline_events:domainTable(worldlineEvent),session_worldline_bindings:domainTable(sessionWorldlineBinding)}});
 export async function openSubjectDomains(storageDomain) {
  if(!storageDomain||typeof storageDomain.open!=='function') throw new TypeError('DSH storageDomain is required');
