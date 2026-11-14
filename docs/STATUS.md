@@ -9,15 +9,15 @@
 
 | 项目 | 当前分支状态 | 说明 |
 |---|---|---|
-| 自动化测试 | GitHub Actions 通过 | PR #7 Run #565（`43611033527`），commit `e228bc91abdb165c1c0220b029cbb3c064babd9e`：70 passed / 0 failed |
-| JavaScript 语法检查 | GitHub Actions 通过 | PR #7 Run #565 的 `npm run check` 通过，Node.js 24.9.0 |
+| 自动化测试 | GitHub Actions 通过 | PR #7 Run #601（`43655447774`），commit `3eefc0d146b6747381c2ffe2eaf805f59f48523f`：76 passed / 0 failed |
+| JavaScript 语法检查 | GitHub Actions 通过 | PR #7 Run #601 的 `npm run check` 通过，Node.js 24.9.0 |
 | npm 安装包构建与归档检查 | 待复验 | 本分支尚未完成隔离归档复验 |
-| GitHub Actions CI | 通过 | PR #7 Run #565（`43611033527`）成功；Node.js 24.9.0 |
+| GitHub Actions CI | 通过 | PR #7 Run #601（`43655447774`）成功；Node.js 24.9.0 |
 | 真实 Android DSH 宿主安装与运行 | 待验收 | 尚无本分支真实宿主验收结论 |
 | 真实模型会话端到端 | 待验收 | 不以模拟宿主测试代替 |
 | Android/iOS 端到端 | 待验收 | 尚未完成 |
 
-**重要：** 本分支的 70 项测试由 PR #7 Run #565 实际验证通过；这不代表真实 Android DSH 宿主验收通过。
+**重要：** 本分支当前 76 项测试由 PR #7 Run #601 实际验证通过；这不代表真实 Android DSH 宿主验收通过。
 
 ## 2. 工程交付状态（2026-11-05）
 
@@ -400,7 +400,7 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 ### 本轮验证状态
 
 - 本分支已更新领域 Schema、Store、DSH Plugin、单元测试、DomainFacility 集成测试及中英文项目文档。
-- GitHub Actions PR #7 Run #565（`43611033527`），commit `e228bc91abdb165c1c0220b029cbb3c064babd9e`：Node.js 24.9.0，包根/DSH Storage Domain exports 检查通过，JavaScript 语法检查通过，70 passed / 0 failed。
+- GitHub Actions PR #7 Run #601（`43655447774`），commit `3eefc0d146b6747381c2ffe2eaf805f59f48523f`：Node.js 24.9.0，包根/DSH Storage Domain exports 检查通过，JavaScript 语法检查通过，76 passed / 0 failed。
 - 真实 Android 定位、真实 DSH Profile 持久化和端到端会话仍需验收。
 
 
@@ -424,4 +424,4 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 
 ### 验证
 
-- 本轮代码已推送至 PR #7 分支；GitHub Actions 正在由新提交触发，结果待确认。
+- GitHub Actions PR #7 Run #601（`43655447774`）已通过：Node.js 24.9.0，76 passed / 0 failed；包入口、DSH Storage Domain exports 与全部 JavaScript 语法检查通过。
