@@ -18,7 +18,7 @@ YuanQi 的出生时间不是用户的个人出生时间。它是用户首次在 
 
 `yuanqiLocationProvider` 是 YuanQi 定义的可选宿主能力接口，不是已确认存在于所有 DSH 版本的内建 API。Android 宿主应使用系统定位权限与系统定位服务实现该适配器；Desktop 宿主应通过用户授权的位置提供能力实现。适配器应在授权缺失时返回错误，由插件记录为未知地点。宿主不得把 IP 推断位置伪装成 GPS/系统定位。
 
-Android 接入已对接项目 `qingjian0/Deepseek-Harness-Local-Android` 现有的 `GET /dev/location` 路由。该路由受 Android `CapabilityGate.LOCATION` 与系统定位权限双重控制；默认能力开关关闭，用户必须在 Android 设备能力设置中显式启用“当前地理位置”，并授予粗略或精确定位权限。Android 侧目前读取的是 `LocationManager.getLastKnownLocation()` 缓存，而非主动请求新鲜 GPS fix，因此 YuanQi 额外要求定位缓存年龄不超过 60 秒，且定位采集时间与 DSH 启动事件时间相差不超过 60 秒；不满足、无权限、开关关闭、无 fix 或桥接超时都会将地点记为 unavailable，但出生时间仍正常落库。坐标采集时间按 Android 返回的 `at - age_ms` 还原，不把 HTTP 查询时间冒充 GPS fix 时间。
+Android 接入已对接项目 `qingjian0/Deepseek-Harness-Local-Android` 现有的 `GET /dev/location` 路由。该路由受 Android `CapabilityGate.LOCATION` 与系统定位权限双重控制；默认能力开关关闭，用户必须在 Android 设备能力设置中显式启用“当前地理位置”，授予粗略或精确定位权限，并开启系统位置服务。Android 侧目前读取的是 `LocationManager.getLastKnownLocation()` 缓存，而非主动请求新鲜 GPS fix，因此 YuanQi 额外要求定位缓存年龄不超过 60 秒，且定位采集时间与 DSH 启动事件时间相差不超过 60 秒；不满足、无权限、开关关闭、无 fix 或桥接超时都会将地点记为 unavailable，但出生时间仍正常落库。坐标采集时间按 Android 返回的 `at - age_ms` 还原，不把 HTTP 查询时间冒充 GPS fix 时间。
 
 冷历史扫描会独立查找首次精确启动命令，而不是只检查首条普通消息；如果启动命令只在冷历史中发现，插件不会用当前设备位置冒充事件发生时的位置，该类记录的地点会保持未知。Fork 继承前缀与安装边界之前的事件均不参与候选选择。
 
