@@ -31,7 +31,8 @@ test('locates 2026 equinoxes and solstices within the declared USNO approximatio
     assert.ok(term, 'expected solar longitude ' + longitude);
     const difference = Math.abs(Date.parse(term.at_utc) - Date.parse(referenceTime));
     assert.ok(difference <= 25 * 60 * 1000, longitude + '° crossing outside 25-minute uncertainty');
-    assert.equal(context.status, 'ambiguous');
+    assert.equal(context.status, 'ready');
+    assert.ok(context.term_boundary_distance_seconds < context.boundary_distance_seconds);
   }
 });
 
