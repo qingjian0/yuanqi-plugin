@@ -28,7 +28,7 @@ DSH 官方插件模型通过 Cordis Context 注入宿主服务；并不存在可
 
 `qingjian0/Deepseek-Harness-Local-Android` 的 `AgentBridge.kt` 已将 `GET /dev/location` 注册到本机桥；`LocationCap.kt` 通过 Android `LocationManager` 读取系统位置缓存，`CapabilityGate.LOCATION` 要求独立用户开关和 `ACCESS_FINE_LOCATION` / `ACCESS_COARSE_LOCATION` 权限。`AgentBridge` 在本机回环 HTTP 请求上校验 `X-DSH-Token`，`EngineConfig` 将同一启动周期 token 注入引擎进程环境变量 `DSH_BRIDGE_TOKEN`。YuanQi 通过这个受控本机通道读取位置，不需要另加 Android 权限，也不绕过用户开关。
 
-当前 Android 桥接支持有界单次定位请求；Android 11+ 使用 `getCurrentLocation()`，旧版本或新定位超时才回退到 last-known fix。因此 YuanQi 对定位结果年龄和事件时间差增加 60 秒限制；该策略优先保证出生地点时间相关性，宁可记为未知也不使用陈旧坐标。插件请求等待上限为 10 秒，覆盖 Android 原生定位的 8 秒等待与响应开销。Android 宿主侧的权限弹窗、用户开关和真机定位功能属于既有能力，但本轮未在目标手机上完成端到端实机验收。Desktop Host 没有等价 Provider，仍需独立实现。
+当前 Android 桥接支持有界单次定位请求；Android 11+ 使用 `getCurrentLocation()`，旧版本或新定位超时才回退到 last-known fix。因此 YuanQi 对定位结果年龄和事件时间差增加 60 秒限制；该策略优先保证出生地点时间相关性，宁可记为未知也不使用陈旧坐标。插件请求等待上限为 11 秒（包含自定义 Host Provider 的统一超时保护），覆盖 Android 原生定位的 8 秒等待与响应开销。Android 宿主侧的权限弹窗、用户开关和真机定位功能属于既有能力，但本轮未在目标手机上完成端到端实机验收。Desktop Host 没有等价 Provider，仍需独立实现。
 
 ## 存储兼容
 
