@@ -153,7 +153,7 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
     }, birth_location);
   }
 
-  async ensureYuanQiBirthProfile({ subject_id } = {}) {
+  async function ensureYuanQiBirthProfile({ subject_id } = {}) {
       requiredText(subject_id, 'subject_id');
       if (!yuanqis.get(subject_id)) throw new Error('YuanQiSubject does not exist');
       return serializeByKey(queues, 'yuanqi-birth-profile:' + subject_id, async () => {
@@ -263,7 +263,7 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
         return clone(existing);
       }
       const wake = await createWakeRecord(input.subject_id, event, input.birth_location);
-      if (wake) await this.ensureYuanQiBirthProfile({ subject_id: input.subject_id });
+      if (wake) await ensureYuanQiBirthProfile({ subject_id: input.subject_id });
       return wake;
     },
     getFirstUserMessage(id) { requiredText(id, 'subject_id'); const value = firstMessages.get(id); return value === undefined ? undefined : clone(value); },
