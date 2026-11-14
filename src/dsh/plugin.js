@@ -143,7 +143,7 @@ export async function apply(ctx) {
       }
     }
 
-    async function processCandidate(sessionId, event) {
+    async function processCandidate(sessionId, event, { captureLocation = true } = {}) {
       if (!active || storageUncertain) return;
       const direct = normalizeDirectUserMessageEvent(sessionId, event);
       if (!direct) return;
@@ -277,7 +277,7 @@ export async function apply(ctx) {
           for (const event of observation.events) {
             if (event.seq < inherited || event.time <= boundary.activated_at_ms) continue;
             const direct = normalizeDirectUserMessageEvent(sessionId, event);
-            if (direct) candidates.push({ ...direct, event });
+            if (direct) candidates.push({ ...direct, event, isLive: false });
           }
         } finally {
           observation[Symbol.dispose]?.();
@@ -287,10 +287,10 @@ export async function apply(ctx) {
       // Include every event admitted while the historical snapshot was read.
       for (const item of startupBuffer) {
         const direct = normalizeDirectUserMessageEvent(item.sessionId, item.event);
-        if (direct) candidates.push({ ...direct, event: item.event });
+        if (direct) candidates.push({ ...direct, event: item.event, isLive: true });
       }
       const first = chooseFirstCandidate(candidates);
-      if (first) await processCandidate(first.session_id, first.event);
+      if (first) await processCandidate(first.session_id, first.event, { captureLocation: first.isLive === true });
     }
 
     // Any messages buffered after the selected first event cannot replace its
