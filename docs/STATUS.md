@@ -358,3 +358,18 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - 用户 BirthProfile 与 YuanQi 自身 WakeRecord 必须分开。当前 BirthProfile 正式写入仍 fail-closed：Host verifier 固定拒绝；onboarding 仍是内存状态机；候选版本、字段级来源、一次性确认挑战、撤销审计与持久化恢复尚未实现。不得通过放宽 verifier 伪造确认成功。
 - Android 宿主新鲜定位桥接位于另一个仓库的 Draft PR #16，目标 `main`；真机定位与目标 DSH Profile provider 组合尚未验收。YuanQi 的自动化测试不能替代 Android 实机验证。
 - 最新文档提交 HEAD `63203f27fba07baf236a7df9aef70acabfe7985d` 已由 Push Run #449 与 PR Run #450 验证通过。
+
+
+## 25. 2026-11-14 P0 BirthProfile 持久化协议第一阶段
+
+- 当前开发 PR：[#5](https://github.com/qingjian0/yuanqi-plugin/pull/5)，分支 `work/p0-birth-profile-runtime`，目标 `dev`，仍为 Draft；没有合并 `dev` 或 `main`。
+- UserSubject Domain 升级至 v2，并声明兼容 v1；保留旧 `birth_profiles` 表结构，新增 `birth_profile_workflows` 单记录聚合表。候选 revision、当前状态、一次性 challenge、确认档案快照和审计事件在同一 UserSubject 聚合记录中，避免把一次确认拆成多个互不原子的业务表写入。
+- `saveBirthProfileCandidate`：每次不同的直接用户来源事件产生递增 revision；每个事实字段必须有来源引用、原始文本和 `user_explicit` / `model_extracted` 采集标记。模型抽取结果仍是候选，不会因写入候选而变成已确认事实。相同来源事件重复投递幂等；相同事件携带冲突候选数据会拒绝。
+- `issueBirthProfileConfirmationChallenge`：挑战绑定 UserSubject、当前 revision、Session、发起事件引用和过期时间；同一挑战 ID 的完全相同重试幂等。候选修订会使旧挑战失效；替换挑战会留下失效审计。
+- `confirmUserBirthProfile`：只接受 Host 事件适配器私有 WeakSet 标记的直接用户事件，且文本必须精确为“确认出生资料”；还需匹配当前 revision、挑战 Session、挑战发出后的事件时间和有效期。确认后挑战标记为 consumed，正式档案快照与确认事件引用保存在同一聚合记录中；相同确认事件重放幂等。
+- `rejectBirthProfileCandidate` 与 `revokeUserBirthProfile` 已增加精确 direct-user 命令及追加审计；撤销不删除原候选 revision 和来源记录。
+- 插件 Host verifier 已允许上述精确 BirthProfile 决策命令通过私有 Host 事件能力验证；任意对象上的 `verified: true` 不再构成可信凭证。
+- GitHub Actions YuanQi CI Run #478（`43598666851`），HEAD `0826dc814ad83313650b5801b473671f678a051f`：Node.js 24.9.0，75 passed / 0 failed；依赖与 DSH peer 检查、包根入口和 Storage Domain 导出、全部源码语法及测试均通过。新增官方 DSH DomainFacility 关闭/重开后恢复 BirthProfile workflow 的集成测试。
+- **尚未完成：** 候选资料尚未接入 DSH 消息入口和 onboarding；目前没有从自然语言自动形成候选、向用户展示规范化摘要、自动签发挑战的完整交互。正式确认 API 虽已实现，普通用户尚不能通过完整产品流程走完确认。旧 v1 `birth_profiles` 数据尚未迁移为新 workflow 聚合。
+- **一致性边界：** 候选/确认状态更新使用单个 DSH Domain record 的 `table.update`；初次创建使用 put-once。进程内队列保护单插件实例操作，但 DSH Domain 不提供本实现可依赖的跨进程分布式 CAS，因此不宣称多进程并发原子创建。官方 DomainFacility 测试使用测试内存 KV backend，不代表目标 Android Profile 的生产 Storage backend 验收。
+- Android 真机、真实 DSH Profile 用户消息端到端、OS 进程强制终止恢复仍待验收。PR #5 继续保持 Draft。
