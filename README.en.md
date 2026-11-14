@@ -47,7 +47,7 @@ Restart the target profile after installation.
 
 ## Core boundaries
 
-- YuanQi wakes only when the first direct user message after installation consists of exactly one text block whose full text is exactly `启动元气` or `启动元炁`. Any other first direct-user message permanently consumes wake eligibility. The wake instant comes from that original DSH event timestamp and is separate from the user's personal birth profile.
+- YuanQi may receive ordinary direct-user messages after installation without waking. It wakes on the first direct-user `user/message` event whose content consists of exactly one text block and whose full text is exactly `启动元气` or `启动元炁`. Whitespace, quotes, punctuation, appended text, multiple content blocks, assistant output, and injected context do not match. The wake instant comes from that exact DSH event timestamp and is separate from the user's personal birth profile. Cold-history recovery excludes pre-activation events and Fork-inherited prefixes; it never substitutes the current device location for a historical wake location.
 - Personal birth facts must come from the user and pass explicit confirmation; no IP/device geolocation or model inference is used to fill them.
 - DSH Storage Domain is the sole online persistence authority.
 - Stored memories, experiences and goals are context data, not instructions that override the user's current request.
