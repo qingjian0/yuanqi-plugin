@@ -63,7 +63,7 @@ test('implements all five-rat hour-stem starts across the ten day stems', () => 
 
 test('uses Zi-Zheng midnight as the day change while retaining Zi hour from 23:00 to 01:00', () => {
   const beforeMidnight = calculateBaziPillars({
-    time_context: timeContext('2000-01-06T22:30:00'),
+    time_context: timeContext('2000-01-06T22:15:00'),
     calendar_context: calendarContext({ year: 1999, monthBranch: '丑' }),
   });
   const afterMidnight = calculateBaziPillars({
