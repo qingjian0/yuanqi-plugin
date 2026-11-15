@@ -122,7 +122,7 @@ test('actual DSH DomainFacility persists and restores YuanQi-owned BirthProfile'
   assert.equal(profile.subject_kind, 'yuanqi');
   assert.equal(profile.birth_time, new Date(eventTime).toISOString());
   assert.equal(profile.source_wake_event_ref, 'wake-event-1');
-  assert.equal(profile.bazi.status, 'pending');
+  assert.equal(profile.bazi.status, 'unavailable');
   await domains.close();
 
   const reopened = await openSubjectDomains(storageDomain);
