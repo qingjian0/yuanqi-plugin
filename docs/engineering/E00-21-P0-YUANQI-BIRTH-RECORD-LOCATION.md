@@ -92,3 +92,10 @@ BirthProfile 建立后，运行时调用 `deriveBirthTimeContext()`，仅使用�
 DSH Storage Domain 是 Host 侧持久化，不会自动让模型看到记录。插件通过 `ctx.tools.register(defineTool(...))` 注册只读 `yuanqi_self_profile`，并使用 conditional registration：仅当 `getYuanQiBirthProfile('yuanqi:primary')` 已存在时，工具才进入当前模型步骤的可见工具集。
 
 工具输出 YuanQi AI 自身的 BirthProfile、time_context、calendar_context、Bazi 四柱和符号先天结构；不输出用户出生资料、精确坐标或写入接口。完整资料不常驻注入每轮提示词，模型按需调用以控制上下文长度。结构数据中的五行数量是未加权的出现次数，`interpretation_status` 固定为 `not_interpreted`，不等同旺衰、性格或命运判断。
+
+
+## Host 坐标到 IANA 时区（2026-11-15）
+
+Host Location Provider 可以直接返回 IANA 时区；若缺失或无效，插件使用 `@photostructure/tz-lookup` 的内置离线坐标边界数据从授权纬度/经度解析时区。结果和来源分别保存在 `birth_location.time_zone_id`、`birth_location.time_zone_source` 与 `time_context.time_zone_source`。
+
+来源枚举为 `host_location_provider`、`coordinate_lookup`、`unavailable`。不得用 IP、服务器所在地、设备外部网络出口或模型猜测补全。坐标无效或边界库无法解析时，时间上下文保持 pending/unavailable，四柱不得强行计算。离线时区边界数据在地理时区边界附近可能有误差，必须保留来源以供模型判断。
