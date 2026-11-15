@@ -5,6 +5,8 @@ export {
   apparentSunLongitudeDegrees,
   deriveSolarTermContext,
   SOLAR_TERMS,
+  BAZI_METHODOLOGY,
+  calculateBaziPillars,
   createWorldlineStore,
   SELF_MODEL_CENTER_IDS,
   openSubjectDomains,
