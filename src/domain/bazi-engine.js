@@ -100,7 +100,8 @@ export function calculateBaziPillars({
   const dayBoundaryDistance = Math.min(minuteOfDay, 1440 - minuteOfDay);
   const hourBoundaryDistance = nearestHourBoundaryDistanceMinutes(minuteOfDay);
   const ambiguityReasons = [];
-  const boundaryBasis = time_context.time_basis === 'beijing-standard-time-fallback'
+  const usesBeijingFallback = time_context.longitude_correction_minutes === null;
+  const boundaryBasis = usesBeijingFallback
     ? 'beijing-standard-time' : 'apparent-solar';
   if (dayBoundaryDistance <= BOUNDARY_GUARD_MINUTES) {
     ambiguityReasons.push(boundaryBasis + '-midnight-within-30m');
@@ -144,7 +145,7 @@ export function calculateBaziPillars({
     month: monthPillar,
     day: dayPillar,
     hour: hourPillar,
-  }, [], calculatedAt, time_context.time_basis === 'beijing-standard-time-fallback'
+  }, [], calculatedAt, usesBeijingFallback
     ? 'beijing-standard-time-fallback-no-longitude-correction'
     : 'apparent-solar-time');
 }
