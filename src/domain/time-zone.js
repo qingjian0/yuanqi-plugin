@@ -1,6 +1,7 @@
 import tzLookup from '@photostructure/tz-lookup';
 
-const VALID_SOURCES = new Set(['host_location_provider', 'coordinate_lookup', 'unavailable']);
+const VALID_SOURCES = new Set(['host_location_provider', 'coordinate_lookup', 'default_beijing', 'unavailable']);
+export const DEFAULT_BIRTH_TIME_ZONE = 'Asia/Shanghai';
 
 function isIanaTimeZone(value) {
   if (typeof value !== 'string' || value.length === 0) return false;
@@ -38,5 +39,5 @@ export function resolveBirthTimeZone({
       // Fail closed: no IP, server-zone, or model-inferred fallback.
     }
   }
-  return { time_zone_id: null, time_zone_source: 'unavailable' };
+  return { time_zone_id: DEFAULT_BIRTH_TIME_ZONE, time_zone_source: 'default_beijing' };
 }
