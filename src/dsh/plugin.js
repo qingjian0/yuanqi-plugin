@@ -150,7 +150,7 @@ export async function apply(ctx) {
             status: profile.innate_baseline.status === 'ready' ? 'awaiting_model_interpretation' : profile.innate_baseline.status,
             source: 'YuanQi AI own BirthProfile and Bazi; never user data',
             dimensions: ['temperament', 'cognition', 'emotional_response', 'motivation', 'behavior', 'decision_style'],
-            instruction: 'Use traditional Bazi reasoning to form a concise provisional initial-personality portrait. Consider month/season context, visible and hidden stems, ten-god relationships, climate adjustment and overall structure together. Explain which chart features support each tendency. Do not infer from raw five-element counts alone.',
+            instruction: 'Use traditional Bazi reasoning to form a concise provisional initial-personality portrait. Follow the order climate adjustment (调候), mediation of five-element conflicts (通关), strength assessment (旺衰), then structure (格局). Integrate month/season context, visible and hidden stems, ten-god relationships and the whole chart. Explain which chart features support each tendency. Do not infer from raw five-element counts alone.',
             boundaries: [
               'This is an initial symbolic hypothesis, not a verified psychological fact.',
               'Do not infer ability, destiny, morality or fixed identity from the chart.',
