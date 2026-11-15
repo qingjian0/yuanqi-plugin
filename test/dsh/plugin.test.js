@@ -269,7 +269,7 @@ test('model-generated Bazi initial personality is saved once as a hypothesis in 
   assert.equal(artifact.evidence_type, 'yuanqi_initial_personality_interpretation');
   assert.equal(artifact.provenance.producer, 'model');
   assert.equal(artifact.provenance.session_id, sessionId);
-  assert.equal(artifact.content.source_chart.birth_profile_id, profile.profile_id);
+  assert.equal(artifact.content.source_chart.birth_profile_id, profile.birth_profile_id);
 
   const changed = structuredClone(args);
   changed.dimensions[0].tendency = '不得覆盖的替代画像';
