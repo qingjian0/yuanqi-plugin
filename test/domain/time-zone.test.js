@@ -35,7 +35,7 @@ test('falls back from an invalid host zone to the coordinate boundary database',
   });
 });
 
-test('fails closed without valid authorized coordinates', () => {
+test('defaults to Beijing time when neither a valid host zone nor authorized coordinates are available', () => {
   assert.deepEqual(resolveBirthTimeZone({ latitude: null, longitude: null }), {
     time_zone_id: null,
     time_zone_source: 'unavailable',
