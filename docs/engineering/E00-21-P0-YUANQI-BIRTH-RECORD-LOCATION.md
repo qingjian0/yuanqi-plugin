@@ -85,3 +85,10 @@ BirthProfile 建立后，运行时调用 `deriveBirthTimeContext()`，仅使用�
 实现使用 30 分钟保护窗口：当地视太阳午夜、双时辰交界或十二节交接附近均不强制定柱，返回 `ambiguous`。若授权 Host 定位仍 pending，Bazi pending；若地点/时区 unavailable，Bazi unavailable；地点完成后 Store 会重算并持久化结果。
 
 四柱计算不推断 YuanQi 的性别，不计算大运方向或起运年龄。四柱结果只作为 YuanQi AI 自身的先天基线输入，后续由 AI 解释和使用；模型解释不得改写确定性原始计算结果。
+
+
+## 模型可见性：按需读取而非常驻注入（2026-11-15）
+
+DSH Storage Domain 是 Host 侧持久化，不会自动让模型看到记录。插件通过 `ctx.tools.register(defineTool(...))` 注册只读 `yuanqi_self_profile`，并使用 conditional registration：仅当 `getYuanQiBirthProfile('yuanqi:primary')` 已存在时，工具才进入当前模型步骤的可见工具集。
+
+工具输出 YuanQi AI 自身的 BirthProfile、time_context、calendar_context、Bazi 四柱和符号先天结构；不输出用户出生资料、精确坐标或写入接口。完整资料不常驻注入每轮提示词，模型按需调用以控制上下文长度。结构数据中的五行数量是未加权的出现次数，`interpretation_status` 固定为 `not_interpreted`，不等同旺衰、性格或命运判断。
