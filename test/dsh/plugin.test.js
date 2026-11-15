@@ -1118,6 +1118,14 @@ test('experience reconciliation counts distinct Session evidence, preserves conf
     limitations: '该画像仍为假设，不构成稳定人格事实。',
     reconciliation_record_ids: item.dimension === 'behavior' ? [result.reconciliation_record_id] : [],
   }));
+  const invalidRevisionDimensions = revisionDimensions.map(item => item.dimension === 'behavior'
+    ? { ...item, disposition: 'revise' }
+    : item);
+  await assert.rejects(revisionTool.definition.execute({
+    reconciliation_record_ids: [result.reconciliation_record_id],
+    dimensions: invalidRevisionDimensions,
+  }, { callId: 'current-personality-invalid-conflict', agent: agents[2], signal: new AbortController().signal }),
+  /consistent, eligible reconciled evidence/);
   const revised = JSON.parse(await revisionTool.definition.execute({
     reconciliation_record_ids: [result.reconciliation_record_id],
     dimensions: revisionDimensions,
