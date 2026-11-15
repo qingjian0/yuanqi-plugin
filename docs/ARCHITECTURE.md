@@ -225,8 +225,8 @@ SelfModel 写入复用现有 Runtime Lease 与 `updateSelfModelCenter`，不新�
 alpha.9 已有的实现应以仓库源码、测试和发布记录为准。自我模型作为架构中枢、完整认知系统、情感涌现、自主目标形成和意识研究属于整体研究方向；除非有对应源码和测试证据，不得标记为已实现。
 
 当前开发分支验证边界（PR #7，2026-11-15）：
-- 最新已验证代码提交：`98b8aff64a24da84a24ce22da76f0b1cd5b9b626`。
-- GitHub Actions Push Run（`43673343671`）与 PR Run（`43673345690`）均成功；Node.js 24.9.0，`npm run check` 为 105 passed / 0 failed，包根入口、DSH Storage Domain 导出和源码语法检查通过。
+- 最新已验证代码提交：`6c97c9d4d93153b531acdbf9b0994e40e6e9a6fc`。
+- GitHub Actions Push Run（`43673469477`）与 PR Run（`43673474130`）均成功；Node.js 24.9.0，`npm run check` 为 105 passed / 0 failed，包根入口、DSH Storage Domain 导出和源码语法检查通过。
 - 缺少宿主定位/时区时默认使用 `Asia/Shanghai` 进行民用时间换算；无经度时不进行真太阳时修正。四柱边界保护仍可返回 ambiguous。
 - `innate_baseline` 已由四柱派生；`yuanqi_self_profile` 提供可核验的命盘证据目录；`yuanqi_record_initial_personality` 已将 AI 生成画像以 `hypothesis` 状态写入当前 Session 绑定的 Worldline SelfModel。
 - 初始画像仅完成首次持久化与来源追溯，尚未完成后天经历验证、画像修正和先天/后天融合。
