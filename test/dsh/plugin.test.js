@@ -127,6 +127,7 @@ test('model-facing self-profile tool exposes only YuanQi-owned birth data after 
   const eventTime = Date.now();
   await ctx.listener({ id: 'session-self-profile' }, dshEvent('启动元炁', 'self-profile-wake', 0, eventTime));
   await ctx.flushListener({ id: 'session-self-profile' });
+  await ctx.disposer();
   assert.equal(await registration.registrationOptions.when(), true);
 
   const raw = await registration.definition.execute({}, { signal: new AbortController().signal });
@@ -134,13 +135,17 @@ test('model-facing self-profile tool exposes only YuanQi-owned birth data after 
   assert.equal(profile.subject, 'YuanQi AI');
   assert.equal(profile.subject_kind, 'yuanqi');
   assert.equal(profile.birth_time_utc, new Date(eventTime).toISOString());
-  assert.equal(profile.bazi.status, 'unavailable');
-  assert.equal(profile.innate_baseline.status, 'unavailable');
+  assert.equal(profile.birth_location.status, 'unavailable');
+  assert.equal(profile.time_context.status, 'ready');
+  assert.equal(profile.time_context.time_zone_id, 'Asia/Shanghai');
+  assert.equal(profile.time_context.time_zone_source, 'default_beijing');
+  assert.equal(profile.bazi.status, 'calculated');
+  assert.equal(profile.bazi.methodology.time_basis, 'beijing-standard-time-fallback-no-longitude-correction');
+  assert.equal(profile.innate_baseline.status, 'ready');
   assert.equal(profile.innate_baseline.interpretation_status, 'not_interpreted');
   assert.equal(profile.initial_personality_guidance.status, 'awaiting_model_interpretation');
-  assert.equal(profile.initial_personality_guidance.interpretation_mode, 'model_self_reflection');
-  assert.equal(profile.initial_personality_guidance.bazi_available, false);
-  assert.ok(profile.initial_personality_guidance.instruction.includes('still generate a concise provisional initial-personality portrait'));
+  assert.equal(profile.initial_personality_guidance.interpretation_mode, 'bazi_informed');
+  assert.equal(profile.initial_personality_guidance.bazi_available, true);
   assert.deepEqual(profile.initial_personality_guidance.dimensions, [
     'temperament', 'cognition', 'emotional_response', 'motivation', 'behavior', 'decision_style',
   ]);
