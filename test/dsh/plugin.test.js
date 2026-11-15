@@ -310,7 +310,7 @@ test('AI initial personality waits for Bazi when the chart is genuinely unavaila
   assert.equal(await writeTool.registrationOptions.when({ agent: { session: { id: 'session-no-bazi' } } }), true);
   assert.equal(profile.chart_evidence_catalog.length, 0);
   assert.equal(profile.initial_personality_guidance.analysis_protocol.length, 5);
-  assert.ok(profile.initial_personality_guidance.instruction.includes('all six dimensions indeterminate'));
+  assert.ok(profile.initial_personality_guidance.instruction.includes('mark every dimension indeterminate'));
   assert.ok(profile.initial_personality_guidance.instruction.includes('Do not substitute generic model self-reflection'));
   assert.ok(profile.initial_personality_guidance.portrait_format[1].includes('Chart evidence:'));
   assert.ok(profile.initial_personality_guidance.boundaries.some(item => item.includes('awaiting_bazi placeholder')));
