@@ -93,6 +93,12 @@ function context(storageDomain, options = {}) {
   };
 }
 
+test('plugin startup requires the DSH model tools registry before opening Domains', async () => {
+  const storage = fakeStorageDomain();
+  await assert.rejects(apply({ ...context(storage), tools: undefined }), /official DSH tools service/);
+  assert.equal(storage.opened.size, 0);
+});
+
 test('plugin startup rejects an incomplete SessionPersistence provider before opening Domains', async () => {
   const invalidProviders = [
     { async list() { return []; } },
