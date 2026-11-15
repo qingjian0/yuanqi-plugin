@@ -80,6 +80,9 @@ function chooseFirstCandidate(candidates) {
 }
 
 export async function apply(ctx) {
+  if (!ctx.tools || typeof ctx.tools.register !== 'function') {
+    throw new Error('YuanQi requires the official DSH tools service');
+  }
   if (!ctx.sessionQuery || typeof ctx.sessionQuery.listSessions !== 'function' ||
       typeof ctx.sessionQuery.observeSession !== 'function') {
     throw new Error('YuanQi requires the official DSH sessionQuery service');
