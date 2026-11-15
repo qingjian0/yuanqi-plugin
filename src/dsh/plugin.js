@@ -1000,8 +1000,7 @@ export async function apply(ctx) {
               provenance?.protocol !== 'bounded-experience-candidate-v1' ||
               provenance?.worldline_id !== binding.worldline_id ||
               provenance?.initial_personality_source_record_id !== initial.source_record_id ||
-              typeof provenance?.session_id !== 'string' || provenance.session_id.length === 0 ||
-              evidenceId.split(':')[2] !== binding.worldline_id) {
+              typeof provenance?.session_id !== 'string' || provenance.session_id.length === 0) {
             throw new Error('every candidate must be active, same-Worldline, and linked to the current Bazi initial portrait');
           }
           if (sessions.has(provenance.session_id)) {
