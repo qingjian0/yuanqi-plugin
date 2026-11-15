@@ -506,9 +506,18 @@ export async function apply(ctx) {
         }
         const selfModel = worldlines.getSelfModel(binding.worldline_id);
         const initialPersonality = selfModel?.centers?.identity_continuity?.content?.initial_personality;
-        if (!initialPersonality || initialPersonality.status !== 'hypothesis') {
+        if (!initialPersonality || initialPersonality.status !== 'hypothesis' ||
+            typeof initialPersonality.source_record_id !== 'string') {
           throw new Error('a saved Bazi initial-personality hypothesis is required before experience capture');
         }
+        const initialSource = worldlines.getEvidenceRecord({
+          evidence_id: initialPersonality.source_record_id,
+          worldline_id: binding.worldline_id,
+        });
+        if (!initialSource || initialSource.status !== 'active') {
+          throw new Error('the Bazi initial-personality source record must remain active');
+        }
+        const initialDimensions = new Set((initialPersonality.dimensions ?? []).map(item => item.dimension));
         if (typeof args?.summary !== 'string' || args.summary.trim().length === 0 || args.summary.length > 600 ||
             typeof args?.observed_behavior !== 'string' || args.observed_behavior.trim().length === 0 ||
             args.observed_behavior.length > 1200) {
@@ -538,7 +547,7 @@ export async function apply(ctx) {
         const seenDimensions = new Set();
         for (const link of args.dimension_links) {
           if (!link || !INITIAL_PERSONALITY_DIMENSIONS.includes(link.dimension) ||
-              seenDimensions.has(link.dimension) ||
+              !initialDimensions.has(link.dimension) || seenDimensions.has(link.dimension) ||
               !['supports', 'contradicts', 'insufficient'].includes(link.relation) ||
               typeof link.rationale !== 'string' || link.rationale.trim().length === 0 || link.rationale.length > 800 ||
               !validSeqs(link.behavior_event_seqs) || link.behavior_event_seqs.length < 1 ||
@@ -711,8 +720,11 @@ export async function apply(ctx) {
         if (!binding || binding.yuanqi_subject_id !== YUANQI_SUBJECT_ID) return false;
         const line = worldlines.getWorldline(binding.worldline_id);
         const selfModel = worldlines.getSelfModel(binding.worldline_id);
-        return line?.status === 'active' &&
-          Boolean(selfModel?.centers?.identity_continuity?.content?.initial_personality);
+        const initial = selfModel?.centers?.identity_continuity?.content?.initial_personality;
+        const source = typeof initial?.source_record_id === 'string'
+          ? worldlines.getEvidenceRecord({ evidence_id: initial.source_record_id, worldline_id: binding.worldline_id })
+          : undefined;
+        return line?.status === 'active' && initial?.status === 'hypothesis' && source?.status === 'active';
       },
     });
 

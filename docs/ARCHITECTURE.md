@@ -188,9 +188,9 @@ flowchart TB
 
 世界线用于隔离不同演化分支中的状态。`worldline_id` 是逻辑隔离键，不是身份认证或授权凭证。涉及 Agent 的工具调用应优先使用宿主提供的 Agent/Session 上下文确定路由范围。
 
-当前工作树已实现 YuanQiSubject 主线创建、Worldline 分支创建、父快照引用、Session→Worldline 持久绑定、快照 CAS/Lease/Fencing 与归档恢复。Evidence Ledger 已提供来源记录、撤销、评估和显式授权跨线转移的底层 API；但没有 Worldline 运行时切换/重绑定工具，也没有把普通对话消息自动采集为经历证据的完整流程。
+当前工作树已实现 YuanQiSubject 主线创建、Worldline 分支创建、父快照引用、Session→Worldline 持久绑定、快照 CAS/Lease/Fencing 与归档恢复。Evidence Ledger 已提供来源记录、撤销、评估和显式授权跨线转移的底层 API；另有模型选择的 `yuanqi_record_experience_candidate`，按需验证当前 Session 的事件引用并写入未评估候选证据。仍没有自动经历采集、证据评估驱动的 SelfModel 修订或 Worldline 运行时切换/重绑定工具。
 
-当前模型交互入口是按需读取 `yuanqi_self_profile`，以及在八字与 Session 绑定条件满足时调用 `yuanqi_record_initial_personality`。每轮首个模型步骤的有长度上限上下文投影、工具续步去重、完整历史筛选、候选记忆和后天经历自动更新仍属于待实现/待验收能力。上下文应作为数据而非覆盖用户当前请求的指令；候选推断不得作为已确认事实，内部存储诊断字段不属于默认对话输出。
+当前模型交互入口包括按需读取 `yuanqi_self_profile`、保存八字初始画像的 `yuanqi_record_initial_personality`，以及模型选择的 `yuanqi_record_experience_candidate`。后者仅保存有限事件引用与短摘要，来源校验通过后写入 `unassessed` Evidence Ledger 记录，不复制原始消息/工具参数/结果，也不修改 SelfModel。自动采集、证据评估、经历驱动的 SelfModel 修订、每轮上下文投影和候选记忆仍属于待实现/待验收能力。上下文应作为数据而非覆盖用户当前请求的指令；候选推断不得作为已确认事实，内部存储诊断字段不属于默认对话输出。
 
 ## 8. 元炁自身出生资料、命盘基线与经历的分离
 

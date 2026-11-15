@@ -29,7 +29,7 @@
 - 已新增测试覆盖：证据目录校验、无八字时工具不可见、当前 Session 世界线绑定、初始画像只写入一次、认识状态保持 hypothesis。
 - 该画像仍是命理解释假设，不是已验证人格事实；后续经历验证与修正流程尚未完成。真实 Android DSH 宿主和模型端到端验收仍待完成。
 - 详细设计与边界记录：[E00-21 八字初始性格与 SelfModel 持久化闭环](./engineering/E00-21-P0-BAZI-INITIAL-PERSONALITY-SELFMODEL.md)。
-- 后天经历采集研究：[E00-22 后天经历与证据采集管线](./engineering/E00-22-P0-EXPERIENCE-EVIDENCE-PIPELINE.md)；当前仅完成宿主事件契约研究，未新增自动经历采集代码。
+- 后天经历采集：[E00-22 后天经历与证据采集管线](./engineering/E00-22-P0-EXPERIENCE-EVIDENCE-PIPELINE.md)；已实现模型选择、有界事件引用和来源校验的候选记录工具，但尚无自动采集、证据评估和画像修订。
 
 ## 2. 工程交付状态（2026-11-05）
 
@@ -67,7 +67,7 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - 支持快照 CAS、Runtime Lease/Fencing、快照归档，以及主线创建中断后的恢复。
 - Evidence Ledger 提供来源记录、撤销、评估和显式授权跨线转移等底层 API。
 - 当前插件没有提供 Worldline 运行时切换/重绑定工具，也没有自动合并不同世界线状态的流程。
-- 当前插件尚未把普通对话消息自动转成经历证据；Evidence Ledger 的存在不等于经历采集和自我模型更新闭环已完成。
+- 当前插件不会自动把普通对话消息转成经历证据；模型可按需调用 `yuanqi_record_experience_candidate`，经插件核验后写入 `unassessed` 候选记录。Evidence Ledger 的存在及候选记录入口均不等于证据评估和 SelfModel 更新闭环已完成。
 
 `worldline_id` 是逻辑隔离键，不是用户身份认证或授权凭证。
 

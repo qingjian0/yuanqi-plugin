@@ -142,7 +142,8 @@ flowchart TB
 - DSH 模型工具 `yuanqi_self_profile` 按需提供自身出生档案、先天结构和可核验命盘证据目录；`yuanqi_record_initial_personality` 将 AI 生成的八字初始画像以 `hypothesis` 状态写入当前 Session 绑定的 Worldline SelfModel。
 - Worldline 支持主线创建、分支快照、Session 绑定、Runtime Lease/Fencing、Snapshot CAS 和归档恢复；当前没有运行时切换/重绑定工具。
 - Evidence Ledger 提供来源记录、撤销、评估和显式授权跨线转移等底层能力。
-- 普通对话消息尚未自动采集为经历证据；独立记忆、经验、目标、行为模块和经历驱动的 SelfModel 更新仍属研究/待实现方向。
+- 已新增模型按需调用的 `yuanqi_record_experience_candidate`：只接受当前 Session 的有限事件引用，核验助手已提交输出、工具调用/结果及直接用户上下文；不复制原始消息、工具参数或工具结果，写入的候选证据保持 `unassessed`，不修改 SelfModel。
+- 普通对话消息仍不会自动采集；证据评估、初始画像的验证/反驳与修订、独立记忆/目标/行为模块仍属待实现方向。
 - 每轮上下文投影、工具续步去重和完整历史筛选尚未实现为当前插件运行时能力。
 
 ### 元炁自身出生资料与命盘基线
@@ -180,7 +181,7 @@ flowchart TB
 - 生命上下文领域模型与先天基线/出生资料管理。
 - Worldline、Evidence Ledger 和当前已实现的 SelfModel 持久化能力。
 - 初始画像生成指导与来源追溯。
-- 记忆、经历、目标、行为和上下文投影仍是后续领域建设方向，不应误认为当前都已实现。
+- 记忆、目标、行为和上下文投影仍是后续领域建设方向；经历目前仅有模型选择的候选记录入口，尚无自动采集、评估和 SelfModel 修订闭环。
 
 元炁不另建 Agent Runtime，不在插件内部启动独立 Python 子进程，也不以第二套在线持久化系统替代 DSH Storage Domain。
 

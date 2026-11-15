@@ -2,7 +2,7 @@
 
 > 日期：2026-11-15  
 > 适用范围：DSH SessionEvent、SessionQuery、YuanQi Evidence Ledger、五中心 SelfModel  
-> 状态：源码与宿主契约研究完成；未新增运行时代码  
+> 状态：源码与宿主契约研究完成；模型选择的有界候选记录工具已实现，证据评估与画像修订未实现  
 > 目的：明确如何让后天经历验证或反驳八字初始画像，同时避免把用户资料或模型自述误当成 AI 自身经历事实
 
 ## 1. 当前实现审计
@@ -111,13 +111,13 @@ DSH SessionEvent → bounded source references → model experience candidate �
 
 ## 8. 本阶段结论与下一步
 
-当前最合理的下一步不是自动收集全部聊天，而是先实现一个**有界、模型选择、来源可验证的经历候选工具**：
+当前最合理的下一步仍不是自动收集全部聊天。开发分支已实现一个**有界、模型选择、来源可验证的经历候选工具**：
 
 - 输入只接受当前 Session 中的事件序号引用和简短结构化经历摘要。
 - 插件自行校验事件类型、source.kind、turn/step、callId 配对与 Worldline 绑定。
 - 默认只保留最小摘要和事件引用，不重复保存整段对话。
 - 写入 Evidence Ledger 后先作为候选经历；不直接改变初始画像。
-- 后续再单独实现经历评估与 SelfModel 修正。
+- 下一步单独实现经历评估与 SelfModel 修正。
 
 真实 DSH SessionQuery 的目标 Profile 版本、事件恢复/冷读行为、工具执行上下文以及隐私策略仍需端到端验收。未经这些验证，不应将自动经历采集或动态人格修正标记为已完成。
 
@@ -134,4 +134,8 @@ DSH SessionEvent → bounded source references → model experience candidate �
 - Evidence Ledger 只保存摘要、事件引用和最少元数据，不复制助手正文、工具参数或工具结果正文；新记录状态为 `unassessed`。
 - 当前阶段不调用 `assessEvidence`，不写入 SelfModel，不修改八字初始画像。后续必须单独实现证据评估和经评估的画像修订。
 
-本轮实现仍需 GitHub Actions 与目标 DSH Profile 的真实端到端验证；测试替身不能替代 Android 宿主验收。
+
+
+**实现限制：** `readEvent({ sessionId, seq, before: 0, after: 0 })` 将返回窗口限制为一个目标事件，但当前 DSH SessionQuery 的精确读取仍会装载并回放校验完整 Session 日志。因此模型可见数据和持久化摘要是有界的，底层读取成本仍可能随 Session 历史增长；后续若需优化，应使用有证据的索引/读取能力，而不是绕过 SessionQuery 直接读存储。
+
+本轮实现仍需目标 DSH Profile 的真实端到端验证；测试替身不能替代 Android 宿主验收。
