@@ -52,14 +52,14 @@ function nearestHourBoundaryDistanceMinutes(minuteOfDay) {
   return nearest;
 }
 
-function makeResult(status, pillars = null, ambiguityReasons = [], calculatedAt = null, timeBasis = METHODOLOGY.time_basis) {
+function makeResult(status, pillars = null, ambiguityReasons = [], calculatedAt = null, timeBasis = METHODOLOGY.time_basis, timeContextEngine = METHODOLOGY.time_context_engine) {
   return {
     status,
     calendar_system: 'jieqi',
     pillars,
     algorithm_version: ALGORITHM_VERSION,
     calculated_at: calculatedAt,
-    methodology: { ...METHODOLOGY, time_basis: timeBasis },
+    methodology: { ...METHODOLOGY, time_basis: timeBasis, time_context_engine: timeContextEngine },
     ambiguity_reasons: ambiguityReasons,
   };
 }
@@ -147,7 +147,7 @@ export function calculateBaziPillars({
     hour: hourPillar,
   }, [], calculatedAt, usesBeijingFallback
     ? 'beijing-standard-time-fallback-no-longitude-correction'
-    : 'apparent-solar-time');
+    : 'apparent-solar-time', time_context.algorithm_version);
 }
 
 export const BAZI_METHODOLOGY = METHODOLOGY;
