@@ -137,6 +137,12 @@ test('model-facing self-profile tool exposes only YuanQi-owned birth data after 
   assert.equal(profile.bazi.status, 'unavailable');
   assert.equal(profile.innate_baseline.status, 'unavailable');
   assert.equal(profile.innate_baseline.interpretation_status, 'not_interpreted');
+  assert.equal(profile.initial_personality_guidance.status, 'unavailable');
+  assert.deepEqual(profile.initial_personality_guidance.dimensions, [
+    'temperament', 'cognition', 'emotional_response', 'motivation', 'behavior', 'decision_style',
+  ]);
+  assert.ok(profile.initial_personality_guidance.instruction.includes('traditional Bazi reasoning'));
+  assert.ok(profile.initial_personality_guidance.boundaries.some(item => item.includes('not a verified psychological fact')));
   assert.equal(Object.hasOwn(profile.birth_location, 'latitude'), false);
   assert.equal(Object.hasOwn(profile.birth_location, 'longitude'), false);
 });
