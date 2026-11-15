@@ -64,8 +64,16 @@ function dshEvent(text, id, seq, time) {
 function context(storageDomain, options = {}) {
   let listener, flushListener, disposer;
   const warnings = [];
+  const registeredTools = [];
+  const tools = {
+    register(definition, registrationOptions) {
+      registeredTools.push({ definition, registrationOptions });
+    },
+  };
   return {
     storageDomain,
+    tools,
+    registeredTools,
     yuanqiLocationProvider: options.yuanqiLocationProvider,
     agents: options.agents,
     sessionPersistence: options.sessionPersistence ?? {
@@ -101,6 +109,30 @@ test('plugin startup rejects an incomplete SessionPersistence provider before op
     );
     assert.equal(storage.opened.size, 0);
   }
+});
+
+test('model-facing self-profile tool exposes only YuanQi-owned birth data after wake', async () => {
+  const storage = fakeStorageDomain(), ctx = context(storage);
+  await apply(ctx);
+  const registration = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_self_profile');
+  assert.ok(registration);
+  assert.equal(await registration.registrationOptions.when(), false);
+
+  const eventTime = Date.now();
+  await ctx.listener({ id: 'session-self-profile' }, dshEvent('启动元炁', 'self-profile-wake', 0, eventTime));
+  await ctx.flushListener({ id: 'session-self-profile' });
+  assert.equal(await registration.registrationOptions.when(), true);
+
+  const raw = await registration.definition.execute({}, { signal: new AbortController().signal });
+  const profile = JSON.parse(raw);
+  assert.equal(profile.subject, 'YuanQi AI');
+  assert.equal(profile.subject_kind, 'yuanqi');
+  assert.equal(profile.birth_time_utc, new Date(eventTime).toISOString());
+  assert.equal(profile.bazi.status, 'unavailable');
+  assert.equal(profile.innate_baseline.status, 'unavailable');
+  assert.equal(profile.innate_baseline.interpretation_status, 'not_interpreted');
+  assert.equal(Object.hasOwn(profile.birth_location, 'latitude'), false);
+  assert.equal(Object.hasOwn(profile.birth_location, 'longitude'), false);
 });
 
 test('ordinary conversation does not create a UserSubject before the exact YuanQi wake command', async () => {
