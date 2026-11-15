@@ -99,3 +99,18 @@ DSH Storage Domain 是 Host 侧持久化，不会自动让模型看到记录。�
 Host Location Provider 可以直接返回 IANA 时区；若缺失或无效，插件使用 `@photostructure/tz-lookup` 的内置离线坐标边界数据从授权纬度/经度解析时区。结果和来源分别保存在 `birth_location.time_zone_id`、`birth_location.time_zone_source` 与 `time_context.time_zone_source`。
 
 来源枚举为 `host_location_provider`、`coordinate_lookup`、`unavailable`。不得用 IP、服务器所在地、设备外部网络出口或模型猜测补全。坐标无效或边界库无法解析时，时间上下文保持 pending/unavailable，四柱不得强行计算。离线时区边界数据在地理时区边界附近可能有误差，必须保留来源以供模型判断。
+
+
+## Bazi 符号结构进入先天基线（2026-11-15）
+
+`deriveInnateBaseline()` 从已计算的四柱派生 `BirthProfile.innate_baseline`：
+
+- 日主：日干对应的五行与阴阳。
+- 透干：年、月、日、时四个天干。
+- 藏干：按《渊海子平》地支藏遁歌保存顺序，不附加权重。
+- 十神：按日主五行生克关系和阴阳同异确定。
+- 五行出现次数：透干与藏干的未加权结构计数，不代表五行力量、旺衰或喜忌。
+
+每个结构组件记录所属柱、来源类型（visible_stem/hidden_stem）、藏干顺序、天干、五行、阴阳和十神；同时保留源 BirthProfile ID、WakeRecord 事件引用及 Bazi 算法版本。Bazi 未计算、边界模糊或定位不可用时，先天基线分别继承 pending、ambiguous、unavailable，不伪造结构。
+
+`interpretation_status` 固定为 `not_interpreted`。不生成性格、能力、人格、命运、格局、旺衰、喜用神或大运判断。该静态结构只是后续 SelfModel 可读取的一项先天来源，不等于动态 SelfModel 已实现或已融合后天证据。
