@@ -633,6 +633,13 @@ export async function apply(ctx) {
           if (!call || call.turn !== result.turn || call.step !== result.step) {
             throw new Error('each selected tool/result must include its matching tool/call from the same turn and step');
           }
+          if (result.is_error && args.outcome === 'completed') {
+            throw new Error('a failed tool result cannot support a completed experience outcome');
+          }
+        }
+        if ([...calls.keys()].some(callKey => !results.has(callKey)) &&
+            !['unknown', 'partial'].includes(args.outcome)) {
+          throw new Error('a tool/call without its result cannot be recorded as completed or failed');
         }
         const behaviorRefs = behaviorSeqs.map(seq => allRefs.get(seq));
         const sourceRef = [...behaviorRefs].reverse().find(ref => ref.event_type === 'assistant/message' || ref.event_type === 'tool/result') ??
@@ -663,7 +670,6 @@ export async function apply(ctx) {
             producer: 'model',
             protocol: 'bounded-experience-candidate-v1',
             session_id: sessionId,
-            tool_call_id: String(callId),
             worldline_id: binding.worldline_id,
             behavior_event_seqs: [...behaviorSeqs],
             context_event_seqs: [...contextSeqs],
