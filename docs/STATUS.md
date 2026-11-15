@@ -28,6 +28,7 @@
 - 使用 DSH Agent 执行上下文中的 Session ID 与工具调用 ID确定来源和世界线；不接受模型传入 worldline/session/source_event_ref。通过 Runtime Lease 和单次初始化检查防止并发覆盖。
 - 已新增测试覆盖：证据目录校验、无八字时工具不可见、当前 Session 世界线绑定、初始画像只写入一次、认识状态保持 hypothesis。
 - 该画像仍是命理解释假设，不是已验证人格事实；后续经历验证与修正流程尚未完成。真实 Android DSH 宿主和模型端到端验收仍待完成。
+- 详细设计与边界记录：[E00-21 八字初始性格与 SelfModel 持久化闭环](./engineering/E00-21-P0-BAZI-INITIAL-PERSONALITY-SELFMODEL.md)。
 
 ## 2. 工程交付状态（2026-11-05）
 
