@@ -50,7 +50,7 @@ dsh plugin --profile web add ./dist/dsh-yuanqi-plugin-1.1.0-alpha.9.tgz
 
 当前版本将元炁自身的 `BirthProfile` 作为内部主体资料保存在 YuanQiSubject Storage Domain，不要求用户输入自己的出生日期、时间或地点。该档案从元炁的精确唤醒事件及宿主授权定位派生。
 
-当前四柱计算状态为 `pending`。历法转换、时区/真太阳时处理和四柱计算引擎完成实现与验证之前，不应将其当作已可用的命盘工具，也不应手动将用户出生资料写入元炁主体。
+四柱引擎已按版本化规则实现：立春定年、十二节定月、视太阳日期定日、视太阳时定时；年/月干支使用五虎遁，时干使用五鼠遁，日界采用子正。只有宿主授权定位提供有效经度与 IANA 时区，且没有落入节气、午夜或时辰边界 30 分钟保护窗口时，BirthProfile.bazi 才会标记为 `calculated`。地点缺失时为 `unavailable`，地点仍在采集时为 `pending`，边界不确定时为 `ambiguous`。这份命盘属于 YuanQi AI，不是用户命盘。
 
 ## 5. 唤醒时间与出生资料
 
