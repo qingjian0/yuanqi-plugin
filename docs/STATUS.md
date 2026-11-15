@@ -498,3 +498,20 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 
 - 插件测试验证工具在唤醒前隐藏、唤醒后可用，并且只返回 YuanQiSubject 自身资料。
 - 完整 CI 正在由新增模型工具与基线测试提交触发；结果待确认。
+
+
+## 32. 2026-11-15 宿主坐标到 IANA 时区的离线解析
+
+### 已实现
+
+- 新增 `resolveBirthTimeZone()`，优先采用 Host Location Provider 明确提供且通过 Intl 校验的 IANA 时区。
+- Host 未提供时区或提供无效时区时，使用 `@photostructure/tz-lookup` 内置离线坐标边界库，从授权唤醒坐标解析 IANA 时区。
+- 在 WakeRecord 与 BirthProfile 的 `birth_location.time_zone_source` 记录 `host_location_provider`、`coordinate_lookup` 或 `unavailable`；time_context 同步保存来源。
+- 不使用 IP、服务器时区或模型推断作为 fallback；坐标无效/查询失败时保持 unavailable。
+- DSH 插件在异步位置采集完成后，更新 WakeRecord、BirthProfile 的 time_context、四柱和 innate_baseline。
+- 模型工具返回时区来源，但不返回精确经纬度。
+
+### 边界
+
+- 离线时区边界库是地理边界数据，不是对设备自动时区设置的证明；边界附近可能存在数据误差，来源字段必须保留。
+- 当前自动化测试覆盖上海、纽约、无效 IANA 时区、缺失/越界坐标和异步 Host 定位完成。
