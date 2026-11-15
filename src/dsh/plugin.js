@@ -563,69 +563,81 @@ export async function apply(ctx) {
           });
         }
         const allRefs = new Map();
-        async function readOwnedEvent(seq) {
-          const window = await ctx.sessionQuery.readEvent({ sessionId, seq, before: 0, after: 0 });
-          const event = window?.target;
-          if (!window || window.session?.id !== sessionId ||
-              !Number.isSafeInteger(window.inheritedEventCount) || window.inheritedEventCount < 0 ||
-              seq < window.inheritedEventCount || !event || event.seq !== seq ||
-              !Number.isSafeInteger(event.time) || event.time < 0) {
-            throw new Error('event reference is missing, inherited or outside the current Session');
+        // Resolve one consistent Session cut for all selected references.
+        // Calling readEvent once per seq reloads/replays the complete log on
+        // current DSH implementations; one observation avoids N full reads.
+        const observation = await ctx.sessionQuery.observeSession(sessionId, { projectionMode: 'none' });
+        try {
+          const inheritedEventCount = observation?.inheritedEventCount;
+          const events = observation?.events;
+          if (observation?.header?.id !== sessionId ||
+              !Number.isSafeInteger(inheritedEventCount) || inheritedEventCount < 0 ||
+              !Array.isArray(events)) {
+            throw new Error('current Session observation is invalid');
           }
-          return event;
-        }
-        for (const seq of behaviorSeqs) {
-          const event = await readOwnedEvent(seq);
-          if (!['assistant/message', 'tool/call', 'tool/result'].includes(event.type)) {
-            throw new Error('behavior evidence must be assistant/message, tool/call or tool/result');
-          }
-          const data = event.data;
-          const ref = {
-            session_id: sessionId, seq, event_type: event.type,
-            occurred_at: new Date(event.time).toISOString(),
-            turn: data?.turn, step: data?.step,
-          };
-          if (!Number.isSafeInteger(ref.turn) || ref.turn < 0 ||
-              !Number.isSafeInteger(ref.step) || ref.step < 0) {
-            throw new Error('behavior event has invalid turn/step metadata');
-          }
-          if (event.type === 'assistant/message') {
-            if (data.message?.role !== 'assistant' || data.message?.source?.kind !== 'model') {
-              throw new Error('assistant behavior reference is not a committed model message');
+          function readOwnedEvent(seq) {
+            const event = events[seq];
+            if (seq < inheritedEventCount || !event || event.seq !== seq ||
+                !Number.isSafeInteger(event.time) || event.time < 0) {
+              throw new Error('event reference is missing, inherited or outside the current Session');
             }
-            ref.message_id = data.message.id;
-          } else if (event.type === 'tool/call') {
-            if ((typeof data.callId !== 'string' && typeof data.callId !== 'number') ||
-                typeof data.name !== 'string' || data.name.trim() === '' ||
-                typeof data.arguments !== 'string') {
-              throw new Error('tool/call event has invalid call identity');
-            }
-            ref.tool_name = data.name;
-            ref.call_id = String(data.callId);
-          } else {
-            const message = data.message;
-            if (message?.role !== 'tool' || message?.source?.kind !== 'tool' ||
-                (typeof message.toolCallId !== 'string' && typeof message.toolCallId !== 'number') ||
-                String(message.toolCallId) !== String(message.source.callId)) {
-              throw new Error('tool/result event has invalid call identity');
-            }
-            ref.call_id = String(message.toolCallId);
-            ref.is_error = message.isError === true || data.error !== undefined;
-            ref.message_id = message.id;
+            return event;
           }
-          allRefs.set(seq, ref);
-        }
-        for (const seq of contextSeqs) {
-          const event = await readOwnedEvent(seq);
-          if (event.type !== 'user/message' || event.data?.role !== 'user' ||
-              event.data?.source?.kind !== 'user') {
-            throw new Error('context references may contain only direct human user/message events');
+          for (const seq of behaviorSeqs) {
+            const event = readOwnedEvent(seq);
+            if (!['assistant/message', 'tool/call', 'tool/result'].includes(event.type)) {
+              throw new Error('behavior evidence must be assistant/message, tool/call or tool/result');
+            }
+            const data = event.data;
+            const ref = {
+              session_id: sessionId, seq, event_type: event.type,
+              occurred_at: new Date(event.time).toISOString(),
+              turn: data?.turn, step: data?.step,
+            };
+            if (!Number.isSafeInteger(ref.turn) || ref.turn < 0 ||
+                !Number.isSafeInteger(ref.step) || ref.step < 0) {
+              throw new Error('behavior event has invalid turn/step metadata');
+            }
+            if (event.type === 'assistant/message') {
+              if (data.message?.role !== 'assistant' || data.message?.source?.kind !== 'model') {
+                throw new Error('assistant behavior reference is not a committed model message');
+              }
+              ref.message_id = data.message.id;
+            } else if (event.type === 'tool/call') {
+              if ((typeof data.callId !== 'string' && typeof data.callId !== 'number') ||
+                  typeof data.name !== 'string' || data.name.trim() === '' ||
+                  typeof data.arguments !== 'string') {
+                throw new Error('tool/call event has invalid call identity');
+              }
+              ref.tool_name = data.name;
+              ref.call_id = String(data.callId);
+            } else {
+              const message = data.message;
+              if (message?.role !== 'tool' || message?.source?.kind !== 'tool' ||
+                  (typeof message.toolCallId !== 'string' && typeof message.toolCallId !== 'number') ||
+                  String(message.toolCallId) !== String(message.source.callId)) {
+                throw new Error('tool/result event has invalid call identity');
+              }
+              ref.call_id = String(message.toolCallId);
+              ref.is_error = message.isError === true || data.error !== undefined;
+              ref.message_id = message.id;
+            }
+            allRefs.set(seq, ref);
           }
-          allRefs.set(seq, {
-            session_id: sessionId, seq, event_type: event.type,
-            occurred_at: new Date(event.time).toISOString(),
-            relation: 'external_interaction_context',
-          });
+          for (const seq of contextSeqs) {
+            const event = readOwnedEvent(seq);
+            if (event.type !== 'user/message' || event.data?.role !== 'user' ||
+                event.data?.source?.kind !== 'user') {
+              throw new Error('context references may contain only direct human user/message events');
+            }
+            allRefs.set(seq, {
+              session_id: sessionId, seq, event_type: event.type,
+              occurred_at: new Date(event.time).toISOString(),
+              relation: 'external_interaction_context',
+            });
+          }
+        } finally {
+          observation?.[Symbol.dispose]?.();
         }
         const calls = new Map();
         const results = new Map();
