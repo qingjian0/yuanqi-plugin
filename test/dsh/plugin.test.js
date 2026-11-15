@@ -144,7 +144,7 @@ test('model-facing self-profile tool exposes only YuanQi-owned birth data after 
   assert.equal(profile.innate_baseline.status, 'ready');
   assert.equal(profile.innate_baseline.interpretation_status, 'not_interpreted');
   assert.equal(profile.initial_personality_guidance.status, 'awaiting_model_interpretation');
-  assert.equal(profile.initial_personality_guidance.interpretation_mode, 'bazi_required');
+  assert.equal(profile.initial_personality_guidance.interpretation_mode, 'bazi_pending_placeholder');
   assert.equal(profile.initial_personality_guidance.bazi_available, true);
   assert.deepEqual(profile.initial_personality_guidance.dimensions, [
     'temperament', 'cognition', 'emotional_response', 'motivation', 'behavior', 'decision_style',
@@ -304,16 +304,16 @@ test('AI initial personality waits for Bazi when the chart is genuinely unavaila
   assert.equal(profile.time_context.status, 'ready');
   assert.equal(profile.time_context.time_zone_id, 'Asia/Shanghai');
   assert.equal(profile.bazi.status, 'unavailable');
-  assert.equal(profile.initial_personality_guidance.status, 'awaiting_bazi_calculation');
+  assert.equal(profile.initial_personality_guidance.status, 'awaiting_bazi_placeholder');
   assert.equal(profile.initial_personality_guidance.interpretation_mode, 'bazi_required');
   assert.equal(profile.initial_personality_guidance.bazi_available, false);
-  assert.equal(await writeTool.registrationOptions.when({ agent: { session: { id: 'session-no-bazi' } } }), false);
+  assert.equal(await writeTool.registrationOptions.when({ agent: { session: { id: 'session-no-bazi' } } }), true);
   assert.equal(profile.chart_evidence_catalog.length, 0);
   assert.equal(profile.initial_personality_guidance.analysis_protocol.length, 5);
-  assert.ok(profile.initial_personality_guidance.instruction.includes('Bazi is required'));
+  assert.ok(profile.initial_personality_guidance.instruction.includes('all six dimensions indeterminate'));
   assert.ok(profile.initial_personality_guidance.instruction.includes('Do not substitute generic model self-reflection'));
   assert.ok(profile.initial_personality_guidance.portrait_format[1].includes('Chart evidence:'));
-  assert.ok(profile.initial_personality_guidance.boundaries.some(item => item.includes('never replace Bazi with generic self-reflection')));
+  assert.ok(profile.initial_personality_guidance.boundaries.some(item => item.includes('awaiting_bazi placeholder')));
 });
 
 test('ordinary conversation does not create a UserSubject before the exact YuanQi wake command', async () => {
