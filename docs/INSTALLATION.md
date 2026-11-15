@@ -62,6 +62,8 @@ dsh plugin --profile web add ./dist/dsh-yuanqi-plugin-1.1.0-alpha.9.tgz
 
 元炁出生时间取自精确唤醒事件；出生地点取自启动时经过授权且时间匹配的 Host 定位。不可用时保持未知，不得使用用户出生资料、IP、服务器所在地或模型推断补全。
 
+`BirthProfile.innate_baseline` 保存从元炁自身四柱派生的符号结构（透干、藏干、十神、未加权五行出现次数），状态和算法版本均可追溯。它不是人格画像或旺衰结论；模型通过 `yuanqi_self_profile` 按需读取。当前 SelfModel 尚未自动融合这份静态结构与后天证据。
+
 ## 6. 持久化与数据边界
 
 元炁通过 DSH Storage Domain 持久化数据。DSH 是在线持久化的宿主权威。不要自行假设存在独立数据库、自动云同步或跨 Profile 数据共享。
