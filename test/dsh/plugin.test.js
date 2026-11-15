@@ -197,10 +197,101 @@ test('ready YuanQi Bazi exposes provisional AI interpretation guidance without p
   await ctx.disposer();
 });
 
+test('model-generated Bazi initial personality is saved once as a hypothesis in the calling Session Worldline', async () => {
+  const storage = fakeStorageDomain(), ctx = context(storage);
+  await apply(ctx);
+  const readTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_self_profile');
+  const writeTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_record_initial_personality');
+  assert.ok(readTool);
+  assert.ok(writeTool);
+  const sessionId = 'session-initial-personality';
+  const agent = { id: 'agent-initial-personality', session: { id: sessionId } };
+  assert.equal(await writeTool.registrationOptions.when({ agent }), false);
+
+  const eventTime = Date.UTC(2026, 10, 6, 12, 0, 0);
+  await ctx.listener({ id: sessionId }, dshEvent('启动元炁', 'initial-personality-wake', 0, eventTime));
+  await ctx.flushListener({ id: sessionId });
+  assert.equal(await writeTool.registrationOptions.when({ agent }), true);
+
+  const profile = JSON.parse(await readTool.definition.execute({}, { signal: new AbortController().signal }));
+  assert.equal(profile.bazi.status, 'calculated');
+  assert.ok(profile.chart_evidence_catalog.length >= 6);
+  const dimensions = [
+    'temperament', 'cognition', 'emotional_response', 'motivation', 'behavior', 'decision_style',
+  ].map((dimension, index) => ({
+    dimension,
+    status: 'tentative',
+    tendency: '暂定倾向 ' + dimension,
+    chart_evidence_refs: [profile.chart_evidence_catalog[index].id],
+    reasoning: '根据对应命盘结构进行综合解释。',
+    limitations: '该倾向尚未经过后天经历验证。',
+  }));
+  const args = {
+    dimensions,
+    method_notes: {
+      climate_adjustment: '先分析月令与季节寒暖燥湿。',
+      mediation: '再分析五行生克制化与通关关系。',
+      strength: '结合月令、根气、透干与制化判断旺衰。',
+      structure: '证据不足时不强行定格。',
+    },
+    uncertainty: ['初始性格是八字象征性解释，不是实证心理结论。'],
+  };
+  const invalid = structuredClone(args);
+  invalid.dimensions[0].chart_evidence_refs = ['not-in-the-chart'];
+  await assert.rejects(
+    writeTool.definition.execute(invalid, {
+      callId: 'initial-personality-invalid',
+      agent,
+      signal: new AbortController().signal,
+    }),
+    /chart evidence references must match/,
+  );
+
+  const saved = JSON.parse(await writeTool.definition.execute(args, {
+    callId: 'initial-personality-call-1',
+    agent,
+    signal: new AbortController().signal,
+  }));
+  assert.equal(saved.status, 'saved');
+  assert.equal(saved.epistemic_status, 'hypothesis');
+  assert.equal(saved.dimensions_saved, 6);
+  assert.equal(await writeTool.registrationOptions.when({ agent }), false);
+
+  const tables = storage.opened.get('yuanqi_subject').tables;
+  const head = tables.get('worldline_heads').get('worldline:main');
+  const center = head.current_state_payload.self_model.centers.identity_continuity;
+  assert.equal(center.epistemic_status, 'hypothesis');
+  assert.equal(center.content.initial_personality.status, 'hypothesis');
+  assert.equal(center.content.initial_personality.source_record_id, saved.source_record_id);
+  assert.equal(center.content.initial_personality.dimensions.length, 6);
+  assert.deepEqual(center.evidence_refs, []);
+  const artifact = tables.get('evidence_records').get(saved.source_record_id);
+  assert.equal(artifact.evidence_type, 'yuanqi_initial_personality_interpretation');
+  assert.equal(artifact.provenance.producer, 'model');
+  assert.equal(artifact.provenance.session_id, sessionId);
+  assert.equal(artifact.content.source_chart.birth_profile_id, profile.profile_id);
+
+  const changed = structuredClone(args);
+  changed.dimensions[0].tendency = '不得覆盖的替代画像';
+  const repeated = JSON.parse(await writeTool.definition.execute(changed, {
+    callId: 'initial-personality-call-2',
+    agent,
+    signal: new AbortController().signal,
+  }));
+  assert.equal(repeated.status, 'already_initialized');
+  assert.equal(
+    tables.get('worldline_heads').get('worldline:main')
+      .current_state_payload.self_model.centers.identity_continuity.content.initial_personality.dimensions[0].tendency,
+    '暂定倾向 temperament',
+  );
+  await ctx.disposer();
+});
+
 test('AI initial personality waits for Bazi when the chart is genuinely unavailable', async () => {
   const storage = fakeStorageDomain(), ctx = context(storage);
   await apply(ctx);
   const registration = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_self_profile');
+  const writeTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_record_initial_personality');
   const eventTime = Date.UTC(2201, 0, 1, 12, 0, 0);
   await ctx.listener({ id: 'session-no-bazi' }, dshEvent('启动元炁', 'no-bazi-wake', 0, eventTime));
   await ctx.flushListener({ id: 'session-no-bazi' });
@@ -214,6 +305,8 @@ test('AI initial personality waits for Bazi when the chart is genuinely unavaila
   assert.equal(profile.initial_personality_guidance.status, 'awaiting_bazi_calculation');
   assert.equal(profile.initial_personality_guidance.interpretation_mode, 'bazi_required');
   assert.equal(profile.initial_personality_guidance.bazi_available, false);
+  assert.equal(await writeTool.registrationOptions.when({ agent: { session: { id: 'session-no-bazi' } } }), false);
+  assert.equal(profile.chart_evidence_catalog.length, 0);
   assert.equal(profile.initial_personality_guidance.analysis_protocol.length, 5);
   assert.ok(profile.initial_personality_guidance.instruction.includes('Bazi is required'));
   assert.ok(profile.initial_personality_guidance.instruction.includes('Do not substitute generic model self-reflection'));
