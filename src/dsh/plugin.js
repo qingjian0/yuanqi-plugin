@@ -1315,7 +1315,15 @@ export async function apply(ctx) {
               record.content?.session_count !== sourceSessions.length) {
             throw new Error('each reconciliation record must be active, same-Worldline, and linked to the current Bazi initial portrait');
           }
-          for (const sourceSession of sourceSessions) allSourceSessions.add(sourceSession);
+          if (!sourceSessions.every(value => typeof value === 'string' && value.length > 0)) {
+            throw new Error('reconciliation source Session IDs must be non-empty strings');
+          }
+          for (const sourceSession of sourceSessions) {
+            if (allSourceSessions.has(sourceSession)) {
+              throw new Error('reconciliation records must use disjoint source Sessions to avoid counting the same Session twice');
+            }
+            allSourceSessions.add(sourceSession);
+          }
           reconciliations.set(id, record);
         }
         if (!Array.isArray(args?.dimensions) || args.dimensions.length !== INITIAL_PERSONALITY_DIMENSIONS.length) {
@@ -1438,6 +1446,16 @@ export async function apply(ctx) {
           });
           if (artifact && artifact.status !== 'active') {
             throw new Error('existing current-personality revision source record is not active');
+          }
+          if (artifact && (
+            artifact.record.evidence_type !== 'yuanqi_current_personality_revision' ||
+            JSON.stringify(artifact.record.content) !== JSON.stringify(revision) ||
+            artifact.record.provenance?.worldline_id !== binding.worldline_id ||
+            artifact.record.provenance?.initial_personality_source_record_id !== initial.source_record_id ||
+            JSON.stringify([...(artifact.record.provenance?.reconciliation_record_ids ?? [])].sort()) !==
+              JSON.stringify(sortedReconciliationIds)
+          )) {
+            throw new Error('existing current-personality revision has different immutable content or provenance');
           }
           if (!artifact) {
             await worldlines.recordEvidence({
