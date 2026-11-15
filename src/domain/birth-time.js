@@ -94,7 +94,7 @@ export function deriveBirthTimeContext({ birth_time, birth_location } = {}) {
     return {
       status: 'pending', time_zone_id: null, time_zone_source: 'unavailable', local_datetime: null,
       utc_offset_minutes: null, longitude_correction_minutes: null,
-      equation_of_time_minutes: null, true_solar_datetime: null, time_basis: null,
+      equation_of_time_minutes: null, true_solar_datetime: null,
       algorithm_version: 'noaa-eot-approx-v1',
     };
   }
@@ -132,7 +132,6 @@ export function deriveBirthTimeContext({ birth_time, birth_location } = {}) {
       longitude_correction_minutes: null,
       equation_of_time_minutes: null,
       true_solar_datetime: formatLocal(parts),
-      time_basis: 'beijing-standard-time-fallback',
       algorithm_version: 'civil-time-only-v1',
     };
   }
@@ -150,7 +149,6 @@ export function deriveBirthTimeContext({ birth_time, birth_location } = {}) {
     longitude_correction_minutes: Number(longitudeCorrection.toFixed(6)),
     equation_of_time_minutes: Number(equationOfTime.toFixed(6)),
     true_solar_datetime: formatLocal(trueSolarParts),
-    time_basis: 'apparent-solar-time',
     algorithm_version: 'noaa-eot-approx-v1',
   };
 }
