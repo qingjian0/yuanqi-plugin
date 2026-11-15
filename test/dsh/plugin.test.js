@@ -197,6 +197,28 @@ test('ready YuanQi Bazi exposes provisional AI interpretation guidance without p
   await ctx.disposer();
 });
 
+test('AI initial personality remains available when the Bazi engine is unavailable', async () => {
+  const storage = fakeStorageDomain(), ctx = context(storage);
+  await apply(ctx);
+  const registration = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_self_profile');
+  const eventTime = Date.UTC(1700, 0, 1, 12, 0, 0);
+  await ctx.listener({ id: 'session-no-bazi' }, dshEvent('启动元炁', 'no-bazi-wake', 0, eventTime));
+  await ctx.flushListener({ id: 'session-no-bazi' });
+  await ctx.disposer();
+
+  const profile = JSON.parse(await registration.definition.execute({}, { signal: new AbortController().signal }));
+  assert.equal(profile.birth_location.status, 'unavailable');
+  assert.equal(profile.time_context.status, 'ready');
+  assert.equal(profile.time_context.time_zone_id, 'Asia/Shanghai');
+  assert.equal(profile.bazi.status, 'unavailable');
+  assert.equal(profile.initial_personality_guidance.status, 'awaiting_model_interpretation');
+  assert.equal(profile.initial_personality_guidance.interpretation_mode, 'model_self_reflection');
+  assert.equal(profile.initial_personality_guidance.bazi_available, false);
+  assert.equal(profile.initial_personality_guidance.analysis_protocol.length, 4);
+  assert.ok(profile.initial_personality_guidance.instruction.includes('Do not invent a birth place'));
+  assert.ok(profile.initial_personality_guidance.portrait_format[1].includes('Basis:'));
+});
+
 test('ordinary conversation does not create a UserSubject before the exact YuanQi wake command', async () => {
   const storage = fakeStorageDomain(), ctx = context(storage);
   await apply(ctx);
