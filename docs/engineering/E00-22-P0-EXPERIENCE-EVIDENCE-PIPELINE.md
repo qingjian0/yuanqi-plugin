@@ -128,7 +128,7 @@ DSH SessionEvent → bounded source references → model experience candidate �
 
 - 工具只对已绑定 YuanQi Worldline 且已有八字初始画像的当前 Session 可见。
 - 模型提交当前 Session 的事件 seq、短摘要、行为描述、结果状态、画像维度关联和不确定性；Session ID 始终由宿主执行上下文提供。
-- 插件通过 `sessionQuery.readEvent({ sessionId, seq, before: 0, after: 0 })` 逐项读取并校验事件，排除 inherited prefix；行为事件仅接受已提交的 `assistant/message`、`tool/call`、`tool/result`。
+- 插件每次候选采集只调用一次 `sessionQuery.observeSession(sessionId, { projectionMode: 'none' })`，在同一一致快照中按 seq 校验事件及 inherited prefix；行为事件仅接受已提交的 `assistant/message`、`tool/call`、`tool/result`。校验结束后释放 observation。
 - 用户消息仅可作为 `source.kind === 'user'` 的外部交互背景，不可进入 AI 行为证据；合成注入消息被拒绝。
 - 工具结果必须和候选中所引用的同一 turn/step 的工具调用配对；只选择工具调用时只记录“已请求动作”，不推断结果。
 - Evidence Ledger 只保存摘要、事件引用和最少元数据，不复制助手正文、工具参数或工具结果正文；新记录状态为 `unassessed`。
@@ -136,6 +136,6 @@ DSH SessionEvent → bounded source references → model experience candidate �
 
 
 
-**实现限制：** `readEvent({ sessionId, seq, before: 0, after: 0 })` 将返回窗口限制为一个目标事件，但当前 DSH SessionQuery 的精确读取仍会装载并回放校验完整 Session 日志。因此模型可见数据和持久化摘要是有界的，底层读取成本仍可能随 Session 历史增长；后续若需优化，应使用有证据的索引/读取能力，而不是绕过 SessionQuery 直接读存储。
+**读取成本边界：** `observeSession()` 提供一个固定的一致 Session observation；访问 `events` 时仍可能物化当前 Session 的完整事件快照，因此单次候选采集的底层内存/读取成本仍随 Session 长度增长。但插件不再对每个 seq 重复调用 `readEvent()`（当前实现每次都会重新解析/加载逻辑 Session），而是一次快照完成全部最多 12 个事件引用的校验，并在完成后释放 observation。模型可见引用和 Evidence Ledger 持久化摘要仍保持有界；未来若要把底层读取也降为窗口级，应依赖 DSH 提供的有证据范围读取能力，不得绕过 SessionQuery 直接访问存储。
 
 本轮实现仍需目标 DSH Profile 的真实端到端验证；测试替身不能替代 Android 宿主验收。
