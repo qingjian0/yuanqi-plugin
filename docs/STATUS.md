@@ -9,15 +9,25 @@
 
 | 项目 | 当前分支状态 | 说明 |
 |---|---|---|
-| 自动化测试 | GitHub Actions 通过 | PR #7 Run #878（`43669987935`）与 Push Run #877（`43669983503`），commit `a540edf825e3dd33353887b659ecb75f39f16e7a`：104 passed / 0 failed |
-| JavaScript 语法检查 | GitHub Actions 通过 | PR #7 Run #878 的 `npm run check` 通过，Node.js 24.9.0 |
+| 自动化测试 | GitHub Actions 通过 | PR Run `43673345690` 与 Push Run `43673343671`，commit `98b8aff64a24da84a24ce22da76f0b1cd5b9b626`：105 passed / 0 failed |
+| JavaScript 语法检查 | GitHub Actions 通过 | PR Run `43673345690` 的 `npm run check` 通过，Node.js 24.9.0 |
 | npm 安装包构建与归档检查 | 待复验 | 本分支尚未完成隔离归档复验 |
-| GitHub Actions CI | 通过 | PR #7 Run #878（`43669987935`）与 Push Run #877（`43669983503`）成功；Node.js 24.9.0 |
+| GitHub Actions CI | 通过 | PR Run `43673345690` 与 Push Run `43673343671` 成功；Node.js 24.9.0 |
 | 真实 Android DSH 宿主安装与运行 | 待验收 | 尚无本分支真实宿主验收结论 |
 | 真实模型会话端到端 | 待验收 | 不以模拟宿主测试代替 |
 | Android/iOS 端到端 | 待验收 | 尚未完成 |
 
-**重要：** 当前分支提交 `a540edf` 的 104 项测试由 PR Run #878 与 Push Run #877 实际验证通过；这不代表真实 Android DSH 宿主验收通过。
+**重要：** 当前分支提交 `98b8aff` 的 105 项测试由 PR Run `43673345690` 与 Push Run `43673343671` 实际验证通过；这不代表真实 Android DSH 宿主验收通过。
+
+## 1.1 八字初始性格与 SelfModel 衔接（2026-11-15）
+
+- `yuanqi_self_profile` 提供 AI 自身 BirthProfile、四柱、先天符号基线和带稳定 ID 的命盘证据目录。
+- 新增 `yuanqi_record_initial_personality`，仅在当前 DSH Agent Session 已绑定活动 YuanQi Worldline、四柱已计算且先天基线 ready 时可见。
+- 模型提交六个维度的初始倾向、四项方法说明和不确定性；每个暂定倾向必须引用命盘证据目录中的真实条目。证据引用不匹配会拒绝写入。
+- 画像作为模型生成的来源记录写入 Evidence Ledger，再以 `hypothesis` 状态写入当前 Worldline 的 `identity_continuity.content.initial_personality`。来源记录 ID、BirthProfile ID 和 Bazi 算法版本一并保存。
+- 使用 DSH Agent 执行上下文中的 Session ID 与工具调用 ID确定来源和世界线；不接受模型传入 worldline/session/source_event_ref。通过 Runtime Lease 和单次初始化检查防止并发覆盖。
+- 已新增测试覆盖：证据目录校验、无八字时工具不可见、当前 Session 世界线绑定、初始画像只写入一次、认识状态保持 hypothesis。
+- 该画像仍是命理解释假设，不是已验证人格事实；后续经历验证与修正流程尚未完成。真实 Android DSH 宿主和模型端到端验收仍待完成。
 
 ## 2. 工程交付状态（2026-11-05）
 
