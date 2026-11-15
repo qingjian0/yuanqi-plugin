@@ -1,3 +1,4 @@
+import { resolveBirthTimeZone } from '../domain/time-zone.js';
 import { defineTool } from '@deepseek-ai/dsh-tools';
 import { createSubjectStore } from '../domain/subject-store.js';
 import { openSubjectDomains } from '../domain/subject-domain.js';
@@ -195,7 +196,7 @@ export async function apply(ctx) {
     async function captureBirthLocation(eventTime) {
       const provider = ctx.yuanqiLocationProvider ?? createAndroidLocationProvider();
       if (!provider || typeof provider.getCurrentPosition !== 'function') {
-        return { status: 'unavailable', latitude: null, longitude: null, accuracy_meters: null, place_label: null, time_zone_id: null, source: 'unavailable', captured_at: null };
+        return { status: 'unavailable', latitude: null, longitude: null, accuracy_meters: null, place_label: null, time_zone_id: null, time_zone_source: 'unavailable', source: 'unavailable', captured_at: null };
       }
       let timeout;
       try {
@@ -221,10 +222,16 @@ export async function apply(ctx) {
         if (Number.isFinite(eventTime) && Math.abs(capturedAtMs - eventTime) > 60_000) {
           throw new TypeError('location fix is not close enough to the wake event time');
         }
+        const timeZone = resolveBirthTimeZone({
+          time_zone_id: typeof value.time_zone_id === 'string' ? value.time_zone_id : null,
+          time_zone_source: value.time_zone_source,
+          latitude,
+          longitude,
+        });
         return {
           status: 'captured', latitude, longitude, accuracy_meters: accuracy,
           place_label: typeof value.place_label === 'string' ? value.place_label : null,
-          time_zone_id: typeof value.time_zone_id === 'string' ? value.time_zone_id : null,
+          ...timeZone,
           source: value.source === 'android_location_bridge' ? 'android_location_bridge' : 'host_location_provider',
           captured_at: new Date(capturedAtMs).toISOString(),
         };
