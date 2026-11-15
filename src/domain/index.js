@@ -5,3 +5,4 @@ export { deriveBirthTimeContext } from './birth-time.js';
 export { apparentSunLongitudeDegrees, deriveSolarTermContext, SOLAR_TERMS } from './solar-terms.js';
 export { BAZI_METHODOLOGY, calculateBaziPillars } from './bazi-engine.js';
 export { BAZI_HIDDEN_STEMS, deriveInnateBaseline } from './innate-baseline.js';
+export { resolveBirthTimeZone } from './time-zone.js';
