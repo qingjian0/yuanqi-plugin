@@ -9,15 +9,15 @@
 
 | 项目 | 当前分支状态 | 说明 |
 |---|---|---|
-| 自动化测试 | GitHub Actions 通过 | PR Run `43673345690` 与 Push Run `43673343671`，commit `98b8aff64a24da84a24ce22da76f0b1cd5b9b626`：105 passed / 0 failed |
-| JavaScript 语法检查 | GitHub Actions 通过 | PR Run `43673345690` 的 `npm run check` 通过，Node.js 24.9.0 |
+| 自动化测试 | GitHub Actions 通过 | PR Run `43673474130` 与 Push Run `43673469477`，commit `6c97c9d4d93153b531acdbf9b0994e40e6e9a6fc`：105 passed / 0 failed |
+| JavaScript 语法检查 | GitHub Actions 通过 | PR Run `43673474130` 的 `npm run check` 通过，Node.js 24.9.0 |
 | npm 安装包构建与归档检查 | 待复验 | 本分支尚未完成隔离归档复验 |
-| GitHub Actions CI | 通过 | PR Run `43673345690` 与 Push Run `43673343671` 成功；Node.js 24.9.0 |
+| GitHub Actions CI | 通过 | PR Run `43673474130` 与 Push Run `43673469477` 成功；Node.js 24.9.0 |
 | 真实 Android DSH 宿主安装与运行 | 待验收 | 尚无本分支真实宿主验收结论 |
 | 真实模型会话端到端 | 待验收 | 不以模拟宿主测试代替 |
 | Android/iOS 端到端 | 待验收 | 尚未完成 |
 
-**重要：** 当前分支提交 `98b8aff` 的 105 项测试由 PR Run `43673345690` 与 Push Run `43673343671` 实际验证通过；这不代表真实 Android DSH 宿主验收通过。
+**重要：** 当前分支代码提交 `6c97c9d` 的 105 项测试由 PR Run `43673474130` 与 Push Run `43673469477` 实际验证通过；这不代表真实 Android DSH 宿主验收通过。
 
 ## 1.1 八字初始性格与 SelfModel 衔接（2026-11-15）
 
