@@ -124,7 +124,7 @@ test('model-facing self-profile tool exposes only YuanQi-owned birth data after 
   assert.ok(registration);
   assert.equal(await registration.registrationOptions.when(), false);
 
-  const eventTime = Date.now();
+  const eventTime = Date.UTC(2026, 10, 6, 12, 0, 0);
   await ctx.listener({ id: 'session-self-profile' }, dshEvent('启动元炁', 'self-profile-wake', 0, eventTime));
   await ctx.flushListener({ id: 'session-self-profile' });
   await ctx.disposer();
