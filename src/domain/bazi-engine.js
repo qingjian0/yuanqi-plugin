@@ -73,10 +73,10 @@ export function calculateBaziPillars({
   calendar_context,
   calculated_at = null,
 } = {}) {
-  if (time_context?.status === 'pending' || !time_context) {
+  if (!time_context || time_context.status === 'pending') {
     return makeResult('pending');
   }
-  if (time_context.status === 'unavailable' ||
+  if (time_context.status !== 'ready' ||
       calendar_context?.status === 'unavailable' || !calendar_context) {
     return makeResult('unavailable', null, ['required-birth-context-unavailable']);
   }
