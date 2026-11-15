@@ -143,7 +143,8 @@ flowchart TB
 - Worldline 支持主线创建、分支快照、Session 绑定、Runtime Lease/Fencing、Snapshot CAS 和归档恢复；当前没有运行时切换/重绑定工具。
 - Evidence Ledger 提供来源记录、撤销、评估和显式授权跨线转移等底层能力。
 - 已新增模型按需调用的 `yuanqi_record_experience_candidate`：只接受当前 Session 的有限事件引用，核验助手已提交输出、工具调用/结果及直接用户上下文；不复制原始消息、工具参数或工具结果，写入的候选证据保持 `unassessed`，不修改 SelfModel。
-- 普通对话消息仍不会自动采集；证据评估、初始画像的验证/反驳与修订、独立记忆/目标/行为模块仍属待实现方向。
+- 已新增 `yuanqi_assess_experience_candidate`：将模型对候选经历的逐维评估写入 Evidence Assessment Ledger，并追加到独立的 `cognition_reflection` 版本化历史；原始八字 `identity_continuity.initial_personality` 不会被改写，评估状态仍是 `hypothesis`。
+- 普通对话消息仍不会自动采集；自动评估、跨 Session 独立佐证聚合、新人格画像版本生成及独立记忆/目标/行为模块仍属待实现方向。
 - 每轮上下文投影、工具续步去重和完整历史筛选尚未实现为当前插件运行时能力。
 
 ### 元炁自身出生资料与命盘基线
