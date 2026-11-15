@@ -9,15 +9,15 @@
 
 | 项目 | 当前分支状态 | 说明 |
 |---|---|---|
-| 自动化测试 | GitHub Actions 通过 | PR #7 Run #758（`43657164343`），code commit `45183a120ba0cb30fc0e3c8eb5ad7f8f301b4e01`：101 passed / 0 failed |
-| JavaScript 语法检查 | GitHub Actions 通过 | PR #7 Run #758 的 `npm run check` 通过，Node.js 24.9.0 |
+| 自动化测试 | GitHub Actions 通过 | PR #7 Run #776（`43657362889`），code commit `48d1b08e2aace06a1356bcb92691262bca96ac08`：101 passed / 0 failed |
+| JavaScript 语法检查 | GitHub Actions 通过 | PR #7 Run #776 的 `npm run check` 通过，Node.js 24.9.0 |
 | npm 安装包构建与归档检查 | 待复验 | 本分支尚未完成隔离归档复验 |
-| GitHub Actions CI | 通过 | PR #7 Run #758（`43657164343`）成功；Node.js 24.9.0 |
+| GitHub Actions CI | 通过 | PR #7 Run #776（`43657362889`）成功；Node.js 24.9.0 |
 | 真实 Android DSH 宿主安装与运行 | 待验收 | 尚无本分支真实宿主验收结论 |
 | 真实模型会话端到端 | 待验收 | 不以模拟宿主测试代替 |
 | Android/iOS 端到端 | 待验收 | 尚未完成 |
 
-**重要：** 本分支当前 101 项测试由 PR #7 Run #758 实际验证通过；这不代表真实 Android DSH 宿主验收通过。
+**重要：** 本分支当前 101 项测试由 PR #7 Run #776 实际验证通过；这不代表真实 Android DSH 宿主验收通过。
 
 ## 2. 工程交付状态（2026-11-05）
 
@@ -401,7 +401,7 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 ### 本轮验证状态
 
 - 本分支已更新领域 Schema、Store、DSH Plugin、单元测试、DomainFacility 集成测试及中英文项目文档。
-- GitHub Actions PR #7 Run #758（`43657164343`），code commit `45183a120ba0cb30fc0e3c8eb5ad7f8f301b4e01`：Node.js 24.9.0，包根/DSH Storage Domain exports 检查通过，JavaScript 语法检查通过，101 passed / 0 failed。
+- GitHub Actions PR #7 Run #776（`43657362889`），code commit `48d1b08e2aace06a1356bcb92691262bca96ac08`：Node.js 24.9.0，包根/DSH Storage Domain exports 检查通过，JavaScript 语法检查通过，101 passed / 0 failed。
 - 真实 Android 定位、真实 DSH Profile 持久化和端到端会话仍需验收。
 
 
@@ -425,7 +425,7 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 
 ### 验证
 
-- GitHub Actions PR #7 Run #758（`43657164343`）已通过：Node.js 24.9.0，101 passed / 0 failed；包入口、DSH Storage Domain exports 与全部 JavaScript 语法检查通过。
+- GitHub Actions PR #7 Run #776（`43657362889`）已通过：Node.js 24.9.0，101 passed / 0 failed；包入口、DSH Storage Domain exports 与全部 JavaScript 语法检查通过。
 
 
 
@@ -497,7 +497,7 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 ### 验证
 
 - 插件测试验证工具在唤醒前隐藏、唤醒后可用，并且只返回 YuanQiSubject 自身资料。
-- GitHub Actions PR #7 Run #758（`43657164343`）通过；模型工具、基线、时区解析与 DomainFacility 集成测试均包含在 101 项通过测试中。
+- GitHub Actions PR #7 Run #776（`43657362889`）通过；模型工具、基线、时区解析与 DomainFacility 集成测试均包含在 101 项通过测试中。
 
 
 ## 32. 2026-11-15 宿主坐标到 IANA 时区的离线解析
