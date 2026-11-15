@@ -977,3 +977,132 @@ test('experience candidate tool rejects injected user context and unpaired tool 
   await ctx.disposer();
 });
 
+
+
+test('experience reconciliation counts distinct Session evidence, preserves conflicts and never rewrites the Bazi portrait', async () => {
+  const sessionIds = ['session-reconcile-a', 'session-reconcile-b', 'session-reconcile-c'];
+  const eventsBySession = new Map(sessionIds.map((sessionId, index) => {
+    const userText = index === 0 ? '启动元炁' : '继续交互 ' + index;
+    return [sessionId, [
+      dshEvent(userText, 'user-' + index, 0, 1793966400000 + index * 10_000),
+      { type: 'assistant/message', seq: 1, time: 1793966401000 + index * 10_000, data: {
+        turn: 1, step: 1,
+        message: {
+          id: 'assistant-' + index, role: 'assistant', source: { kind: 'model', provider: 'test', model: 'test-model' },
+          content: [{ type: 'text', text: 'private assistant text ' + index }],
+        },
+      } },
+    ]];
+  }));
+  const storage = fakeStorageDomain();
+  const ctx = context(storage, {
+    sessionQuery: {
+      async listSessions() { return []; },
+      async observeSession(sessionId, options) {
+        assert.deepEqual(options, { projectionMode: 'none' });
+        const events = eventsBySession.get(sessionId);
+        assert.ok(events, 'only known test Sessions may be observed');
+        return {
+          header: { id: sessionId }, inheritedEventCount: 0, events,
+          [Symbol.dispose]() {},
+        };
+      },
+    },
+  });
+  await apply(ctx);
+
+  const agents = sessionIds.map((id, index) => ({ id: 'agent-' + index, session: { id } }));
+  for (let index = 0; index < sessionIds.length; index++) {
+    const sessionId = sessionIds[index];
+    await ctx.listener({ id: sessionId }, eventsBySession.get(sessionId)[0]);
+    await ctx.flushListener({ id: sessionId });
+  }
+
+  const profileTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_self_profile');
+  const initialTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_record_initial_personality');
+  const profile = JSON.parse(await profileTool.definition.execute({}, { signal: new AbortController().signal }));
+  await initialTool.definition.execute({
+    dimensions: ['temperament', 'cognition', 'emotional_response', 'motivation', 'behavior', 'decision_style'].map((dimension, index) => ({
+      dimension, status: 'tentative', tendency: '八字初始倾向 ' + dimension,
+      chart_evidence_refs: [profile.chart_evidence_catalog[index].id],
+      reasoning: '依据命盘结构作出的暂定解释。',
+      limitations: '仍需不同 Session 中的行为证据。',
+    })),
+    method_notes: { climate_adjustment: '调候', mediation: '通关', strength: '旺衰', structure: '格局' },
+    uncertainty: ['初始画像仍为 hypothesis。'],
+  }, { callId: 'reconcile-initial-call', agent: agents[0], signal: new AbortController().signal });
+
+  const captureTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_record_experience_candidate');
+  const assessTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_assess_experience_candidate');
+  const reconcileTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_reconcile_personality_evidence');
+  assert.ok(captureTool && assessTool && reconcileTool);
+  const candidateIds = [];
+  const outcomes = ['supports', 'contradicts', 'supports'];
+  for (let index = 0; index < sessionIds.length; index++) {
+    const agent = agents[index];
+    assert.equal(await captureTool.registrationOptions.when({ agent }), true);
+    const candidate = JSON.parse(await captureTool.definition.execute({
+      summary: '不同 Session 中的一次可观察行为。',
+      observed_behavior: '模型完成了一次可观察的交互动作。',
+      outcome: 'completed',
+      behavior_event_seqs: [1],
+      context_event_seqs: [],
+      dimension_links: [{
+        dimension: 'behavior', relation: 'insufficient',
+        rationale: '候选事件关联行为维度，需单独评估。',
+        behavior_event_seqs: [1],
+      }],
+      uncertainty: ['单次 Session 事件不能单独确认稳定倾向。'],
+    }, { callId: 'reconcile-candidate-' + index, agent, signal: new AbortController().signal }));
+    candidateIds.push(candidate.evidence_id);
+    const assessed = JSON.parse(await assessTool.definition.execute({
+      evidence_id: candidate.evidence_id,
+      reviews: [{
+        dimension: 'behavior', outcome: outcomes[index],
+        rationale: '模型评估只作为假设；来源事件来自独立 Session。',
+      }],
+    }, { callId: 'reconcile-assessment-' + index, agent, signal: new AbortController().signal }));
+    assert.equal(assessed.status, 'assessed');
+  }
+
+  assert.equal(await reconcileTool.registrationOptions.when({ agent: agents[2] }), true);
+  const before = storage.opened.get('yuanqi_subject').tables.get('worldline_heads').get('worldline:main');
+  const initialBefore = structuredClone(before.current_state_payload.self_model.centers.identity_continuity.content.initial_personality);
+  const result = JSON.parse(await reconcileTool.definition.execute({
+    evidence_ids: candidateIds,
+  }, { callId: 'reconcile-call', agent: agents[2], signal: new AbortController().signal }));
+
+  assert.equal(result.status, 'reconciled');
+  assert.equal(result.session_count, 3);
+  assert.equal(result.distinct_behavior_event_count, 3);
+  assert.equal(result.dimensions.behavior.status, 'disputed');
+  assert.equal(result.dimensions.behavior.support_count, 2);
+  assert.equal(result.dimensions.behavior.contradiction_count, 1);
+  assert.equal(result.dimensions.behavior.eligible_for_provisional_revision, false);
+  assert.equal(result.dimensions.cognition.status, 'insufficient');
+  const tables = storage.opened.get('yuanqi_subject').tables;
+  const after = tables.get('worldline_heads').get('worldline:main');
+  const identityAfter = after.current_state_payload.self_model.centers.identity_continuity;
+  assert.deepEqual(identityAfter.content.initial_personality, initialBefore);
+  const reflection = after.current_state_payload.self_model.centers.cognition_reflection;
+  assert.equal(reflection.content.experience_reconciliation_version, 1);
+  assert.equal(reflection.content.experience_reconciliations.length, 1);
+  assert.deepEqual(reflection.content.experience_reconciliations[0].session_ids, sessionIds);
+  assert.equal(reflection.epistemic_status, 'hypothesis');
+  assert.ok(reflection.evidence_refs.includes(result.reconciliation_record_id));
+  const aggregate = tables.get('evidence_records').get(result.reconciliation_record_id);
+  assert.equal(aggregate.evidence_type, 'yuanqi_experience_evidence_reconciliation');
+  assert.equal(aggregate.provenance.session_ids.length, 3);
+  assert.equal(aggregate.content.dimensions.behavior.status, 'disputed');
+  assert.equal(aggregate.content.epistemic_status, 'hypothesis');
+
+  const repeated = JSON.parse(await reconcileTool.definition.execute({
+    evidence_ids: candidateIds,
+  }, { callId: 'reconcile-call-repeat', agent: agents[2], signal: new AbortController().signal }));
+  assert.equal(repeated.status, 'already_reconciled');
+  assert.equal(tables.get('worldline_heads').get('worldline:main').current_snapshot_version, after.current_snapshot_version);
+  await assert.rejects(reconcileTool.definition.execute({
+    evidence_ids: candidateIds.slice(0, 2),
+  }, { callId: 'reconcile-too-few', agent: agents[2], signal: new AbortController().signal }), /3-12 unique/);
+  await ctx.disposer();
+});
