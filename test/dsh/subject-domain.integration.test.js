@@ -119,7 +119,7 @@ test('actual DSH DomainFacility persists and restores YuanQi-owned BirthProfile'
     },
     birth_location: {
       status: 'captured', latitude: 31.2304, longitude: 121.4737,
-      accuracy_meters: 5, place_label: 'Shanghai', time_zone_id: 'Asia/Shanghai',
+      accuracy_meters: 5, place_label: 'Shanghai', time_zone_id: 'Asia/Shanghai', time_zone_source: 'host_location_provider',
       source: 'host_location_provider', captured_at: new Date(eventTime).toISOString(),
     },
   });
@@ -154,7 +154,7 @@ test('actual DSH DomainFacility atomically completes a pending WakeRecord locati
   const eventTime = 1794048000100;
   const pending = {
     status: 'pending', latitude: null, longitude: null, accuracy_meters: null,
-    place_label: null, time_zone_id: null, source: 'unavailable', captured_at: null,
+    place_label: null, time_zone_id: null, time_zone_source: 'unavailable', source: 'unavailable', captured_at: null,
   };
   await store.recordInitialWake({
     subject_id: 'yuanqi:primary',
@@ -167,7 +167,7 @@ test('actual DSH DomainFacility atomically completes a pending WakeRecord locati
   });
   const captured = {
     status: 'captured', latitude: 31.23, longitude: 121.47, accuracy_meters: 12,
-    place_label: null, time_zone_id: null, source: 'android_location_bridge',
+    place_label: null, time_zone_id: null, time_zone_source: 'unavailable', source: 'android_location_bridge',
     captured_at: new Date(eventTime).toISOString(),
   };
   await store.completeInitialWakeLocation({ subject_id: 'yuanqi:primary', birth_location: captured });
