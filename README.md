@@ -144,7 +144,8 @@ flowchart TB
 - Evidence Ledger 提供来源记录、撤销、评估和显式授权跨线转移等底层能力。
 - 已新增模型按需调用的 `yuanqi_record_experience_candidate`：只接受当前 Session 的有限事件引用，核验助手已提交输出、工具调用/结果及直接用户上下文；不复制原始消息、工具参数或工具结果，写入的候选证据保持 `unassessed`，不修改 SelfModel。
 - 已新增 `yuanqi_assess_experience_candidate`：将模型对候选经历的逐维评估写入 Evidence Assessment Ledger，并追加到独立的 `cognition_reflection` 版本化历史；原始八字 `identity_continuity.initial_personality` 不会被改写，评估状态仍是 `hypothesis`。
-- 普通对话消息仍不会自动采集；自动评估、跨 Session 独立佐证聚合、新人格画像版本生成及独立记忆/目标/行为模块仍属待实现方向。
+- 已新增 `yuanqi_reconcile_personality_evidence`：对同一 Worldline 中至少三个不同 DSH Session 的已评估候选做逐维来源聚合；每个 Session 最多计一个候选，重复事件不重复计数，支持与反驳并存时保留 `disputed`。聚合只追加 `cognition_reflection`，仍保持 `hypothesis`，不覆盖八字初始画像。
+- 普通对话消息仍不会自动采集；自动采集和基于聚合结果生成版本化 `current_personality` 尚未实现。
 - 每轮上下文投影、工具续步去重和完整历史筛选尚未实现为当前插件运行时能力。
 
 ### 元炁自身出生资料与命盘基线
