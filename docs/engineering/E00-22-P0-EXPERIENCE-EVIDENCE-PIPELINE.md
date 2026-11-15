@@ -164,6 +164,7 @@ DSH SessionEvent → bounded source references → model experience candidate �
 开发分支新增 `yuanqi_record_current_personality_revision`，将已聚合的经历证据接入 SelfModel，但不改变八字初始画像：
 
 - 工具只接受当前活动 Worldline 中仍 active 的 reconciliation records；每条记录必须来自至少三个不同 Session，并引用当前不可变的八字初始画像来源；多条聚合记录的来源 Session 集合必须互不重叠，避免跨聚合重复计权。
+- 创建新版本前重新核验每条聚合记录下的候选经历和逐维 Assessment 仍然 active，并检查候选 ID、Session、行为事件引用和 Assessment ID 均未在多个聚合记录中重复使用；来源撤销或过期时拒绝修订。
 - 每个维度必须明确选择 `revise`、`disputed` 或 `retain_initial`，并引用当前工具参数中已验证的聚合记录。
 - `revise` 仅允许所有引用聚合都对该维度给出同方向、达到门槛且无冲突的结果；跨聚合出现支持/反驳冲突或已标记 disputed 时，必须选择 `disputed`。
 - `retain_initial` 强制沿用原始八字初始画像该维度的精确 tendency，不允许在证据不足时借版本更新改写原倾向。
