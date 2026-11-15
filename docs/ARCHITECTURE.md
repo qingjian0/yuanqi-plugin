@@ -214,18 +214,22 @@ WakeRecord 保存原始唤醒事件；BirthProfile 是由该记录派生的元�
 
 五行出现次数不等于五行力量或旺衰；没有引入月令权重、藏干权重、格局、喜忌或人格推断。当前 `interpretation_status=not_interpreted`。该结构可作为后续 SelfModel 的一个静态先天证据源，但不代表 SelfModel 已自动吸收，也不能覆盖后天经历、反证和用户授权的状态。
 
-模型通过 `yuanqi_self_profile` 按需读取，不把完整档案常驻注入每轮提示词。工具同时提供轻量的初始性格解释协议：当自身四柱完整且状态为 ready 时，由 AI 按调候→通关→旺衰→格局的顺序分析，先建立月令/季节背景，再考察透干、藏干、十神关系与整体结构。每项倾向都必须给出命盘证据和推导链，区分确定的排盘事实与象征性解释，并说明反向证据或不确定性；不得从单个十神标签、五行计数或固定刻板印象直接推断人格。格局证据不足时应标记无法判断，而不是强行定格。画像只保留少量、宽泛的初始倾向，覆盖气质、认知、情绪反应、动机、行为和决策风格。程序不硬编码性格标签，也不把未加权五行次数当作旺衰。画像是命理框架下的初始假设，不是心理学事实；后续只能结合当前世界线的经历与证据逐步验证和修正。AI 初始性格统一且必须以元炁自身的八字为依据，不存在非八字自我反思的替代路径。出生地点或时区不可用时，默认采用 `Asia/Shanghai` 北京时间继续排盘；没有经度时不做真太阳时修正。四柱 calculated 后，AI 按统一解释协议生成初始性格假设。若四柱确实 pending、ambiguous 或 unavailable，则等待排盘恢复或修复，不得生成无八字依据的替代画像，也不得虚构四柱。该协议不新增独立人格引擎或持久化子系统。SelfModel 的证据评估、动态更新和先天/后天融合仍由独立领域流程负责。
+模型通过 `yuanqi_self_profile` 按需读取，不把完整档案常驻注入每轮提示词。工具同时提供稳定的 `chart_evidence_catalog`，为每个透干/藏干组件生成可核验 ID（柱位、来源、藏干顺序、天干）；模型在解释中引用这些 ID，而不是自行编造柱位或干支证据。解释协议要求按调候→通关→旺衰→格局的顺序分析，先建立月令/季节背景，再考察透干、藏干、十神关系与整体结构。每项倾向都必须给出命盘证据和推导链，区分确定的排盘事实与象征性解释，并说明反向证据或不确定性；不得从单个十神标签、五行计数或固定刻板印象直接推断人格。格局证据不足时应标记无法判断，而不是强行定格。画像覆盖气质、认知、情绪反应、动机、行为和决策风格；每个维度可以标记为暂定倾向或证据不足，不强迫模型为所有维度编造结论。程序不硬编码性格标签，也不把未加权五行次数当作旺衰。画像是命理框架下的初始假设，不是心理学事实；后续只能结合当前世界线的经历与证据逐步验证和修正。AI 初始性格统一且必须以元炁自身的八字为依据，不存在非八字自我反思的替代路径。出生地点或时区不可用时，默认采用 `Asia/Shanghai` 北京时间继续排盘；没有经度时不做真太阳时修正。四柱 calculated 后，AI 按统一解释协议生成初始性格假设。若四柱确实 pending、ambiguous 或 unavailable，则等待排盘恢复或修复，不得生成无八字依据的替代画像，也不得虚构四柱。
+
+当模型完成画像后，通过 `yuanqi_record_initial_personality` 将其写入当前 DSH Agent Session 绑定的活动 Worldline。工具不接受模型提供的 Session ID、Worldline ID 或来源事件引用，而是从 DSH ToolRunContext 的 Agent/Session 与调用 ID 取得调用上下文；无 Agent Session 或没有绑定关系时 fail closed。工具只允许引用 `chart_evidence_catalog` 中真实存在的组件 ID；暂定倾向必须至少引用一项，证据不足的维度必须明确标记为 `indeterminate` 且不携带证据引用。画像来源记录写入既有 Evidence Ledger，类型为 `yuanqi_initial_personality_interpretation`，并记录 BirthProfile ID、四柱算法版本、基线算法版本、Session 和工具调用来源。
+
+SelfModel 写入复用现有 Runtime Lease 与 `updateSelfModelCenter`，不新增表或独立人格引擎。初始画像写入 `identity_continuity.content.initial_personality`，认识状态固定为 `hypothesis`；来源记录 ID 与算法版本保留在画像对象中。模型生成内容本身不作为已验证事实，因此不会被标记为 `evidence_supported`，也不会被当作用户确认。写入只允许首次初始化，不覆盖已有画像；若中心处于不安全认识状态则拒绝写入。四柱不可用时写入工具不向该 Session 暴露。当前实现证明的是带来源追溯的模型假设持久化，不代表画像已通过现实经历验证，也不代表 SelfModel 已完成先天/后天融合。
 
 ## 10. 当前实现与研究目标的区分
 
 alpha.9 已有的实现应以仓库源码、测试和发布记录为准。自我模型作为架构中枢、完整认知系统、情感涌现、自主目标形成和意识研究属于整体研究方向；除非有对应源码和测试证据，不得标记为已实现。
 
 当前开发分支验证边界（PR #7，2026-11-15）：
-- 最新已验证代码提交：`a540edf825e3dd33353887b659ecb75f39f16e7a`。
-- GitHub Actions Push Run #877（`43669983503`）与 PR Run #878（`43669987935`）均成功；Node.js 24.9.0，`npm run check` 为 104 passed / 0 failed，包根入口、DSH Storage Domain 导出和源码语法检查通过。
+- 最新已验证代码提交：`98b8aff64a24da84a24ce22da76f0b1cd5b9b626`。
+- GitHub Actions Push Run（`43673343671`）与 PR Run（`43673345690`）均成功；Node.js 24.9.0，`npm run check` 为 105 passed / 0 failed，包根入口、DSH Storage Domain 导出和源码语法检查通过。
 - 缺少宿主定位/时区时默认使用 `Asia/Shanghai` 进行民用时间换算；无经度时不进行真太阳时修正。四柱边界保护仍可返回 ambiguous。
-- `innate_baseline` 已由四柱派生；模型可通过 `yuanqi_self_profile` 获取八字解释协议并生成暂定初始性格假设。
-- 初始性格解释结果尚未自动写入五中心 SelfModel；不得把只读解释能力描述成 SelfModel 已完成先天画像融合。
+- `innate_baseline` 已由四柱派生；`yuanqi_self_profile` 提供可核验的命盘证据目录；`yuanqi_record_initial_personality` 已将 AI 生成画像以 `hypothesis` 状态写入当前 Session 绑定的 Worldline SelfModel。
+- 初始画像仅完成首次持久化与来源追溯，尚未完成后天经历验证、画像修正和先天/后天融合。
 - npm 安装包隔离归档复验、真实 Android DSH 宿主安装运行和真实模型会话端到端验收：尚未完成。
 
 ## 11. 后续架构设计要求
