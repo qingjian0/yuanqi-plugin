@@ -29,7 +29,7 @@
 - 已新增测试覆盖：证据目录校验、无八字时工具不可见、当前 Session 世界线绑定、初始画像只写入一次、认识状态保持 hypothesis。
 - 该画像仍是命理解释假设，不是已验证人格事实；后续经历验证与修正流程尚未完成。真实 Android DSH 宿主和模型端到端验收仍待完成。
 - 详细设计与边界记录：[E00-21 八字初始性格与 SelfModel 持久化闭环](./engineering/E00-21-P0-BAZI-INITIAL-PERSONALITY-SELFMODEL.md)。
-- 后天经历采集：[E00-22 后天经历与证据采集管线](./engineering/E00-22-P0-EXPERIENCE-EVIDENCE-PIPELINE.md)；已实现模型选择、有界事件引用、逐维模型评估和跨 Session 来源聚合。聚合要求至少三个不同 Session、每个 Session 最多一个候选，逐维保留支持/反驳冲突；聚合仍是 hypothesis，不自动生成 current_personality。自动采集尚未实现；`yuanqi_record_current_personality_revision` 已支持基于已验证聚合记录生成独立版本化 `current_personality` 假设，证据不足维度必须原样保留八字初始倾向，冲突维度必须保留 disputed。
+- 后天经历采集：[E00-22 后天经历与证据采集管线](./engineering/E00-22-P0-EXPERIENCE-EVIDENCE-PIPELINE.md)；已实现模型选择、有界事件引用、逐维模型评估、跨 Session 来源聚合和版本化 `current_personality` 修订。聚合要求至少三个不同 Session、每个 Session 最多一个候选，逐维保留支持/反驳冲突；修订时多条聚合记录的来源 Session 集合必须互不重叠。新画像仍为 `hypothesis`，证据不足维度原样保留八字初始倾向，冲突维度必须保留 disputed。自动采集和独立评估者验证尚未实现。
 
 ## 2. 工程交付状态（2026-11-05）
 
@@ -68,7 +68,8 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - Evidence Ledger 提供来源记录、撤销、评估和显式授权跨线转移等底层 API。
 - 当前插件没有提供 Worldline 运行时切换/重绑定工具，也没有自动合并不同世界线状态的流程。
 - 当前插件不会自动把普通对话消息转成经历证据；模型可按需调用 `yuanqi_record_experience_candidate`，经插件核验后写入 `unassessed` 候选记录。模型可再调用 `yuanqi_assess_experience_candidate`，把候选对各初始画像维度的支持/反驳/不足判断写入 Evidence Assessment Ledger，并将不可变评估历史追加到 `cognition_reflection`。该评估仍是模型假设，不提升人格认识状态，也不改写 `identity_continuity.initial_personality`。
-- `yuanqi_reconcile_personality_evidence` 已实现跨 Session 来源聚合：至少 3 个不同 DSH Session、同一 Worldline、同一八字初始画像来源；每个 Session 最多计入一个候选，重复行为事件不重复计数。逐维统计支持、反驳与不足，冲突保留为 `disputed`；聚合记录及历史追加到 `cognition_reflection`，认识状态仍为 `hypothesis`，不自动生成或覆盖当前人格画像。
+- `yuanqi_reconcile_personality_evidence` 已实现跨 Session 来源聚合：至少 3 个不同 DSH Session、同一 Worldline、同一八字初始画像来源；每个 Session 最多计入一个候选，重复行为事件不重复计数。逐维统计支持、反驳与不足，冲突保留为 `disputed`；聚合记录及历史追加到 `cognition_reflection`，认识状态仍为 `hypothesis`。
+- `yuanqi_record_current_personality_revision` 已实现版本化当前画像修订：只接受当前 Worldline、同一八字初始画像来源的有效聚合记录；多个聚合记录的来源 Session 集合必须互不重叠。只有聚合对某维度一致支持或一致反驳时才允许修订；冲突保留为 `disputed`，证据不足时自动沿用原始 tendency。新版本独立写入 Evidence Ledger 和 `identity_continuity.current_personality`，保持 `hypothesis`，不覆盖 `initial_personality`。
 
 `worldline_id` 是逻辑隔离键，不是用户身份认证或授权凭证。
 
@@ -76,7 +77,7 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 
 - 这些仍是长期研究方向；当前工作树没有独立的 Memory、Experience、Goals 或 Behavior 领域模块。
 - 当前没有通用候选记忆、用户确认升级、经验结果归因或经验置信评分的完整运行时流程。
-- 当前没有自动扫描经历、独立评估者验证或基于聚合证据生成新人格画像版本的流程；跨 Session 聚合只核验事件来源分离，逐维判断仍由模型生成，聚合结果保持 `hypothesis`，原始八字画像保持不变。
+- 当前没有自动扫描经历或独立评估者验证流程；跨 Session 聚合只核验事件来源分离，逐维判断仍由模型生成。版本化 `current_personality` 可由模型依据合格聚合记录显式创建，但始终保持 `hypothesis`，原始八字画像保持不变。
 - 后续实现必须复用 Evidence Ledger 的来源、撤销和评估能力，并保持模型推断与用户事实的认识状态区分。
 
 ### 上下文参与
