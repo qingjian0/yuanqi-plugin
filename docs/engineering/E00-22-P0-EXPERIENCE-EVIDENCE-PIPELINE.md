@@ -154,7 +154,7 @@ DSH SessionEvent → bounded source references → model experience candidate �
 - 每个画像维度分别统计来自不同 Session 的支持、反驳和不足判断。支持与反驳并存时标记 `disputed`，不得用多数票抹去反证；少于三个独立 Session 时标记 `insufficient`。
 - 目前“独立”只表示 DSH 来源 Session 与行为事件引用不同；评估者仍是同一模型类别，不代表独立评审者或心理学验证。聚合记录及 SelfModel 历史继续保持 `hypothesis`。
 - 聚合记录以不可变 Evidence Ledger source record 保存，来源 Session、候选 ID、Assessment ID 和原始八字画像来源均保留；SelfModel 只追加到 `cognition_reflection`，不会覆盖 `identity_continuity.initial_personality`。
-- 该工具只生成逐维证据汇总和“是否具备后续暂定修订条件”的标记；**当前尚未自动生成或替换 current_personality 版本**。下一阶段应基于聚合记录生成单独的版本化画像，并继续保持 hypothesis 与初始画像不可变。
+- 该工具只生成逐维证据汇总和“是否具备后续暂定修订条件”的标记；版本化 `current_personality` 修订已由下一阶段工具实现，具体见第 11 节。聚合本身不自动触发修订，且始终保持 hypothesis 与初始画像不可变。
 
 当前测试新增覆盖：三 Session 独立来源计数、同一维度支持/反驳冲突保留、其他维度证据不足、聚合记录不可变保存、SelfModel 仅追加认知反思、原始八字画像不变、重复聚合幂等和候选数量下限。
 
@@ -163,7 +163,7 @@ DSH SessionEvent → bounded source references → model experience candidate �
 
 开发分支新增 `yuanqi_record_current_personality_revision`，将已聚合的经历证据接入 SelfModel，但不改变八字初始画像：
 
-- 工具只接受当前活动 Worldline 中仍 active 的 reconciliation records；每条记录必须来自至少三个不同 Session，并引用当前不可变的八字初始画像来源。
+- 工具只接受当前活动 Worldline 中仍 active 的 reconciliation records；每条记录必须来自至少三个不同 Session，并引用当前不可变的八字初始画像来源；多条聚合记录的来源 Session 集合必须互不重叠，避免跨聚合重复计权。
 - 每个维度必须明确选择 `revise`、`disputed` 或 `retain_initial`，并引用当前工具参数中已验证的聚合记录。
 - `revise` 仅允许所有引用聚合都对该维度给出同方向、达到门槛且无冲突的结果；跨聚合出现支持/反驳冲突或已标记 disputed 时，必须选择 `disputed`。
 - `retain_initial` 强制沿用原始八字初始画像该维度的精确 tendency，不允许在证据不足时借版本更新改写原倾向。
