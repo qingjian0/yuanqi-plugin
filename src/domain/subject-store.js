@@ -1,3 +1,4 @@
+import { deriveInnateBaseline } from './innate-baseline.js';
 import { calculateBaziPillars } from './bazi-engine.js';
 import { deriveSolarTermContext } from './solar-terms.js';
 import { deriveBirthTimeContext } from './birth-time.js';
@@ -175,8 +176,14 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
           calendar_context: calendarContext,
           calculated_at: new Date().toISOString(),
         });
+        const profileId = 'birth-profile:' + subject_id;
+        const innateBaseline = deriveInnateBaseline({
+          bazi,
+          source_birth_profile_id: profileId,
+          source_wake_event_ref: wake.wake_event_ref,
+        });
         const profile = {
-          profile_id: 'birth-profile:' + subject_id,
+          profile_id: profileId,
           subject_id,
           subject_kind: 'yuanqi',
           birth_time: birthTime,
@@ -186,6 +193,7 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
           time_context: timeContext,
           calendar_context: calendarContext,
           bazi,
+          innate_baseline: innateBaseline,
           schema_version: 1,
         };
         if (existing === undefined) {
@@ -202,7 +210,7 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
           }
           await birthProfiles.update(subject_id, current =>
             current?.birth_location?.status === 'pending' || current?.time_context?.status === 'pending'
-              ? { ...current, birth_location: location, time_context: profile.time_context, bazi: profile.bazi }
+              ? { ...current, birth_location: location, time_context: profile.time_context, bazi: profile.bazi, innate_baseline: profile.innate_baseline }
               : current);
           return clone(birthProfiles.get(subject_id));
         }
