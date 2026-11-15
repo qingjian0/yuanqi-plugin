@@ -652,7 +652,7 @@ export async function apply(ctx) {
           behaviorSeqs.join(','), contextSeqs.join(','),
         ].join(':');
         const sourceEventRef = sessionId + ':seq:' + sourceRef.seq;
-        const evidence = await worldlines.recordEvidence({
+        await worldlines.recordEvidence({
           evidence_id: evidenceId,
           yuanqi_subject_id: YUANQI_SUBJECT_ID,
           worldline_id: binding.worldline_id,
@@ -685,6 +685,10 @@ export async function apply(ctx) {
             source_kind: 'host_event',
             occurred_at: sourceRef.occurred_at,
           },
+        });
+        const evidence = worldlines.getEvidenceRecord({
+          evidence_id: evidenceId,
+          worldline_id: binding.worldline_id,
         });
         if (!evidence || evidence.status !== 'active') {
           throw new Error('experience candidate could not be verified in the current Worldline');
