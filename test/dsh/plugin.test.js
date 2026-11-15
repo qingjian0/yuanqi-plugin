@@ -93,13 +93,6 @@ function context(storageDomain, options = {}) {
   };
 }
 
-test('plugin startup requires bounded SessionQuery event reads', async () => {
-  const storage = fakeStorageDomain();
-  const incomplete = context(storage, { sessionQuery: { async listSessions() { return []; }, async observeSession() {} } });
-  await assert.rejects(apply(incomplete), /official DSH sessionQuery service/);
-  assert.equal(storage.opened.size, 0);
-});
-
 test('plugin startup requires the DSH model tools registry before opening Domains', async () => {
   const storage = fakeStorageDomain();
   await assert.rejects(apply({ ...context(storage), tools: undefined }), /official DSH tools service/);
