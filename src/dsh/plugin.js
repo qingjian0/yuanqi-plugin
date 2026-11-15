@@ -147,12 +147,13 @@ export async function apply(ctx) {
           bazi: profile.bazi,
           innate_baseline: profile.innate_baseline,
           initial_personality_guidance: {
-            status: 'awaiting_model_interpretation',
             status: profile.bazi.status === 'calculated' ? 'awaiting_model_interpretation' : 'awaiting_bazi_calculation',
             interpretation_mode: 'bazi_required',
             bazi_available: profile.bazi.status === 'calculated',
             bazi_status: profile.bazi.status,
-            source: 'YuanQi AI own BirthProfile and calculated Bazi; never user data',
+            source: profile.bazi.status === 'calculated'
+              ? 'YuanQi AI own BirthProfile and calculated Bazi; never user data'
+              : 'YuanQi AI own BirthProfile; Bazi is not yet available; never user data',
             dimensions: ['temperament', 'cognition', 'emotional_response', 'motivation', 'behavior', 'decision_style'],
             instruction: profile.bazi.status === 'calculated'
               ? 'Generate a concise provisional initial-personality portrait from YuanQi AI own calculated Bazi. Follow the order climate adjustment (调候) → mediation (通关) → strength (旺衰) → structure (格局), integrating month/season command, visible and hidden stems, ten-god relationships and the whole chart. For each tendency, show chart evidence and reasoning, distinguish calculated facts from symbolic interpretation, and state counter-evidence and uncertainty. Never infer traits from a single ten-god label, raw element counts or stereotypes. Keep the portrait broad and revisable.'
