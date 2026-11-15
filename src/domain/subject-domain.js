@@ -88,7 +88,7 @@ const yuanqiBirthProfile=z.object({
  source_wake_event_ref:z.string().min(1), source_event_time_ms:z.number().int().nonnegative(),
  time_context:z.object({status:z.enum(['pending','ready','unavailable']),time_zone_id:z.string().nullable(),local_datetime:z.string().nullable(),utc_offset_minutes:z.number().nullable(),longitude_correction_minutes:z.number().nullable(),equation_of_time_minutes:z.number().nullable(),true_solar_datetime:z.string().nullable(),algorithm_version:z.string().min(1)}).strict(),
  calendar_context:solarTermContext,
- bazi:z.object({status:z.enum(['pending','calculated','unavailable']),calendar_system:z.literal('jieqi'),pillars:z.object({year:z.string().min(1),month:z.string().min(1),day:z.string().min(1),hour:z.string().min(1)}).strict().nullable(),algorithm_version:z.string().nullable(),calculated_at:z.string().datetime().nullable()}).strict(),
+ bazi:z.object({status:z.enum(['pending','calculated','ambiguous','unavailable']),calendar_system:z.literal('jieqi'),pillars:z.object({year:z.string().min(1),month:z.string().min(1),day:z.string().min(1),hour:z.string().min(1)}).strict().nullable(),algorithm_version:z.string().min(1),calculated_at:z.string().datetime().nullable(),methodology:z.object({year_boundary:z.literal('li-chun'),month_boundary:z.literal('jie'),day_boundary:z.literal('zi-zheng-midnight'),time_basis:z.literal('apparent-solar-time'),hour_period:z.literal('two-hour-branch-periods'),day_cycle_anchor:z.literal('1949-10-01-jiazi'),solar_term_engine:z.literal('usno-apparent-sun-v1'),time_context_engine:z.literal('noaa-eot-approx-v1')}).strict(),ambiguity_reasons:z.array(z.string().min(1))}).strict(),
  schema_version:z.literal(1),
 }).strict();
 
