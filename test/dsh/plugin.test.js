@@ -907,7 +907,7 @@ test('experience candidate tool records bounded behavior evidence without copyin
   const committedHistory = structuredClone(reflection.content.experience_assessments);
   const orphanedHead = headTable.get('worldline:main');
   orphanedHead.current_state_payload.self_model.centers.cognition_reflection.content.experience_assessments = [];
-  await headTable.put('worldline:main', orphanedHead);
+  headTable.set('worldline:main', structuredClone(orphanedHead));
   const versionBeforeConflict = orphanedHead.current_snapshot_version;
   await assert.rejects(assessmentTool.definition.execute({
     evidence_id: result.evidence_id,
@@ -921,7 +921,7 @@ test('experience candidate tool records bounded behavior evidence without copyin
   assert.equal(headTable.get('worldline:main').current_snapshot_version, versionBeforeConflict);
   const restoredHead = headTable.get('worldline:main');
   restoredHead.current_state_payload.self_model.centers.cognition_reflection.content.experience_assessments = committedHistory;
-  await headTable.put('worldline:main', restoredHead);
+  headTable.set('worldline:main', structuredClone(restoredHead));
 
   const repeated = JSON.parse(await assessmentTool.definition.execute({
     evidence_id: result.evidence_id,
