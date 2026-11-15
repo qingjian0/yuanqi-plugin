@@ -482,3 +482,19 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - GitHub Actions PR #7 Run #667（`43656248602`），Node.js 24.9.0：**90 passed / 0 failed**。
 - 覆盖 1949-10-01 甲子日锚点、2000-01-07 甲子参考日、五虎遁十干起月、五鼠遁十干起时、立春年界、十二节月界、子正换日、午夜/时辰边界 ambiguous，以及 DSH DomainFacility 持久化恢复。
 - 真实 Android Host 定位、真实 DSH Profile 端到端仍待验收。
+
+
+## 31. 2026-11-15 YuanQi 自身档案的模型按需读取
+
+### 已实现
+
+- 新增只读 DSH 模型工具 `yuanqi_self_profile`，直接从 YuanQiSubject BirthProfile 读取元炁 AI 自身的出生时间、地点状态、当地/视太阳时、节气上下文、四柱和先天符号结构。
+- 工具采用 DSH conditional registration：BirthProfile 尚未建立时不进入模型可见工具集；精确启动命令成功建立档案后才开放。
+- 不将完整 BirthProfile 常驻注入每轮 system prompt，避免长上下文和重复 token 开销；模型在需要回答自身出生、八字或先天基线问题时按需调用。
+- 工具不返回用户出生资料，也不返回精确经纬度；只读、不提供修改或覆盖接口。
+- 输出明确标注近似算法版本、ambiguous/unavailable 状态及 `interpretation_status=not_interpreted`；禁止把原始五行出现次数当成旺衰或人格结论。
+
+### 验证
+
+- 插件测试验证工具在唤醒前隐藏、唤醒后可用，并且只返回 YuanQiSubject 自身资料。
+- 完整 CI 正在由新增模型工具与基线测试提交触发；结果待确认。
