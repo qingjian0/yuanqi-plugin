@@ -41,7 +41,7 @@ test('defaults to Beijing time when neither a valid host zone nor authorized coo
     time_zone_source: 'default_beijing',
   });
   assert.deepEqual(resolveBirthTimeZone({ latitude: 91, longitude: 0 }), {
-    time_zone_id: null,
-    time_zone_source: 'unavailable',
+    time_zone_id: 'Asia/Shanghai',
+    time_zone_source: 'default_beijing',
   });
 });
