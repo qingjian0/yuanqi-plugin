@@ -1111,7 +1111,7 @@ test('experience reconciliation counts distinct Session evidence, preserves conf
   const revisionDimensions = initialBefore.dimensions.map(item => ({
     dimension: item.dimension,
     disposition: item.dimension === 'behavior' ? 'disputed' : 'retain_initial',
-    tendency: item.dimension === 'behavior' ? '行为表现可能随情境变化，当前存在支持与反驳证据。' : item.tendency,
+    ...(item.dimension === 'behavior' ? { tendency: '行为表现可能随情境变化，当前存在支持与反驳证据。' } : {}),
     reasoning: item.dimension === 'behavior'
       ? '三个不同 Session 的评估中同时出现支持与反驳，不能消除冲突。'
       : '该维度尚无达到门槛的跨 Session 证据，保留原始八字初始倾向。',
