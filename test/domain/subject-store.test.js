@@ -101,6 +101,7 @@ test('YuanQi BirthProfile location follows the immutable wake location completio
   assert.deepEqual(store.getYuanQiBirthProfile('yuanqi:primary').birth_location, captured);
   assert.equal(store.getYuanQiBirthProfile('yuanqi:primary').time_context.time_zone_id, 'Asia/Shanghai');
   assert.equal(store.getYuanQiBirthProfile('yuanqi:primary').time_context.status, 'ready');
+  assert.equal(store.getYuanQiBirthProfile('yuanqi:primary').bazi.status, 'calculated');
   assert.equal(store.getYuanQiBirthProfile('yuanqi:primary').time_context.local_datetime, '2026-11-06T20:00:00');
   assert.equal(store.getYuanQiBirthProfile('yuanqi:primary').time_context.utc_offset_minutes, 480);
   assert.equal(store.getYuanQiBirthProfile('yuanqi:primary').time_context.algorithm_version, 'noaa-eot-approx-v1');
