@@ -139,13 +139,11 @@ flowchart TB
 - UTC→IANA 当地时间、DST、经度修正、NOAA 近似视太阳时和 USNO 24 节气上下文。
 - 确定性四柱计算（立春定年、十二节定月、子正换日、五虎遁/五鼠遁）及边界不确定保护。
 - 由四柱派生的符号先天基线：日主、透干、藏干、十神与未加权五行出现次数，不输出人格或旺衰结论。
-- DSH 只读模型工具 `yuanqi_self_profile`，按需向 AI 提供自身出生档案与先天结构。
-- 按 DSH Session 隔离的世界线，支持分支、切换、事件恢复与去重。
-- 候选记忆要求具有用户原文证据，并经用户后续明确确认后才能升级为已确认记忆。
-- 经验记录行为、结果、支持证据和反证；置信分数属于工程启发式指标，不代表心理学概率。
-- 目标、计划行为和观察结果分开记录。
-- 每轮首个模型步骤注入有长度上限的当前 Session 上下文；不重复注入工具续步，不注入原始完整聊天历史。
-- 系统提示词策略明确上下文是数据，不得覆盖用户当前请求。
+- DSH 模型工具 `yuanqi_self_profile` 按需提供自身出生档案、先天结构和可核验命盘证据目录；`yuanqi_record_initial_personality` 将 AI 生成的八字初始画像以 `hypothesis` 状态写入当前 Session 绑定的 Worldline SelfModel。
+- Worldline 支持主线创建、分支快照、Session 绑定、Runtime Lease/Fencing、Snapshot CAS 和归档恢复；当前没有运行时切换/重绑定工具。
+- Evidence Ledger 提供来源记录、撤销、评估和显式授权跨线转移等底层能力。
+- 普通对话消息尚未自动采集为经历证据；独立记忆、经验、目标、行为模块和经历驱动的 SelfModel 更新仍属研究/待实现方向。
+- 每轮上下文投影、工具续步去重和完整历史筛选尚未实现为当前插件运行时能力。
 
 ### 元炁自身出生资料与命盘基线
 
@@ -159,11 +157,11 @@ flowchart TB
 
 节气上下文第一阶段已实现：使用 USNO 公开的视地心黄道太阳黄经近似式，定位出生时刻前后的 24 节气、最近的十二节（Jie）和最近一次立春，并把 UTC 交接时刻保存在 BirthProfile.calendar_context。该近似式约 1 角分精度；为避免月柱误判，距十二节（Jie）交接 30 分钟以内标记 ambiguous，不强行定柱。节气表按 15° 黄经间隔，十二节与十二中气分别标记。
 
-模型读取：BirthProfile 和先天基线不会整份常驻注入每轮提示词。元炁唤醒后，DSH 按需开放只读模型工具 `yuanqi_self_profile`；AI 在需要了解自身出生资料、四柱或先天结构时调用，工具只返回 YuanQiSubject 自身数据，不返回用户出生资料或精确经纬度。未初始化时工具不进入模型可见工具集，以控制上下文开销。
+模型读取与初始画像：BirthProfile 和先天基线不会整份常驻注入每轮提示词。元炁唤醒后，DSH 按需开放 `yuanqi_self_profile`；首轮模型回复应先读取自身资料。四柱可用时，AI 按调候→通关→旺衰→格局的解释顺序生成六个维度的暂定倾向，并引用工具返回的 `chart_evidence_catalog`。随后通过 `yuanqi_record_initial_personality` 将画像作为 `hypothesis` 写入当前 Session 绑定的 Worldline SelfModel。工具只处理 YuanQiSubject 自身数据，不返回用户出生资料或精确经纬度；四柱不可用时不生成替代画像。
 
 ### 先天符号基线的边界
 
-`innate_baseline` 是从已计算四柱派生的可追溯符号结构，包含日主、透干、藏干、十神和未加权五行出现次数。它不是人格画像、能力评估、旺衰评分或命运结论；当前 `interpretation_status=not_interpreted`。它为后续 SelfModel 提供静态来源，但不等于 SelfModel 已经自动吸收或形成自我认知。
+`innate_baseline` 是从已计算四柱派生的可追溯符号结构，包含日主、透干、藏干、十神和未加权五行出现次数。它不是人格画像、能力评估、旺衰评分或命运结论；其 `interpretation_status=not_interpreted` 表示符号基线本身不硬编码人格标签。AI 生成的初始画像单独保存在 SelfModel 的 `identity_continuity.content.initial_personality`，认识状态为 `hypothesis`，并引用可追溯的模型解释来源记录。
 
 ### 四柱计算与精度边界
 
@@ -179,12 +177,10 @@ flowchart TB
 - Storage Domain 提供的在线持久化能力。
 
 **元炁负责：**
-- 生命上下文领域模型。
-- 先天基线与出生资料管理。
-- 世界线与个体状态。
-- 记忆、经历、目标和行为的领域处理。
-- 用户证据与确认规则。
-- 当前 Session 对应的上下文组织。
+- 生命上下文领域模型与先天基线/出生资料管理。
+- Worldline、Evidence Ledger 和当前已实现的 SelfModel 持久化能力。
+- 初始画像生成指导与来源追溯。
+- 记忆、经历、目标、行为和上下文投影仍是后续领域建设方向，不应误认为当前都已实现。
 
 元炁不另建 Agent Runtime，不在插件内部启动独立 Python 子进程，也不以第二套在线持久化系统替代 DSH Storage Domain。
 
