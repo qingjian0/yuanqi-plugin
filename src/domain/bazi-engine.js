@@ -100,11 +100,13 @@ export function calculateBaziPillars({
   const dayBoundaryDistance = Math.min(minuteOfDay, 1440 - minuteOfDay);
   const hourBoundaryDistance = nearestHourBoundaryDistanceMinutes(minuteOfDay);
   const ambiguityReasons = [];
+  const boundaryBasis = time_context.time_basis === 'beijing-standard-time-fallback'
+    ? 'beijing-standard-time' : 'apparent-solar';
   if (dayBoundaryDistance <= BOUNDARY_GUARD_MINUTES) {
-    ambiguityReasons.push('apparent-solar-midnight-within-30m');
+    ambiguityReasons.push(boundaryBasis + '-midnight-within-30m');
   }
   if (hourBoundaryDistance <= BOUNDARY_GUARD_MINUTES) {
-    ambiguityReasons.push('apparent-solar-hour-boundary-within-30m');
+    ambiguityReasons.push(boundaryBasis + '-hour-boundary-within-30m');
   }
   if (ambiguityReasons.length > 0) {
     return makeResult('ambiguous', null, ambiguityReasons);
