@@ -109,7 +109,7 @@ test('actual DSH DomainFacility persists and restores YuanQi-owned BirthProfile'
     verifyDirectUserEvent: event => event?.verified === true ? event : null,
   });
   await store.createYuanQiSubject({ subject_id: 'yuanqi:primary', created_from_event_ref: 'wake-event-1' });
-  const eventTime = 1794048000100;
+  const eventTime = 1793966400000;
   await store.recordInitialWake({
     subject_id: 'yuanqi:primary',
     direct_user_event: {
@@ -117,12 +117,18 @@ test('actual DSH DomainFacility persists and restores YuanQi-owned BirthProfile'
       session_id: 'birth-session', event_id: 'wake-event-1', event_seq: 0,
       event_time: eventTime, text: '启动元炁',
     },
+    birth_location: {
+      status: 'captured', latitude: 31.2304, longitude: 121.4737,
+      accuracy_meters: 5, place_label: 'Shanghai', time_zone_id: 'Asia/Shanghai',
+      source: 'host_location_provider', captured_at: new Date(eventTime).toISOString(),
+    },
   });
   const profile = store.getYuanQiBirthProfile('yuanqi:primary');
   assert.equal(profile.subject_kind, 'yuanqi');
   assert.equal(profile.birth_time, new Date(eventTime).toISOString());
   assert.equal(profile.source_wake_event_ref, 'wake-event-1');
-  assert.equal(profile.bazi.status, 'unavailable');
+  assert.equal(profile.bazi.status, 'calculated');
+  assert.deepEqual(profile.bazi.pillars, { year: '丙午', month: '戊戌', day: '甲申', hour: '甲戌' });
   await domains.close();
 
   const reopened = await openSubjectDomains(storageDomain);
