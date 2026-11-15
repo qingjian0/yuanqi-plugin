@@ -90,51 +90,54 @@ export function deriveBirthTimeContext({ birth_time, birth_location } = {}) {
   }
   const instant = new Date(birth_time);
   const location = birth_location ?? {};
-  const timeZoneSource = ['host_location_provider', 'coordinate_lookup'].includes(location.time_zone_source)
-    ? location.time_zone_source
-    : (typeof location.time_zone_id === 'string' && location.time_zone_id.length > 0
-      ? 'host_location_provider' : 'unavailable');
-  if (location.status === 'unavailable') {
-    return {
-      status: 'unavailable', time_zone_id: null, time_zone_source: 'unavailable', local_datetime: null,
-      utc_offset_minutes: null, longitude_correction_minutes: null,
-      equation_of_time_minutes: null, true_solar_datetime: null,
-      algorithm_version: 'noaa-eot-approx-v1',
-    };
-  }
-  if (location.status !== 'captured') {
+  if (location.status === 'pending') {
     return {
       status: 'pending', time_zone_id: null, time_zone_source: 'unavailable', local_datetime: null,
       utc_offset_minutes: null, longitude_correction_minutes: null,
-      equation_of_time_minutes: null, true_solar_datetime: null,
+      equation_of_time_minutes: null, true_solar_datetime: null, time_basis: null,
       algorithm_version: 'noaa-eot-approx-v1',
     };
   }
-  const timeZone = typeof location.time_zone_id === 'string' ? location.time_zone_id : null;
-  const longitude = location.longitude;
-  if (!timeZone || longitude == null) {
-    return {
-      status: location.status === 'pending' ? 'pending' : 'unavailable', time_zone_id: timeZone, time_zone_source: timeZoneSource, local_datetime: null,
-      utc_offset_minutes: null, longitude_correction_minutes: null,
-      equation_of_time_minutes: null, true_solar_datetime: null,
-      algorithm_version: 'noaa-eot-approx-v1',
-    };
-  }
-  finiteNumber(longitude, 'birth_location.longitude', -180, 180);
+
+  const suppliedZone = typeof location.time_zone_id === 'string' ? location.time_zone_id : null;
+  let timeZone = suppliedZone;
   let formatter;
+  let timeZoneSource = ['host_location_provider', 'coordinate_lookup'].includes(location.time_zone_source)
+    ? location.time_zone_source : 'host_location_provider';
+  if (!timeZone) {
+    timeZone = 'Asia/Shanghai';
+    timeZoneSource = 'default_beijing';
+  }
   try {
     formatter = formatterFor(timeZone);
   } catch {
-    return {
-      status: 'unavailable', time_zone_id: timeZone, time_zone_source: timeZoneSource, local_datetime: null,
-      utc_offset_minutes: null, longitude_correction_minutes: null,
-      equation_of_time_minutes: null, true_solar_datetime: null,
-      algorithm_version: 'noaa-eot-approx-v1',
-    };
+    timeZone = 'Asia/Shanghai';
+    timeZoneSource = 'default_beijing';
+    formatter = formatterFor(timeZone);
   }
+
   const parts = localParts(formatter, instant);
   const utcOffset = offsetMinutesAt(formatter, instant, parts);
-  const longitudeCorrection = longitude * 4;
+  const hasLongitude = location.status === 'captured' &&
+    typeof location.longitude === 'number' && Number.isFinite(location.longitude);
+  if (hasLongitude) finiteNumber(location.longitude, 'birth_location.longitude', -180, 180);
+
+  if (!hasLongitude) {
+    return {
+      status: 'ready',
+      time_zone_id: timeZone,
+      time_zone_source: timeZoneSource,
+      local_datetime: formatLocal(parts),
+      utc_offset_minutes: utcOffset,
+      longitude_correction_minutes: null,
+      equation_of_time_minutes: null,
+      true_solar_datetime: formatLocal(parts),
+      time_basis: 'beijing-standard-time-fallback',
+      algorithm_version: 'civil-time-only-v1',
+    };
+  }
+
+  const longitudeCorrection = location.longitude * 4;
   const equationOfTime = equationOfTimeMinutes(instant);
   const trueSolarParts = addWallMinutes(parts,
     longitudeCorrection - utcOffset + equationOfTime);
@@ -147,6 +150,7 @@ export function deriveBirthTimeContext({ birth_time, birth_location } = {}) {
     longitude_correction_minutes: Number(longitudeCorrection.toFixed(6)),
     equation_of_time_minutes: Number(equationOfTime.toFixed(6)),
     true_solar_datetime: formatLocal(trueSolarParts),
+    time_basis: 'apparent-solar-time',
     algorithm_version: 'noaa-eot-approx-v1',
   };
 }
