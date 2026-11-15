@@ -48,8 +48,12 @@ test('YuanQi BirthProfile is derived from its own trusted wake event and stored 
   assert.equal(profile.subject_kind, 'yuanqi');
   assert.equal(profile.birth_time, wake.birth_time);
   assert.equal(profile.source_wake_event_ref, 'wake-1');
-  assert.equal(profile.bazi.status, 'unavailable');
-  assert.equal(profile.innate_baseline.status, 'unavailable');
+  assert.equal(profile.time_context.status, 'ready');
+  assert.equal(profile.time_context.time_zone_id, 'Asia/Shanghai');
+  assert.equal(profile.time_context.time_zone_source, 'default_beijing');
+  assert.equal(profile.bazi.status, 'calculated');
+  assert.equal(profile.bazi.methodology.time_basis, 'beijing-standard-time-fallback-no-longitude-correction');
+  assert.equal(profile.innate_baseline.status, 'ready');
   assert.equal(profile.bazi.calendar_system, 'jieqi');
   assert.equal(profile.calendar_context.engine_version, 'usno-apparent-sun-v1');
   assert.equal(profile.calendar_context.previous_jie.name, '寒露');
