@@ -148,7 +148,7 @@ test('model-facing self-profile tool exposes only YuanQi-owned birth data after 
   assert.ok(profile.initial_personality_guidance.instruction.includes('格局'));
   assert.ok(profile.initial_personality_guidance.boundaries.some(item => item.includes('not a verified psychological fact')));
   assert.ok(profile.initial_personality_guidance.instruction.includes('reasoning chain'));
-  assert.ok(profile.initial_personality_guidance.instruction.includes('counter-indications'));
+  assert.ok(profile.initial_personality_guidance.portrait_format.some(item => item.includes('counter-indication')));
   assert.equal(profile.initial_personality_guidance.analysis_protocol.length, 5);
   assert.ok(profile.initial_personality_guidance.analysis_protocol[0].includes('month-command'));
   assert.ok(profile.initial_personality_guidance.analysis_protocol[3].includes('indeterminate'));
