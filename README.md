@@ -145,7 +145,8 @@ flowchart TB
 - 已新增模型按需调用的 `yuanqi_record_experience_candidate`：只接受当前 Session 的有限事件引用，核验助手已提交输出、工具调用/结果及直接用户上下文；不复制原始消息、工具参数或工具结果，写入的候选证据保持 `unassessed`，不修改 SelfModel。
 - 已新增 `yuanqi_assess_experience_candidate`：将模型对候选经历的逐维评估写入 Evidence Assessment Ledger，并追加到独立的 `cognition_reflection` 版本化历史；原始八字 `identity_continuity.initial_personality` 不会被改写，评估状态仍是 `hypothesis`。
 - 已新增 `yuanqi_reconcile_personality_evidence`：对同一 Worldline 中至少三个不同 DSH Session 的已评估候选做逐维来源聚合；每个 Session 最多计一个候选，重复事件不重复计数，支持与反驳并存时保留 `disputed`。聚合只追加 `cognition_reflection`，仍保持 `hypothesis`，不覆盖八字初始画像。
-- 普通对话消息仍不会自动采集；自动采集和基于聚合结果生成版本化 `current_personality` 尚未实现。
+- 已新增 `yuanqi_record_current_personality_revision`：模型可基于已验证的聚合记录创建版本化 `current_personality` 假设；只有同方向且达到门槛的证据可修订维度，冲突必须保留 `disputed`，证据不足必须精确保留原始八字倾向。新版本与 `initial_personality` 分开保存，后者不被覆盖。
+- 普通对话消息仍不会自动采集；聚合和画像修订均需模型按需显式调用，且结果仍是 `hypothesis`。
 - 每轮上下文投影、工具续步去重和完整历史筛选尚未实现为当前插件运行时能力。
 
 ### 元炁自身出生资料与命盘基线
