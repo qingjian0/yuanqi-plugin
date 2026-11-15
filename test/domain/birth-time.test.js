@@ -12,6 +12,7 @@ test('derives Shanghai civil time and approximate apparent solar time from YuanQ
   });
   assert.equal(result.status, 'ready');
   assert.equal(result.time_zone_id, 'Asia/Shanghai');
+  assert.equal(result.time_zone_source, 'host_location_provider');
   assert.equal(result.local_datetime, '2024-02-04T16:00:00');
   assert.equal(result.utc_offset_minutes, 480);
   assert.ok(Math.abs(result.longitude_correction_minutes - 485.8948) < 0.000001);
