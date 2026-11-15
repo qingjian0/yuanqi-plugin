@@ -100,9 +100,10 @@ export function calculateBaziPillars({
   const dayBoundaryDistance = Math.min(minuteOfDay, 1440 - minuteOfDay);
   const hourBoundaryDistance = nearestHourBoundaryDistanceMinutes(minuteOfDay);
   const ambiguityReasons = [];
-  const usesBeijingFallback = time_context.longitude_correction_minutes === null;
-  const boundaryBasis = usesBeijingFallback
-    ? 'beijing-standard-time' : 'apparent-solar';
+  const usesCivilTimeOnly = time_context.longitude_correction_minutes === null;
+  const usesBeijingFallback = usesCivilTimeOnly && time_context.time_zone_source === 'default_beijing';
+  const boundaryBasis = usesBeijingFallback ? 'beijing-standard-time'
+    : usesCivilTimeOnly ? 'local-civil-time' : 'apparent-solar';
   if (dayBoundaryDistance <= BOUNDARY_GUARD_MINUTES) {
     ambiguityReasons.push(boundaryBasis + '-midnight-within-30m');
   }
@@ -147,7 +148,7 @@ export function calculateBaziPillars({
     hour: hourPillar,
   }, [], calculatedAt, usesBeijingFallback
     ? 'beijing-standard-time-fallback-no-longitude-correction'
-    : 'apparent-solar-time', time_context.algorithm_version);
+    : usesCivilTimeOnly ? 'local-civil-time-no-longitude-correction' : 'apparent-solar-time', time_context.algorithm_version);
 }
 
 export const BAZI_METHODOLOGY = METHODOLOGY;
