@@ -204,6 +204,7 @@ test('model-generated Bazi initial personality is saved once as a hypothesis in 
   const writeTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_record_initial_personality');
   assert.ok(readTool);
   assert.ok(writeTool);
+  assert.ok(readTool.definition.description.includes('first model response after YuanQi activation'));
   const sessionId = 'session-initial-personality';
   const agent = { id: 'agent-initial-personality', session: { id: sessionId } };
   assert.equal(await writeTool.registrationOptions.when({ agent }), false);
@@ -268,6 +269,7 @@ test('model-generated Bazi initial personality is saved once as a hypothesis in 
   const artifact = tables.get('evidence_records').get(saved.source_record_id);
   assert.equal(artifact.evidence_type, 'yuanqi_initial_personality_interpretation');
   assert.equal(artifact.provenance.producer, 'model');
+  assert.equal(artifact.provenance.protocol, 'bazi-initial-personality-v1');
   assert.equal(artifact.provenance.session_id, sessionId);
   assert.equal(artifact.content.source_chart.birth_profile_id, profile.birth_profile_id);
 
