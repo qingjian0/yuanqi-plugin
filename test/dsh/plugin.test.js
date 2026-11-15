@@ -903,9 +903,12 @@ test('experience candidate tool records bounded behavior evidence without copyin
 
   // Model crash after immutable Ledger write but before SelfModel history commit:
   // an orphaned assessment must not be silently presented as a different review.
+  const headTable = tables.get('worldline_heads');
   const committedHistory = structuredClone(reflection.content.experience_assessments);
-  reflection.content.experience_assessments = [];
-  const versionBeforeConflict = afterAssessment.current_snapshot_version;
+  const orphanedHead = headTable.get('worldline:main');
+  orphanedHead.current_state_payload.self_model.centers.cognition_reflection.content.experience_assessments = [];
+  await headTable.put('worldline:main', orphanedHead);
+  const versionBeforeConflict = orphanedHead.current_snapshot_version;
   await assert.rejects(assessmentTool.definition.execute({
     evidence_id: result.evidence_id,
     reviews: [{
@@ -915,8 +918,10 @@ test('experience candidate tool records bounded behavior evidence without copyin
   }, { callId: 'assessment-conflict-retry', agent, signal: new AbortController().signal }),
   /existing immutable assessment conflicts/);
   assert.equal(assessmentRecord.outcome, 'corroborated');
-  assert.equal(tables.get('worldline_heads').get('worldline:main').current_snapshot_version, versionBeforeConflict);
-  reflection.content.experience_assessments = committedHistory;
+  assert.equal(headTable.get('worldline:main').current_snapshot_version, versionBeforeConflict);
+  const restoredHead = headTable.get('worldline:main');
+  restoredHead.current_state_payload.self_model.centers.cognition_reflection.content.experience_assessments = committedHistory;
+  await headTable.put('worldline:main', restoredHead);
 
   const repeated = JSON.parse(await assessmentTool.definition.execute({
     evidence_id: result.evidence_id,
