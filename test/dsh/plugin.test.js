@@ -201,7 +201,7 @@ test('AI initial personality remains available when the Bazi engine is unavailab
   const storage = fakeStorageDomain(), ctx = context(storage);
   await apply(ctx);
   const registration = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_self_profile');
-  const eventTime = Date.UTC(1700, 0, 1, 12, 0, 0);
+  const eventTime = Date.UTC(2201, 0, 1, 12, 0, 0);
   await ctx.listener({ id: 'session-no-bazi' }, dshEvent('启动元炁', 'no-bazi-wake', 0, eventTime));
   await ctx.flushListener({ id: 'session-no-bazi' });
   await ctx.disposer();
