@@ -120,3 +120,18 @@ DSH SessionEvent → bounded source references → model experience candidate �
 - 后续再单独实现经历评估与 SelfModel 修正。
 
 真实 DSH SessionQuery 的目标 Profile 版本、事件恢复/冷读行为、工具执行上下文以及隐私策略仍需端到端验收。未经这些验证，不应将自动经历采集或动态人格修正标记为已完成。
+
+
+## 9. 最小运行时实现：经历候选记录
+
+已在本轮开发分支加入 `yuanqi_record_experience_candidate`，仅覆盖候选记录，不扩展到自动评估或画像修正：
+
+- 工具只对已绑定 YuanQi Worldline 且已有八字初始画像的当前 Session 可见。
+- 模型提交当前 Session 的事件 seq、短摘要、行为描述、结果状态、画像维度关联和不确定性；Session ID 始终由宿主执行上下文提供。
+- 插件通过 `sessionQuery.readEvent({ sessionId, seq, before: 0, after: 0 })` 逐项读取并校验事件，排除 inherited prefix；行为事件仅接受已提交的 `assistant/message`、`tool/call`、`tool/result`。
+- 用户消息仅可作为 `source.kind === 'user'` 的外部交互背景，不可进入 AI 行为证据；合成注入消息被拒绝。
+- 工具结果必须和候选中所引用的同一 turn/step 的工具调用配对；只选择工具调用时只记录“已请求动作”，不推断结果。
+- Evidence Ledger 只保存摘要、事件引用和最少元数据，不复制助手正文、工具参数或工具结果正文；新记录状态为 `unassessed`。
+- 当前阶段不调用 `assessEvidence`，不写入 SelfModel，不修改八字初始画像。后续必须单独实现证据评估和经评估的画像修订。
+
+本轮实现仍需 GitHub Actions 与目标 DSH Profile 的真实端到端验证；测试替身不能替代 Android 宿主验收。

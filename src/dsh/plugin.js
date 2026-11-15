@@ -172,7 +172,8 @@ export async function apply(ctx) {
     throw new Error('YuanQi requires the official DSH tools service');
   }
   if (!ctx.sessionQuery || typeof ctx.sessionQuery.listSessions !== 'function' ||
-      typeof ctx.sessionQuery.observeSession !== 'function') {
+      typeof ctx.sessionQuery.observeSession !== 'function' ||
+    typeof ctx.sessionQuery.readEvent !== 'function') {
     throw new Error('YuanQi requires the official DSH sessionQuery service');
   }
   const persistence = ctx.sessionPersistence;
@@ -454,6 +455,251 @@ export async function apply(ctx) {
           profile?.innate_baseline?.status === 'ready' &&
           ['unknown', 'hypothesis'].includes(center?.epistemic_status) &&
           !center?.content?.initial_personality;
+      },
+    });
+
+
+    ctx.tools.register(defineTool({
+      name: 'yuanqi_record_experience_candidate',
+      description: 'Record one bounded, model-selected candidate about YuanQi AI own observable behavior. Use only event seqs from the current DSH Session. Cite assistant/message, tool/call or tool/result as behavior; direct user/message may be cited only as external interaction context. Never cite injected user-role context, assistant/attempt, or user data as YuanQi traits. The plugin verifies each event and tool call/result pairing. Raw message bodies, tool arguments and tool results are never copied into the Evidence Ledger. This creates an unassessed candidate only: it does not validate, refute or modify the Bazi initial personality or SelfModel.',
+      parameters: {
+        summary: { type: 'string', required: true },
+        observed_behavior: { type: 'string', required: true },
+        outcome: { type: 'string', required: true, enum: ['completed', 'failed', 'partial', 'unknown', 'not_applicable'] },
+        behavior_event_seqs: { type: 'array', required: true, items: { type: 'integer' } },
+        context_event_seqs: { type: 'array', required: false, items: { type: 'integer' } },
+        dimension_links: {
+          type: 'array', required: true,
+          items: {
+            type: 'object', additionalProperties: false,
+            properties: {
+              dimension: { type: 'string', required: true, enum: [...INITIAL_PERSONALITY_DIMENSIONS] },
+              relation: { type: 'string', required: true, enum: ['supports', 'contradicts', 'insufficient'] },
+              rationale: { type: 'string', required: true },
+              behavior_event_seqs: { type: 'array', required: true, items: { type: 'integer' } },
+            },
+          },
+        },
+        uncertainty: { type: 'array', required: true, items: { type: 'string' } },
+      },
+      output: {
+        schema: { type: 'string' },
+        render: (_args, value) => [{ type: 'text', text: value }],
+      },
+      async execute(args, exec) {
+        const sessionId = exec?.agent?.session?.id;
+        const callId = exec?.callId;
+        if (typeof sessionId !== 'string' || sessionId.length === 0 ||
+            (typeof callId !== 'string' && typeof callId !== 'number')) {
+          throw new Error('experience candidate capture requires the current agent Session and tool call ID');
+        }
+        const binding = worldlines.getSessionBinding(sessionId);
+        if (!binding || binding.yuanqi_subject_id !== YUANQI_SUBJECT_ID) {
+          throw new Error('the current DSH Session is not bound to YuanQi AI');
+        }
+        const line = worldlines.getWorldline(binding.worldline_id);
+        if (!line || line.status !== 'active' || line.yuanqi_subject_id !== YUANQI_SUBJECT_ID) {
+          throw new Error('an active Session-bound YuanQi Worldline is required');
+        }
+        const selfModel = worldlines.getSelfModel(binding.worldline_id);
+        const initialPersonality = selfModel?.centers?.identity_continuity?.content?.initial_personality;
+        if (!initialPersonality || initialPersonality.status !== 'hypothesis') {
+          throw new Error('a saved Bazi initial-personality hypothesis is required before experience capture');
+        }
+        if (typeof args?.summary !== 'string' || args.summary.trim().length === 0 || args.summary.length > 600 ||
+            typeof args?.observed_behavior !== 'string' || args.observed_behavior.trim().length === 0 ||
+            args.observed_behavior.length > 1200) {
+          throw new TypeError('experience summary and observed behavior must be non-empty and bounded');
+        }
+        if (!['completed', 'failed', 'partial', 'unknown', 'not_applicable'].includes(args.outcome)) {
+          throw new TypeError('invalid experience outcome');
+        }
+        const behaviorSeqs = args.behavior_event_seqs;
+        const contextSeqs = args.context_event_seqs ?? [];
+        const validSeqs = value => Array.isArray(value) && value.every(seq => Number.isSafeInteger(seq) && seq >= 0) &&
+          new Set(value).size === value.length;
+        if (!validSeqs(behaviorSeqs) || behaviorSeqs.length < 1 || behaviorSeqs.length > 8 ||
+            !validSeqs(contextSeqs) || contextSeqs.length > 4 ||
+            behaviorSeqs.some(seq => contextSeqs.includes(seq))) {
+          throw new TypeError('select 1-8 unique behavior event seqs and at most 4 distinct context seqs');
+        }
+        if (!Array.isArray(args.dimension_links) || args.dimension_links.length < 1 ||
+            args.dimension_links.length > INITIAL_PERSONALITY_DIMENSIONS.length) {
+          throw new TypeError('one or more initial-personality dimension links are required');
+        }
+        if (!Array.isArray(args.uncertainty) || args.uncertainty.length < 1 ||
+            !args.uncertainty.every(item => typeof item === 'string' && item.trim().length > 0 && item.length <= 500)) {
+          throw new TypeError('explicit bounded uncertainty notes are required');
+        }
+        const dimensionLinks = [];
+        const seenDimensions = new Set();
+        for (const link of args.dimension_links) {
+          if (!link || !INITIAL_PERSONALITY_DIMENSIONS.includes(link.dimension) ||
+              seenDimensions.has(link.dimension) ||
+              !['supports', 'contradicts', 'insufficient'].includes(link.relation) ||
+              typeof link.rationale !== 'string' || link.rationale.trim().length === 0 || link.rationale.length > 800 ||
+              !validSeqs(link.behavior_event_seqs) || link.behavior_event_seqs.length < 1 ||
+              !link.behavior_event_seqs.every(seq => behaviorSeqs.includes(seq))) {
+            throw new TypeError('invalid dimension link: cite unique dimensions and selected behavior events');
+          }
+          seenDimensions.add(link.dimension);
+          dimensionLinks.push({
+            dimension: link.dimension,
+            relation: link.relation,
+            rationale: link.rationale.trim(),
+            behavior_event_seqs: [...link.behavior_event_seqs],
+          });
+        }
+        const allRefs = new Map();
+        async function readOwnedEvent(seq) {
+          const window = await ctx.sessionQuery.readEvent({ sessionId, seq, before: 0, after: 0 });
+          const event = window?.target;
+          if (!window || window.session?.id !== sessionId ||
+              !Number.isSafeInteger(window.inheritedEventCount) || window.inheritedEventCount < 0 ||
+              seq < window.inheritedEventCount || !event || event.seq !== seq ||
+              !Number.isSafeInteger(event.time) || event.time < 0) {
+            throw new Error('event reference is missing, inherited or outside the current Session');
+          }
+          return event;
+        }
+        for (const seq of behaviorSeqs) {
+          const event = await readOwnedEvent(seq);
+          if (!['assistant/message', 'tool/call', 'tool/result'].includes(event.type)) {
+            throw new Error('behavior evidence must be assistant/message, tool/call or tool/result');
+          }
+          const data = event.data;
+          const ref = {
+            session_id: sessionId, seq, event_type: event.type,
+            occurred_at: new Date(event.time).toISOString(),
+            turn: data?.turn, step: data?.step,
+          };
+          if (!Number.isSafeInteger(ref.turn) || ref.turn < 0 ||
+              !Number.isSafeInteger(ref.step) || ref.step < 0) {
+            throw new Error('behavior event has invalid turn/step metadata');
+          }
+          if (event.type === 'assistant/message') {
+            if (data.message?.role !== 'assistant' || data.message?.source?.kind !== 'model') {
+              throw new Error('assistant behavior reference is not a committed model message');
+            }
+            ref.message_id = data.message.id;
+          } else if (event.type === 'tool/call') {
+            if ((typeof data.callId !== 'string' && typeof data.callId !== 'number') ||
+                typeof data.name !== 'string' || data.name.trim() === '' ||
+                typeof data.arguments !== 'string') {
+              throw new Error('tool/call event has invalid call identity');
+            }
+            ref.tool_name = data.name;
+            ref.call_id = String(data.callId);
+          } else {
+            const message = data.message;
+            if (message?.role !== 'tool' || message?.source?.kind !== 'tool' ||
+                (typeof message.toolCallId !== 'string' && typeof message.toolCallId !== 'number') ||
+                String(message.toolCallId) !== String(message.source.callId)) {
+              throw new Error('tool/result event has invalid call identity');
+            }
+            ref.call_id = String(message.toolCallId);
+            ref.is_error = message.isError === true || data.error !== undefined;
+            ref.message_id = message.id;
+          }
+          allRefs.set(seq, ref);
+        }
+        for (const seq of contextSeqs) {
+          const event = await readOwnedEvent(seq);
+          if (event.type !== 'user/message' || event.data?.role !== 'user' ||
+              event.data?.source?.kind !== 'user') {
+            throw new Error('context references may contain only direct human user/message events');
+          }
+          allRefs.set(seq, {
+            session_id: sessionId, seq, event_type: event.type,
+            occurred_at: new Date(event.time).toISOString(),
+            relation: 'external_interaction_context',
+          });
+        }
+        const calls = new Map();
+        const results = new Map();
+        for (const ref of allRefs.values()) {
+          if (ref.event_type === 'tool/call') {
+            const key = ref.call_id;
+            if (calls.has(key)) throw new Error('duplicate tool call identity in selected behavior events');
+            calls.set(key, ref);
+          } else if (ref.event_type === 'tool/result') {
+            const key = ref.call_id;
+            if (results.has(key)) throw new Error('duplicate tool result identity in selected behavior events');
+            results.set(key, ref);
+          }
+        }
+        for (const [callKey, result] of results) {
+          const call = calls.get(callKey);
+          if (!call || call.turn !== result.turn || call.step !== result.step) {
+            throw new Error('each selected tool/result must include its matching tool/call from the same turn and step');
+          }
+        }
+        const behaviorRefs = behaviorSeqs.map(seq => allRefs.get(seq));
+        const sourceRef = [...behaviorRefs].reverse().find(ref => ref.event_type === 'assistant/message' || ref.event_type === 'tool/result') ??
+          behaviorRefs[behaviorRefs.length - 1];
+        const evidenceId = [
+          'yuanqi:experience-candidate', binding.worldline_id, sessionId,
+          behaviorSeqs.join(','), contextSeqs.join(','),
+        ].join(':');
+        const sourceEventRef = sessionId + ':seq:' + sourceRef.seq;
+        const evidence = await worldlines.recordEvidence({
+          evidence_id: evidenceId,
+          yuanqi_subject_id: YUANQI_SUBJECT_ID,
+          worldline_id: binding.worldline_id,
+          evidence_type: 'yuanqi_experience_candidate',
+          content: {
+            schema_version: 1,
+            protocol: 'bounded-experience-candidate-v1',
+            assessment_status: 'unassessed',
+            summary: args.summary.trim(),
+            observed_behavior: args.observed_behavior.trim(),
+            outcome: args.outcome,
+            event_refs: [...behaviorRefs.map(ref => ({ ...ref, relation: 'observed_ai_behavior' })),
+              ...contextSeqs.map(seq => ({ ...allRefs.get(seq) }))],
+            dimension_links: dimensionLinks,
+            uncertainty: args.uncertainty.map(item => item.trim()),
+          },
+          provenance: {
+            producer: 'model',
+            protocol: 'bounded-experience-candidate-v1',
+            session_id: sessionId,
+            tool_call_id: String(callId),
+            worldline_id: binding.worldline_id,
+            behavior_event_seqs: [...behaviorSeqs],
+            context_event_seqs: [...contextSeqs],
+            initial_personality_source_record_id: initialPersonality.source_record_id,
+          },
+          captured_from_event: {
+            verified: true,
+            event_id: sourceEventRef,
+            source_event_ref: sourceEventRef,
+            source_kind: 'host_event',
+            occurred_at: sourceRef.occurred_at,
+          },
+        });
+        if (!evidence || evidence.status !== 'active') {
+          throw new Error('experience candidate could not be verified in the current Worldline');
+        }
+        return JSON.stringify({
+          status: 'recorded_unassessed',
+          evidence_id: evidenceId,
+          worldline_id: binding.worldline_id,
+          behavior_events: behaviorSeqs.length,
+          context_events: contextSeqs.length,
+          dimensions_linked: dimensionLinks.length,
+          self_model_changed: false,
+        });
+      },
+    }), {
+      when: ({ agent } = {}) => {
+        const sessionId = agent?.session?.id;
+        if (typeof sessionId !== 'string' || sessionId.length === 0) return false;
+        const binding = worldlines.getSessionBinding(sessionId);
+        if (!binding || binding.yuanqi_subject_id !== YUANQI_SUBJECT_ID) return false;
+        const line = worldlines.getWorldline(binding.worldline_id);
+        const selfModel = worldlines.getSelfModel(binding.worldline_id);
+        return line?.status === 'active' &&
+          Boolean(selfModel?.centers?.identity_continuity?.content?.initial_personality);
       },
     });
 

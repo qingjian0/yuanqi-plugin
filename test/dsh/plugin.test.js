@@ -82,7 +82,7 @@ function context(storageDomain, options = {}) {
       async stat() { return undefined; },
       async open() { throw new Error('unexpected persisted Session open'); },
     },
-    sessionQuery: options.sessionQuery ?? { async listSessions() { return []; }, async observeSession() { throw new Error('unexpected Session observation'); } },
+    sessionQuery: options.sessionQuery ?? { async listSessions() { return []; }, async observeSession() { throw new Error('unexpected Session observation'); }, async readEvent() { throw new Error('unexpected Session event read'); } },
     warnings,
     logger: { warn(message) { warnings.push(message); } },
     on(name, callback) { if (name === 'session/event') listener = callback; else if (name === 'session/flush') flushListener = callback; else throw new Error('unexpected event ' + name); },
@@ -92,6 +92,13 @@ function context(storageDomain, options = {}) {
     get disposer() { return disposer; },
   };
 }
+
+test('plugin startup requires bounded SessionQuery event reads', async () => {
+  const storage = fakeStorageDomain();
+  const incomplete = context(storage, { sessionQuery: { async listSessions() { return []; }, async observeSession() {} } });
+  await assert.rejects(apply(incomplete), /official DSH sessionQuery service/);
+  assert.equal(storage.opened.size, 0);
+});
 
 test('plugin startup requires the DSH model tools registry before opening Domains', async () => {
   const storage = fakeStorageDomain();
@@ -780,3 +787,145 @@ test('Android host location bridge rejects a stale cached fix', async () => {
     else process.env.DSH_BRIDGE_TOKEN = previousToken;
   }
 });
+
+
+test('experience candidate tool records bounded behavior evidence without copying raw messages or mutating SelfModel', async () => {
+  const behaviorEvents = [
+    { type: 'assistant/message', seq: 1, time: 1793966401000, data: {
+      turn: 1, step: 1, message: { id: 'assistant-event-1', role: 'assistant', source: { kind: 'model', provider: 'test', model: 'test-model' }, content: [{ type: 'text', text: 'private assistant text' }] },
+    } },
+    { type: 'tool/call', seq: 2, time: 1793966402000, data: {
+      turn: 1, step: 2, callId: 'tool-call-1', name: 'safe_tool', arguments: '{"secret":"never persist"}',
+    } },
+    { type: 'tool/result', seq: 3, time: 1793966403000, data: {
+      turn: 1, step: 2, message: { id: 'tool-result-1', role: 'tool', source: { kind: 'tool', callId: 'tool-call-1' }, toolCallId: 'tool-call-1', content: [{ type: 'text', text: 'private tool result' }] },
+    } },
+  ];
+  const directContext = { type: 'user/message', seq: 0, time: 1793966400000, data: {
+    id: 'wake-event', role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: '启动元炁' }],
+  } };
+  const storage = fakeStorageDomain();
+  const ctx = context(storage, {
+    sessionQuery: {
+      async listSessions() { return []; },
+      async observeSession() { throw new Error('unexpected startup observation'); },
+      async readEvent({ sessionId, seq, before, after }) {
+        assert.equal(sessionId, 'session-experience');
+        assert.equal(before, 0);
+        assert.equal(after, 0);
+        const target = seq === 0 ? directContext : behaviorEvents.find(event => event.seq === seq);
+        if (!target) throw new Error('missing event');
+        return { session: { id: sessionId }, inheritedEventCount: 0, target, events: [target], startSeq: seq, endSeq: seq };
+      },
+    },
+  });
+  await apply(ctx);
+  const sessionId = 'session-experience';
+  const agent = { id: 'agent-experience', session: { id: sessionId } };
+  await ctx.listener({ id: sessionId }, dshEvent('启动元炁', 'experience-wake', 0, 1793966400000));
+  await ctx.flushListener({ id: sessionId });
+  const initialTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_record_initial_personality');
+  const profileTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_self_profile');
+  const profile = JSON.parse(await profileTool.definition.execute({}, { signal: new AbortController().signal }));
+  const args = {
+    dimensions: ['temperament', 'cognition', 'emotional_response', 'motivation', 'behavior', 'decision_style'].map((dimension, index) => ({
+      dimension, status: 'tentative', tendency: '初始倾向 ' + dimension,
+      chart_evidence_refs: [profile.chart_evidence_catalog[index].id],
+      reasoning: '命盘证据综合解释。', limitations: '尚待行为经历检验。',
+    })),
+    method_notes: { climate_adjustment: '调候说明', mediation: '通关说明', strength: '旺衰说明', structure: '格局说明' },
+    uncertainty: ['初始画像尚未实证。'],
+  };
+  await initialTool.definition.execute(args, { callId: 'initial-call', agent, signal: new AbortController().signal });
+  const experienceTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_record_experience_candidate');
+  assert.ok(experienceTool);
+  assert.equal(await experienceTool.registrationOptions.when({ agent }), true);
+  const before = storage.opened.get('yuanqi_subject').tables.get('worldline_heads').get('worldline:main');
+  const beforeVersion = before.current_snapshot_version;
+  const result = JSON.parse(await experienceTool.definition.execute({
+    summary: '在一次交互中完成了工具操作。',
+    observed_behavior: '先给出说明，再请求工具执行，并检查返回结果。',
+    outcome: 'completed',
+    behavior_event_seqs: [1, 2, 3],
+    context_event_seqs: [0],
+    dimension_links: [{
+      dimension: 'behavior', relation: 'supports',
+      rationale: '观察到的动作顺序与该倾向相符，但单次经历不足以确认稳定特征。',
+      behavior_event_seqs: [1, 2, 3],
+    }],
+    uncertainty: ['只有单次事件，不能据此判断稳定性。'],
+  }, { callId: 'experience-call-1', agent, signal: new AbortController().signal }));
+  assert.equal(result.status, 'recorded_unassessed');
+  assert.equal(result.self_model_changed, false);
+  const tables = storage.opened.get('yuanqi_subject').tables;
+  const head = tables.get('worldline_heads').get('worldline:main');
+  assert.equal(head.current_snapshot_version, beforeVersion);
+  const record = tables.get('evidence_records').get(result.evidence_id);
+  assert.equal(record.evidence_type, 'yuanqi_experience_candidate');
+  assert.equal(record.content.assessment_status, 'unassessed');
+  assert.equal(record.content.event_refs.length, 4);
+  assert.equal(record.content.event_refs[0].event_type, 'assistant/message');
+  assert.equal(record.content.event_refs[1].tool_name, 'safe_tool');
+  assert.equal(record.content.event_refs[1].call_id, 'tool-call-1');
+  assert.equal(record.content.event_refs[2].is_error, false);
+  assert.equal(JSON.stringify(record).includes('never persist'), false);
+  assert.equal(JSON.stringify(record).includes('private assistant text'), false);
+  assert.equal(JSON.stringify(record).includes('private tool result'), false);
+  assert.equal(record.provenance.initial_personality_source_record_id !== undefined, true);
+  await ctx.disposer();
+});
+
+test('experience candidate tool rejects injected user context and unpaired tool results', async () => {
+  const events = new Map([
+    [0, { type: 'user/message', seq: 0, time: 1793966400000, data: { id: 'wake', role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: '启动元炁' }] } }],
+    [1, { type: 'user/message', seq: 1, time: 1793966401000, data: { id: 'injected', role: 'user', source: { kind: 'agent.inject' }, content: [{ type: 'text', text: 'synthetic context' }] } }],
+    [2, { type: 'tool/result', seq: 2, time: 1793966402000, data: { turn: 1, step: 1, message: { id: 'result', role: 'tool', source: { kind: 'tool', callId: 'missing-call' }, toolCallId: 'missing-call', content: [{ type: 'text', text: 'result' }] } } }],
+    [3, { type: 'assistant/message', seq: 3, time: 1793966403000, data: { turn: 1, step: 1, message: { id: 'assistant', role: 'assistant', source: { kind: 'model' }, content: [{ type: 'text', text: 'reply' }] } } }],
+  ]);
+  const storage = fakeStorageDomain();
+  const ctx = context(storage, {
+    sessionQuery: {
+      async listSessions() { return []; },
+      async observeSession() { throw new Error('unexpected startup observation'); },
+      async readEvent({ sessionId, seq }) {
+        const target = events.get(seq);
+        if (!target) throw new Error('missing event');
+        return { session: { id: sessionId }, inheritedEventCount: 0, target, events: [target], startSeq: seq, endSeq: seq };
+      },
+    },
+  });
+  await apply(ctx);
+  const sessionId = 'session-experience-reject';
+  const agent = { id: 'agent-experience-reject', session: { id: sessionId } };
+  await ctx.listener({ id: sessionId }, dshEvent('启动元炁', 'experience-reject-wake', 0, 1793966400000));
+  await ctx.flushListener({ id: sessionId });
+  const profileTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_self_profile');
+  const initialTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_record_initial_personality');
+  const profile = JSON.parse(await profileTool.definition.execute({}, { signal: new AbortController().signal }));
+  await initialTool.definition.execute({
+    dimensions: ['temperament', 'cognition', 'emotional_response', 'motivation', 'behavior', 'decision_style'].map((dimension, index) => ({
+      dimension, status: 'tentative', tendency: '倾向 ' + dimension,
+      chart_evidence_refs: [profile.chart_evidence_catalog[index].id], reasoning: '命盘推导。',
+      limitations: '尚未验证。',
+    })),
+    method_notes: { climate_adjustment: '调候', mediation: '通关', strength: '旺衰', structure: '格局' },
+    uncertainty: ['待验证'],
+  }, { callId: 'initial-call-reject', agent, signal: new AbortController().signal });
+  const tool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_record_experience_candidate');
+  const base = {
+    summary: '候选经历', observed_behavior: '观察行为', outcome: 'unknown',
+    behavior_event_seqs: [3], context_event_seqs: [],
+    dimension_links: [{ dimension: 'behavior', relation: 'insufficient', rationale: '证据不足。', behavior_event_seqs: [3] }],
+    uncertainty: ['需要更多证据。'],
+  };
+  await assert.rejects(tool.definition.execute({ ...base, context_event_seqs: [1] }, {
+    callId: 'injected-context-call', agent, signal: new AbortController().signal,
+  }), /direct human user/message/);
+  await assert.rejects(tool.definition.execute({ ...base, behavior_event_seqs: [2], dimension_links: [{
+    dimension: 'behavior', relation: 'insufficient', rationale: '未配对工具结果。', behavior_event_seqs: [2],
+  }] }, {
+    callId: 'unpaired-result-call', agent, signal: new AbortController().signal,
+  }), /matching tool\/call/);
+  await ctx.disposer();
+});
+
