@@ -10,7 +10,7 @@ function calendarContext({ year = 1999, monthBranch = '丑', status = 'ready' } 
   };
 }
 function timeContext(solarTime, timeBasis = 'apparent-solar-time') {
-  return { status: 'ready', true_solar_datetime: solarTime, time_basis: timeBasis };
+  return { status: 'ready', true_solar_datetime: solarTime, longitude_correction_minutes: timeBasis === 'beijing-standard-time-fallback' ? null : 485.8948 };
 }
 
 test('calculates a reference chart from the 1949-10-01 Jiazi day-cycle anchor', () => {
