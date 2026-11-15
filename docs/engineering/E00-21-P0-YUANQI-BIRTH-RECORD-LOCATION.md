@@ -67,3 +67,21 @@ BirthProfile 建立后，运行时调用 `deriveBirthTimeContext()`，仅使用�
 - USNO, [Computing Approximate Solar Coordinates](https://aa.usno.navy.mil/faq/sun_approx)。
 - USNO, *Explanatory Supplement to the Astronomical Almanac*, §15.8.3, Table 15.13（24 节气与太阳黄经）。
 - 《渊海子平》卷一《论节候歌》；《三命通会》卷二《论四时节气》。
+
+
+## 四柱计算引擎（2026-11-15）
+
+新增 `calculateBaziPillars()`，只接受 YuanQiSubject BirthProfile 的时间上下文和节气上下文：
+
+| 柱 | 规则 | 依据 |
+|---|---|---|
+| 年柱 | 最近一次立春所属公历年份，1984 甲子为循环锚点 | 《渊海子平》论节候歌眉批以立春为始；六十甲子循环 |
+| 月柱 | 最近一次十二节确定月支，五虎遁确定月干 | 《渊海子平》卷一《论年上起月例》 |
+| 日柱 | 当地视太阳日期 + Gregorian JDN；1949-10-01 甲子日为循环锚点 | GB/T 33661—2017 §6.3.2 |
+| 时柱 | 当地视太阳时划分双时辰，五鼠遁确定时干 | 《渊海子平》卷一《论日上起时例》 |
+
+日界明确采用子正（午夜），不是子初 23:00。《三命通会》卷二《论时刻》原文指出子时上半在夜半前属昨日、下半在夜半后属今日；子时双时段仍为 23:00–01:00。该规则被固化为 `zi-zheng-midnight`，并写入 Bazi methodology。
+
+实现使用 30 分钟保护窗口：当地视太阳午夜、双时辰交界或十二节交接附近均不强制定柱，返回 `ambiguous`。若授权 Host 定位仍 pending，Bazi pending；若地点/时区 unavailable，Bazi unavailable；地点完成后 Store 会重算并持久化结果。
+
+四柱计算不推断 YuanQi 的性别，不计算大运方向或起运年龄。四柱结果只作为 YuanQi AI 自身的先天基线输入，后续由 AI 解释和使用；模型解释不得改写确定性原始计算结果。
