@@ -870,6 +870,42 @@ test('experience candidate tool records bounded behavior evidence without copyin
   assert.equal(record.provenance.initial_personality_source_record_id !== undefined, true);
   assert.equal(experienceObservationCount, 1, 'all selected seqs must share one Session observation');
   assert.equal(experienceObservationDisposals, 1, 'the Session observation must be released after capture');
+
+  const assessmentTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_assess_experience_candidate');
+  assert.ok(assessmentTool);
+  assert.equal(await assessmentTool.registrationOptions.when({ agent }), true);
+  const initialPersonalityBefore = structuredClone(head.current_state_payload.self_model.centers.identity_continuity.content.initial_personality);
+  await assert.rejects(assessmentTool.definition.execute({
+    evidence_id: result.evidence_id,
+    reviews: [{ dimension: 'cognition', outcome: 'supports', rationale: '不属于候选关联维度。' }],
+  }, { callId: 'assessment-invalid', agent, signal: new AbortController().signal }), /invalid or duplicate dimension assessment/);
+  const assessed = JSON.parse(await assessmentTool.definition.execute({
+    evidence_id: result.evidence_id,
+    reviews: [{
+      dimension: 'behavior', outcome: 'supports',
+      rationale: '本次行为与初始倾向相符，但单次事件不足以证明稳定性。',
+    }],
+  }, { callId: 'assessment-call-1', agent, signal: new AbortController().signal }));
+  assert.equal(assessed.status, 'assessed');
+  assert.equal(assessed.initial_personality_unchanged, true);
+  assert.equal(assessed.epistemic_status, 'hypothesis');
+  const afterAssessment = tables.get('worldline_heads').get('worldline:main');
+  assert.deepEqual(afterAssessment.current_state_payload.self_model.centers.identity_continuity.content.initial_personality, initialPersonalityBefore);
+  const reflection = afterAssessment.current_state_payload.self_model.centers.cognition_reflection;
+  assert.equal(reflection.content.experience_assessment_version, 1);
+  assert.equal(reflection.content.experience_assessments.length, 1);
+  assert.equal(reflection.content.experience_assessments[0].candidate_evidence_id, result.evidence_id);
+  assert.equal(reflection.epistemic_status, 'hypothesis');
+  assert.ok(reflection.evidence_refs.includes(result.evidence_id));
+  const assessmentRecord = tables.get('evidence_assessments').get(assessed.assessment_ids[0]);
+  assert.equal(assessmentRecord.outcome, 'corroborated');
+  assert.equal(assessmentRecord.assessor_kind, 'model');
+  const repeated = JSON.parse(await assessmentTool.definition.execute({
+    evidence_id: result.evidence_id,
+    reviews: [{ dimension: 'behavior', outcome: 'contradicts', rationale: '不能覆盖原评估。' }],
+  }, { callId: 'assessment-call-2', agent, signal: new AbortController().signal }));
+  assert.equal(repeated.status, 'already_assessed');
+  assert.equal(tables.get('worldline_heads').get('worldline:main').current_snapshot_version, afterAssessment.current_snapshot_version);
   await ctx.disposer();
 });
 
