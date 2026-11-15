@@ -46,7 +46,7 @@ test('keeps time context pending when the authorized host time zone or longitude
     birth_time: '2024-02-04T08:00:00.000Z',
     birth_location: { status: 'captured', time_zone_id: 'Asia/Shanghai', time_zone_source: 'host_location_provider', longitude: null },
   });
-  assert.equal(missingZone.status, 'pending');
+  assert.equal(missingZone.status, 'unavailable');
   assert.equal(missingZone.local_datetime, null);
   assert.equal(missingLongitude.status, 'pending');
 });
