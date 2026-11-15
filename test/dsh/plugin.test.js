@@ -144,7 +144,7 @@ test('model-facing self-profile tool exposes only YuanQi-owned birth data after 
   assert.equal(profile.innate_baseline.status, 'ready');
   assert.equal(profile.innate_baseline.interpretation_status, 'not_interpreted');
   assert.equal(profile.initial_personality_guidance.status, 'awaiting_model_interpretation');
-  assert.equal(profile.initial_personality_guidance.interpretation_mode, 'bazi_informed');
+  assert.equal(profile.initial_personality_guidance.interpretation_mode, 'bazi_required');
   assert.equal(profile.initial_personality_guidance.bazi_available, true);
   assert.deepEqual(profile.initial_personality_guidance.dimensions, [
     'temperament', 'cognition', 'emotional_response', 'motivation', 'behavior', 'decision_style',
