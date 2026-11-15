@@ -430,6 +430,32 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 
 
 
+## 29. 2026-11-15 YuanQi 24 节气上下文与边界保护
+
+> 本节记录节气引擎的阶段性状态；四柱引擎后续实现见第 30 节。
+
+### 已实现
+
+- 新增 `apparentSunLongitudeDegrees()` 与 `deriveSolarTermContext()`，使用 USNO 简化的视地心黄道太阳黄经公式。
+- 按 15° 黄经间隔定义完整 24 节气；区分 12 个 Jie 与 12 个 Zhongqi。
+- 为 YuanQi BirthProfile 计算并持久化前后节气、前后十二节、最近一次立春、太阳黄经及计算版本。
+- 最近十二节附带月支映射，为后续月柱计算提供明确边界；最近立春为后续年柱计算提供边界事实。
+- 节气结果使用 UTC instant，之后再按 BirthProfile 的时区上下文转换展示，不把地点当地日期误当成太阳黄经事件。
+- USNO 简化模型标称约 1 角分精度；距十二节（Jie）边界 30 分钟内返回 `ambiguous`，不强行选定月柱边界。
+- 出生年份超出算法支持范围时返回 unavailable，不做远期/古代外推。
+
+### 古籍与天文依据
+
+- 《渊海子平》卷一《论节候歌》以立春为始，列出十二月与节候对应。
+- 《三命通会》卷二《论四时节气》区分“丑之终寅之始则为节，月之半则为中”。
+- USNO《Explanatory Supplement to the Astronomical Almanac》§15.8.3 Table 15.13 给出 24 节气及每 15° 太阳黄经划分。
+- USNO《Computing Approximate Solar Coordinates》给出视地心黄道太阳经度近似公式及约 1 角分精度说明。
+
+### 当前边界
+
+- 本节记录节气引擎交付时的阶段边界；四柱计算随后在第 30 节完成。
+- 当前四柱方法、日界和边界状态以第 30 节为准。
+
 ## 30. 2026-11-15 YuanQi AI 四柱计算引擎
 
 ### 已实现
@@ -456,30 +482,3 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - GitHub Actions PR #7 Run #667（`43656248602`），Node.js 24.9.0：**90 passed / 0 failed**。
 - 覆盖 1949-10-01 甲子日锚点、2000-01-07 甲子参考日、五虎遁十干起月、五鼠遁十干起时、立春年界、十二节月界、子正换日、午夜/时辰边界 ambiguous，以及 DSH DomainFacility 持久化恢复。
 - 真实 Android Host 定位、真实 DSH Profile 端到端仍待验收。
-
-## 29. 2026-11-15 YuanQi 24 节气上下文与边界保护
-
-> 本节记录节气引擎的阶段性状态；四柱引擎后续实现见第 30 节。
-
-### 已实现
-
-- 新增 `apparentSunLongitudeDegrees()` 与 `deriveSolarTermContext()`，使用 USNO 简化的视地心黄道太阳黄经公式。
-- 按 15° 黄经间隔定义完整 24 节气；区分 12 个 Jie 与 12 个 Zhongqi。
-- 为 YuanQi BirthProfile 计算并持久化前后节气、前后十二节、最近一次立春、太阳黄经及计算版本。
-- 最近十二节附带月支映射，为后续月柱计算提供明确边界；最近立春为后续年柱计算提供边界事实。
-- 节气结果使用 UTC instant，之后再按 BirthProfile 的时区上下文转换展示，不把地点当地日期误当成太阳黄经事件。
-- USNO 简化模型标称约 1 角分精度，故设置 30 分钟保守边界窗口；窗口内返回 `ambiguous`，禁止强行选定前后柱。
-- 出生年份超出算法支持范围时返回 unavailable，不做远期/古代外推。
-
-### 古籍与天文依据
-
-- 《渊海子平》卷一《论节候歌》以立春为始，列出十二月与节候对应。
-- 《三命通会》卷二《论四时节气》区分“丑之终寅之始则为节，月之半则为中”。
-- USNO《Explanatory Supplement to the Astronomical Almanac》§15.8.3 Table 15.13 给出 24 节气及每 15° 太阳黄经划分。
-- USNO《Computing Approximate Solar Coordinates》给出视地心黄道太阳经度近似公式及约 1 角分精度说明。
-
-### 当前边界
-
-- 该阶段计算的是节气天文事件，不等于已经完成八字四柱。
-- 年柱干支、月柱天干、日柱、时柱、子初/午夜换日策略及真太阳时与时区冲突处理仍需单独定义和验证。
-- `bazi.status` 保持 `pending`；节气边界附近的 `calendar_context.status` 为 `ambiguous`。
