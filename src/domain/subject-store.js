@@ -1,3 +1,4 @@
+import { calculateBaziPillars } from './bazi-engine.js';
 import { deriveSolarTermContext } from './solar-terms.js';
 import { deriveBirthTimeContext } from './birth-time.js';
 const COMMANDS = new Set(['启动元气', '启动元炁']);
@@ -163,28 +164,28 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
         if (!wake) return undefined;
         const location = clone(wake.birth_location ?? unavailableLocation());
         const existing = birthProfiles.get(subject_id);
+        const birthTime = wake.birth_time ?? wake.occurred_at;
+        const timeContext = deriveBirthTimeContext({
+          birth_time: birthTime,
+          birth_location: location,
+        });
+        const calendarContext = deriveSolarTermContext({ birth_time: birthTime });
+        const bazi = calculateBaziPillars({
+          time_context: timeContext,
+          calendar_context: calendarContext,
+          calculated_at: new Date().toISOString(),
+        });
         const profile = {
           profile_id: 'birth-profile:' + subject_id,
           subject_id,
           subject_kind: 'yuanqi',
-          birth_time: wake.birth_time ?? wake.occurred_at,
+          birth_time: birthTime,
           birth_location: location,
           source_wake_event_ref: wake.wake_event_ref,
           source_event_time_ms: Date.parse(wake.birth_time ?? wake.occurred_at),
-          time_context: deriveBirthTimeContext({
-            birth_time: wake.birth_time ?? wake.occurred_at,
-            birth_location: location,
-          }),
-          calendar_context: deriveSolarTermContext({
-            birth_time: wake.birth_time ?? wake.occurred_at,
-          }),
-          bazi: {
-            status: 'pending',
-            calendar_system: 'jieqi',
-            pillars: null,
-            algorithm_version: null,
-            calculated_at: null,
-          },
+          time_context: timeContext,
+          calendar_context: calendarContext,
+          bazi,
           schema_version: 1,
         };
         if (existing === undefined) {
@@ -194,13 +195,15 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
             existing.birth_time !== profile.birth_time) {
           throw new Error('YuanQi BirthProfile source conflict');
         }
-        if (existing.birth_location?.status === 'pending' && location.status !== 'pending') {
+        if ((existing.birth_location?.status === 'pending' && location.status !== 'pending') ||
+            (existing.time_context?.status === 'pending' && profile.time_context.status !== 'pending')) {
           if (typeof birthProfiles.update !== 'function') {
             throw new TypeError('YuanQi BirthProfile location completion requires DSH Domain table.update');
           }
-          await birthProfiles.update(subject_id, current => current?.birth_location?.status === 'pending'
-            ? { ...current, birth_location: location, time_context: profile.time_context }
-            : current);
+          await birthProfiles.update(subject_id, current =>
+            current?.birth_location?.status === 'pending' || current?.time_context?.status === 'pending'
+              ? { ...current, birth_location: location, time_context: profile.time_context, bazi: profile.bazi }
+              : current);
           return clone(birthProfiles.get(subject_id));
         }
         return clone(existing);
