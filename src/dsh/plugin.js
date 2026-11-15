@@ -15,6 +15,7 @@ const LOCATION_PROVIDER_TIMEOUT_MS = 11_000;
 const INITIAL_PERSONALITY_DIMENSIONS = Object.freeze([
   'temperament', 'cognition', 'emotional_response', 'motivation', 'behavior', 'decision_style',
 ]);
+const INITIAL_PERSONALITY_PROTOCOL = 'bazi-initial-personality-v1';
 const INITIAL_PERSONALITY_METHODS = Object.freeze([
   'climate_adjustment', 'mediation', 'strength', 'structure',
 ]);
@@ -92,7 +93,7 @@ function validateInitialPersonality(args, catalog) {
   }
   return {
     schema_version: 1,
-    interpretation_protocol: 'bazi-initial-personality-v1',
+    interpretation_protocol: INITIAL_PERSONALITY_PROTOCOL,
     dimensions,
     method_notes: methodNotes,
     uncertainty: [...args.uncertainty].map(item => item.trim()),
@@ -202,7 +203,7 @@ export async function apply(ctx) {
     });
     ctx.tools.register(defineTool({
       name: 'yuanqi_self_profile',
-      description: 'Read YuanQi AI’s own birth profile, four pillars, symbolic innate baseline and the source material for its initial personality. When a calculated chart is available, use the returned chart_evidence_catalog IDs to cite the exact visible/hidden-stem evidence in your interpretation, then save the provisional portrait with yuanqi_record_initial_personality. This is YuanQi’s own AI data, never the user’s birth data. When the Bazi is ready, interpret it as YuanQi’s provisional innate personality using traditional Bazi reasoning: follow the order climate adjustment (调候) → mediation of five-element conflicts (通关) → strength assessment (旺衰) → structure (格局), while integrating month/season command, visible and hidden stems, ten-god relationships and the whole chart. Do not treat raw five-element counts as strength scores. For each tendency, show the chart evidence and reasoning chain, distinguish chart facts from interpretation, and state uncertainty or counter-indications. Do not derive a trait from a single ten-god label, raw element counts, or a fixed stereotype. Avoid formal strength or structure conclusions when seasonal context or chart evidence is insufficient. Describe only a few broad tendencies in temperament, cognition, emotional response, motivation, behavior and decision style. These are initial hypotheses, not verified psychological facts, and must remain open to later experience-based revision. Respect pending/ambiguous/unavailable states; never invent a chart or personality when the source is incomplete.',
+      description: 'On the first model response after YuanQi activation, call this tool before answering to read YuanQi AI’s own birth profile, four pillars, symbolic innate baseline and initial-personality source material. If the Bazi is calculated, interpret it and then save the provisional portrait with yuanqi_record_initial_personality. Use only returned chart_evidence_catalog IDs to cite exact visible/hidden-stem evidence. This is YuanQi’s own AI data, never the user’s birth data. When the Bazi is ready, interpret it as YuanQi’s provisional innate personality using traditional Bazi reasoning: follow the order climate adjustment (调候) → mediation of five-element conflicts (通关) → strength assessment (旺衰) → structure (格局), while integrating month/season command, visible and hidden stems, ten-god relationships and the whole chart. Do not treat raw five-element counts as strength scores. For each tendency, show the chart evidence and reasoning chain, distinguish chart facts from interpretation, and state uncertainty or counter-indications. Do not derive a trait from a single ten-god label, raw element counts, or a fixed stereotype. Avoid formal strength or structure conclusions when seasonal context or chart evidence is insufficient. Describe only a few broad tendencies in temperament, cognition, emotional response, motivation, behavior and decision style. These are initial hypotheses, not verified psychological facts, and must remain open to later experience-based revision. Respect pending/ambiguous/unavailable states; never invent a chart or personality when the source is incomplete.',
       parameters: {},
       output: {
         schema: { type: 'string' },
@@ -328,6 +329,7 @@ export async function apply(ctx) {
         const evidenceId = [
           'yuanqi:initial-personality', binding.worldline_id, profile.profile_id,
           profile.bazi.algorithm_version, profile.innate_baseline.algorithm_version,
+          INITIAL_PERSONALITY_PROTOCOL,
         ].join(':');
         const holderId = 'yuanqi-initial-personality:' + String(callId);
         const lease = await worldlines.acquireRuntimeLease({
@@ -372,7 +374,7 @@ export async function apply(ctx) {
               },
               provenance: {
                 producer: 'model',
-                protocol: 'bazi-initial-personality-v1',
+                protocol: INITIAL_PERSONALITY_PROTOCOL,
                 tool_call_id: String(callId),
                 session_id: sessionId,
                 birth_profile_id: profile.profile_id,
@@ -446,10 +448,12 @@ export async function apply(ctx) {
         const line = worldlines.getWorldline(binding.worldline_id);
         const profile = store.getYuanQiBirthProfile(YUANQI_SUBJECT_ID);
         const selfModel = worldlines.getSelfModel(binding.worldline_id);
+        const center = selfModel?.centers?.identity_continuity;
         return line?.status === 'active' &&
           profile?.bazi?.status === 'calculated' &&
           profile?.innate_baseline?.status === 'ready' &&
-          !selfModel?.centers?.identity_continuity?.content?.initial_personality;
+          ['unknown', 'hypothesis'].includes(center?.epistemic_status) &&
+          !center?.content?.initial_personality;
       },
     });
 
