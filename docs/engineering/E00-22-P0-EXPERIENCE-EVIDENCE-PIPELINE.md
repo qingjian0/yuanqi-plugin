@@ -2,7 +2,7 @@
 
 > 日期：2026-11-15  
 > 适用范围：DSH SessionEvent、SessionQuery、YuanQi Evidence Ledger、五中心 SelfModel  
-> 状态：源码与宿主契约研究完成；模型选择的有界候选记录工具已实现，证据评估与画像修订未实现  
+> 状态：模型选择的有界候选记录与不可变经历评估历史已实现；自动评估、跨 Session 独立佐证聚合及人格画像修订仍未实现  
 > 目的：明确如何让后天经历验证或反驳八字初始画像，同时避免把用户资料或模型自述误当成 AI 自身经历事实
 
 ## 1. 当前实现审计
@@ -19,8 +19,8 @@
 
 - 普通对话的通用经历采集器。
 - 独立 Memory / Experience / Goals / Behavior 运行时模块。
-- 由经历自动验证或反驳初始性格的流程。
-- 将普通对话事件自动写入 Evidence Ledger 的逻辑。
+- 自动扫描普通对话并写入 Evidence Ledger 的逻辑。
+- 跨 Session 独立证据聚合、自动评估和稳定人格画像修订流程。
 
 因此，Evidence Ledger 已存在不等于“后天经历系统”已完成；五中心已存在也不等于动态自我模型已形成闭环。
 
@@ -82,7 +82,7 @@ DSH SessionEvent → bounded source references → model experience candidate �
 3. **形成候选经历：** 模型提交简短的经历摘要、实际执行的动作、可观察结果、尚未知晓的结果和不确定性；不能把计划或推测写成已完成行为。
 4. **写入不可变来源记录：** Evidence Ledger 保存最小必要摘要、事件引用、Session、turn/step、工具调用配对关系和采集来源。原始事件正文仍由 DSH Session 持有，避免重复保存整段对话。
 5. **评估：** 使用现有 assessEvidence 记录 corroborated、contradicted 或 insufficient 结果，并保留评估者、理由、来源和反证引用。置信值若使用，只能是工程启发式指标，不代表心理学概率。
-6. **更新 SelfModel：** experience_memory 保存经历索引；cognition_reflection 保存对初始性格各倾向的证据评估；只有评估流程通过后，才允许修正 identity_continuity 中的当前自我表征。原始八字初始画像保持不可覆盖。
+6. **更新 SelfModel：** cognition_reflection 保存独立版本的经历评估历史；identity_continuity 中的八字 initial_personality 保持原样。只有跨 Session 独立证据聚合与后续规则通过后，才考虑生成新的当前画像版本。
 
 ## 6. 初始画像与后天经历的关系
 
@@ -117,14 +117,17 @@ DSH SessionEvent → bounded source references → model experience candidate �
 - 插件自行校验事件类型、source.kind、turn/step、callId 配对与 Worldline 绑定。
 - 默认只保留最小摘要和事件引用，不重复保存整段对话。
 - 写入 Evidence Ledger 后先作为候选经历；不直接改变初始画像。
-- 下一步单独实现经历评估与 SelfModel 修正。
+- `yuanqi_assess_experience_candidate` 已实现：只允许评估当前 Session 绑定 Worldline 中、仍 active 且尚未评估的候选，并要求逐一覆盖候选关联的画像维度。
+- 每个维度评估写入现有 Evidence Assessment Ledger，`assessor_kind` 固定为 `model`，结果为 corroborated / contradicted / insufficient；Assessment ID 按候选与维度确定，已评估候选不可覆盖。
+- 评估历史追加到 `cognition_reflection`，使用独立版本号；`identity_continuity.initial_personality` 不被改写，SelfModel epistemic status 保持 `hypothesis`。
+- 单次模型评估不构成独立验证，不会自动把任何倾向升级为事实；自动扫描、跨 Session 独立佐证聚合和新画像版本生成仍未实现。
 
 真实 DSH SessionQuery 的目标 Profile 版本、事件恢复/冷读行为、工具执行上下文以及隐私策略仍需端到端验收。未经这些验证，不应将自动经历采集或动态人格修正标记为已完成。
 
 
 ## 9. 最小运行时实现：经历候选记录
 
-已在本轮开发分支加入 `yuanqi_record_experience_candidate`，仅覆盖候选记录，不扩展到自动评估或画像修正：
+已在开发分支加入 `yuanqi_record_experience_candidate` 与 `yuanqi_assess_experience_candidate`，覆盖模型选择候选、显式评估与独立历史保存；不自动扫描对话，也不自动重写初始画像：
 
 - 工具只对已绑定 YuanQi Worldline 且已有八字初始画像的当前 Session 可见。
 - 模型提交当前 Session 的事件 seq、短摘要、行为描述、结果状态、画像维度关联和不确定性；Session ID 始终由宿主执行上下文提供。
