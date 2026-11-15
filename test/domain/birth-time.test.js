@@ -85,7 +85,9 @@ test('rejects invalid timestamps, IANA zones and longitude values', () => {
     birth_time: '2024-02-04T08:00:00.000Z',
     birth_location: { status: 'captured', longitude: 0, time_zone_id: 'Mars/Olympus', time_zone_source: 'host_location_provider' },
   });
-  assert.equal(invalidZone.status, 'unavailable');
+  assert.equal(invalidZone.status, 'ready');
+  assert.equal(invalidZone.time_zone_id, 'Asia/Shanghai');
+  assert.equal(invalidZone.time_zone_source, 'default_beijing');
   assert.throws(() => deriveBirthTimeContext({
     birth_time: '2024-02-04T08:00:00.000Z',
     birth_location: { status: 'captured', longitude: 181, time_zone_id: 'UTC', time_zone_source: 'host_location_provider' },
