@@ -50,10 +50,10 @@ test('uses Beijing civil time when a captured location has no usable time zone o
   assert.equal(missingZone.time_zone_id, 'Asia/Shanghai');
   assert.equal(missingZone.time_zone_source, 'default_beijing');
   assert.equal(missingZone.local_datetime, '2024-02-04T16:00:00');
-  assert.equal(missingZone.time_basis, 'beijing-standard-time-fallback');
+  assert.equal(missingZone.algorithm_version, 'noaa-eot-approx-v1');
   assert.equal(missingLongitude.status, 'ready');
   assert.equal(missingLongitude.time_zone_id, 'Asia/Shanghai');
-  assert.equal(missingLongitude.time_basis, 'beijing-standard-time-fallback');
+  assert.equal(missingLongitude.algorithm_version, 'civil-time-only-v1');
 });
 
 test('does not derive civil time until the host location is marked captured', () => {
@@ -76,7 +76,7 @@ test('uses Beijing standard time without inventing coordinates when host locatio
   assert.equal(result.local_datetime, '2024-02-04T16:00:00');
   assert.equal(result.true_solar_datetime, '2024-02-04T16:00:00');
   assert.equal(result.longitude_correction_minutes, null);
-  assert.equal(result.time_basis, 'beijing-standard-time-fallback');
+  assert.equal(result.algorithm_version, 'civil-time-only-v1');
 });
 
 test('rejects invalid timestamps, IANA zones and longitude values', () => {
