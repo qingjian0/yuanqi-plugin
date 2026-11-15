@@ -798,17 +798,19 @@ test('experience candidate tool records bounded behavior evidence without copyin
     id: 'wake-event', role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: '启动元炁' }],
   } };
   const storage = fakeStorageDomain();
+  let experienceObservationCount = 0;
   const ctx = context(storage, {
     sessionQuery: {
       async listSessions() { return []; },
-      async observeSession() { throw new Error('unexpected startup observation'); },
-      async readEvent({ sessionId, seq, before, after }) {
+      async observeSession(sessionId, options) {
         assert.equal(sessionId, 'session-experience');
-        assert.equal(before, 0);
-        assert.equal(after, 0);
-        const target = seq === 0 ? directContext : behaviorEvents.find(event => event.seq === seq);
-        if (!target) throw new Error('missing event');
-        return { session: { id: sessionId }, inheritedEventCount: 0, target, events: [target], startSeq: seq, endSeq: seq };
+        assert.deepEqual(options, { projectionMode: 'none' });
+        experienceObservationCount++;
+        return {
+          header: { id: sessionId }, inheritedEventCount: 0,
+          events: [directContext, ...behaviorEvents],
+          [Symbol.dispose]() {},
+        };
       },
     },
   });
@@ -865,6 +867,7 @@ test('experience candidate tool records bounded behavior evidence without copyin
   assert.equal(JSON.stringify(record).includes('private assistant text'), false);
   assert.equal(JSON.stringify(record).includes('private tool result'), false);
   assert.equal(record.provenance.initial_personality_source_record_id !== undefined, true);
+  assert.equal(experienceObservationCount, 1, 'all selected seqs must share one Session observation');
   await ctx.disposer();
 });
 
@@ -876,14 +879,19 @@ test('experience candidate tool rejects injected user context and unpaired tool 
     [3, { type: 'assistant/message', seq: 3, time: 1793966403000, data: { turn: 1, step: 1, message: { id: 'assistant', role: 'assistant', source: { kind: 'model' }, content: [{ type: 'text', text: 'reply' }] } } }],
   ]);
   const storage = fakeStorageDomain();
+  let rejectedCaseObservationCount = 0;
   const ctx = context(storage, {
     sessionQuery: {
       async listSessions() { return []; },
-      async observeSession() { throw new Error('unexpected startup observation'); },
-      async readEvent({ sessionId, seq }) {
-        const target = events.get(seq);
-        if (!target) throw new Error('missing event');
-        return { session: { id: sessionId }, inheritedEventCount: 0, target, events: [target], startSeq: seq, endSeq: seq };
+      async observeSession(sessionId, options) {
+        assert.equal(sessionId, 'session-experience-reject');
+        assert.deepEqual(options, { projectionMode: 'none' });
+        rejectedCaseObservationCount++;
+        return {
+          header: { id: sessionId }, inheritedEventCount: 0,
+          events: [...events.values()],
+          [Symbol.dispose]() {},
+        };
       },
     },
   });
@@ -919,6 +927,7 @@ test('experience candidate tool rejects injected user context and unpaired tool 
   }] }, {
     callId: 'unpaired-result-call', agent, signal: new AbortController().signal,
   }), /matching tool\/call/);
+  assert.equal(rejectedCaseObservationCount, 2, 'each candidate attempt must use one Session observation');
   await ctx.disposer();
 });
 
