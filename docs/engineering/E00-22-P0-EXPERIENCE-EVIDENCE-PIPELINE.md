@@ -2,7 +2,7 @@
 
 > 日期：2026-11-15  
 > 适用范围：DSH SessionEvent、SessionQuery、YuanQi Evidence Ledger、五中心 SelfModel  
-> 状态：模型选择的有界候选记录与不可变经历评估历史已实现；自动评估、跨 Session 独立佐证聚合及人格画像修订仍未实现  
+> 状态：模型选择的有界候选记录、逐维不可变评估历史和跨 Session 来源聚合已实现；自动采集与新当前人格画像版本生成仍未实现  
 > 目的：明确如何让后天经历验证或反驳八字初始画像，同时避免把用户资料或模型自述误当成 AI 自身经历事实
 
 ## 1. 当前实现审计
@@ -142,3 +142,18 @@ DSH SessionEvent → bounded source references → model experience candidate �
 **读取成本边界：** `observeSession()` 提供一个固定的一致 Session observation；访问 `events` 时仍可能物化当前 Session 的完整事件快照，因此单次候选采集的底层内存/读取成本仍随 Session 长度增长。但插件不再对每个 seq 重复调用 `readEvent()`（当前实现每次都会重新解析/加载逻辑 Session），而是一次快照完成全部最多 12 个事件引用的校验，并在完成后释放 observation。模型可见引用和 Evidence Ledger 持久化摘要仍保持有界；未来若要把底层读取也降为窗口级，应依赖 DSH 提供的有证据范围读取能力，不得绕过 SessionQuery 直接访问存储。
 
 本轮实现仍需目标 DSH Profile 的真实端到端验证；测试替身不能替代 Android 宿主验收。
+
+
+## 10. 跨 Session 来源聚合：第一阶段实现
+
+开发分支新增 `yuanqi_reconcile_personality_evidence`，复用 Evidence Ledger 与 `cognition_reflection`，不增加独立存储表：
+
+- 只接受当前活动 Worldline 中 3–12 个唯一候选 ID；每个候选必须属于同一 Worldline、引用同一八字初始画像来源，并已完成其所有关联维度的不可变模型评估。
+- 每个候选的 `provenance.session_id` 必须存在；同一次聚合最多接受每个 Session 一个候选，至少三个不同 Session 才可继续。
+- 候选的行为事件引用必须与其来源 Session 一致，且 `session_id + seq` 不得重复计数；只将已提交的 assistant/message、tool/call、tool/result 作为行为来源，不把用户上下文计入 AI 行为证据。
+- 每个画像维度分别统计来自不同 Session 的支持、反驳和不足判断。支持与反驳并存时标记 `disputed`，不得用多数票抹去反证；少于三个独立 Session 时标记 `insufficient`。
+- 目前“独立”只表示 DSH 来源 Session 与行为事件引用不同；评估者仍是同一模型类别，不代表独立评审者或心理学验证。聚合记录及 SelfModel 历史继续保持 `hypothesis`。
+- 聚合记录以不可变 Evidence Ledger source record 保存，来源 Session、候选 ID、Assessment ID 和原始八字画像来源均保留；SelfModel 只追加到 `cognition_reflection`，不会覆盖 `identity_continuity.initial_personality`。
+- 该工具只生成逐维证据汇总和“是否具备后续暂定修订条件”的标记；**当前尚未自动生成或替换 current_personality 版本**。下一阶段应基于聚合记录生成单独的版本化画像，并继续保持 hypothesis 与初始画像不可变。
+
+当前测试新增覆盖：三 Session 独立来源计数、同一维度支持/反驳冲突保留、其他维度证据不足、聚合记录不可变保存、SelfModel 仅追加认知反思、原始八字画像不变、重复聚合幂等和候选数量下限。
