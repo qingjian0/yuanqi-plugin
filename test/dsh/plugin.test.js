@@ -1235,5 +1235,63 @@ test('Bazi-unavailable startup can save only a six-dimension awaiting-Bazi place
   assert.equal(center.content.initial_personality.status, 'awaiting_bazi');
   assert.ok(center.content.initial_personality.dimensions.every(item => item.status === 'indeterminate'));
   assert.ok(center.content.initial_personality.dimensions.every(item => item.chart_evidence_refs.length === 0));
+
+  // Simulate the Bazi engine becoming available after the placeholder was persisted.
+  const readyStorage = fakeStorageDomain(), readyCtx = context(readyStorage);
+  await apply(readyCtx);
+  const readyReadTool = readyCtx.registeredTools.find(item => item.definition.name === 'yuanqi_self_profile');
+  const readyEventTime = Date.UTC(2026, 10, 6, 12, 0, 0);
+  await readyCtx.listener({ id: 'session-ready-chart' }, dshEvent('启动元炁', 'ready-chart-wake', 0, readyEventTime));
+  await readyCtx.flushListener({ id: 'session-ready-chart' });
+  const readyProfile = JSON.parse(await readyReadTool.definition.execute({}, { signal: new AbortController().signal }));
+  assert.equal(readyProfile.bazi.status, 'calculated');
+  assert.ok(readyProfile.chart_evidence_catalog.length > 0);
+
+  const birthProfiles = storage.opened.get('yuanqi_subject').tables.get('birth_profiles');
+  const [profileKey, pendingProfile] = [...birthProfiles.entries()][0];
+  birthProfiles.set(profileKey, structuredClone({
+    ...pendingProfile,
+    bazi: readyProfile.bazi,
+    innate_baseline: readyProfile.innate_baseline,
+  }));
+  const upgradedProfile = JSON.parse(await readTool.definition.execute({}, { signal: new AbortController().signal }));
+  assert.equal(upgradedProfile.initial_personality_guidance.status, 'awaiting_model_interpretation');
+  assert.equal(await writeTool.registrationOptions.when({ agent }), true);
+
+  const chartRef = upgradedProfile.chart_evidence_catalog[0].id;
+  const upgradedDimensions = [
+    'temperament', 'cognition', 'emotional_response', 'motivation', 'behavior', 'decision_style',
+  ].map(dimension => ({
+    dimension,
+    status: 'tentative',
+    tendency: '在多项命盘证据共同支持下形成的暂定倾向。',
+    chart_evidence_refs: [chartRef],
+    reasoning: '该倾向由当前有效命盘证据支持，仍需保留反向证据与不确定性。',
+    limitations: '这是象征性初始假设，不是经验验证的人格事实。',
+  }));
+  const upgraded = JSON.parse(await writeTool.definition.execute({
+    dimensions: upgradedDimensions,
+    method_notes: {
+      climate_adjustment: '结合月令与寒暖燥湿分析。',
+      mediation: '检查五行制化与通关路径。',
+      strength: '结合月令、通根、透干与制化判断旺衰。',
+      structure: '仅在证据充分时讨论格局。',
+    },
+    uncertainty: ['初始解释仍是待经验检验的象征性假设。'],
+  }, {
+    callId: 'bazi-placeholder-upgrade-call',
+    agent,
+    signal: new AbortController().signal,
+  }));
+  assert.equal(upgraded.status, 'saved');
+  assert.equal(upgraded.epistemic_status, 'hypothesis');
+  const upgradedHead = storage.opened.get('yuanqi_subject').tables.get('worldline_heads').get('worldline:main');
+  const upgradedCenter = upgradedHead.current_state_payload.self_model.centers.identity_continuity;
+  assert.equal(upgradedCenter.epistemic_status, 'hypothesis');
+  assert.equal(upgradedCenter.content.initial_personality.status, 'hypothesis');
+  assert.ok(upgradedCenter.content.initial_personality.dimensions.every(item => item.status === 'tentative'));
+  assert.ok(!upgradedCenter.uncertainty.includes('八字尚不可用：当前六维均为待定占位，不代表任何性格结论'));
+
+  await readyCtx.disposer();
   await ctx.disposer();
 });
