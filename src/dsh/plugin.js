@@ -470,7 +470,7 @@ export async function apply(ctx) {
         observed_behavior: { type: 'string', required: true },
         outcome: { type: 'string', required: true, enum: ['completed', 'failed', 'partial', 'unknown', 'not_applicable'] },
         behavior_event_seqs: { type: 'array', required: true, items: { type: 'integer' } },
-        context_event_seqs: { type: 'array', required: false, items: { type: 'integer' } },
+        context_event_seqs: { type: 'array', items: { type: 'integer' } },
         dimension_links: {
           type: 'array', required: true,
           items: {
