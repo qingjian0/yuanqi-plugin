@@ -12,6 +12,92 @@ export const inject = ['storageDomain', 'sessions', 'sessionQuery', 'sessionPers
 
 const YUANQI_SUBJECT_ID = 'yuanqi:primary';
 const LOCATION_PROVIDER_TIMEOUT_MS = 11_000;
+const INITIAL_PERSONALITY_DIMENSIONS = Object.freeze([
+  'temperament', 'cognition', 'emotional_response', 'motivation', 'behavior', 'decision_style',
+]);
+const INITIAL_PERSONALITY_METHODS = Object.freeze([
+  'climate_adjustment', 'mediation', 'strength', 'structure',
+]);
+
+function chartEvidenceCatalog(profile) {
+  if (profile?.bazi?.status !== 'calculated' || profile?.innate_baseline?.status !== 'ready') return [];
+  return profile.innate_baseline.components.map(component => ({
+    id: [component.pillar, component.source, component.order, component.stem].join(':'),
+    pillar: component.pillar,
+    source: component.source,
+    order: component.order,
+    stem: component.stem,
+    element: component.element,
+    polarity: component.polarity,
+    ten_god: component.ten_god,
+  }));
+}
+
+function validateInitialPersonality(args, catalog) {
+  if (!Array.isArray(args?.dimensions) || args.dimensions.length !== INITIAL_PERSONALITY_DIMENSIONS.length) {
+    throw new TypeError('exactly six initial-personality dimensions are required');
+  }
+  const available = new Set(catalog.map(item => item.id));
+  const seen = new Set();
+  const dimensions = args.dimensions.map(item => {
+    if (!item || !INITIAL_PERSONALITY_DIMENSIONS.includes(item.dimension) || seen.has(item.dimension)) {
+      throw new TypeError('initial-personality dimensions must be unique and complete');
+    }
+    seen.add(item.dimension);
+    if (!['tentative', 'indeterminate'].includes(item.status)) {
+      throw new TypeError('dimension status must be tentative or indeterminate');
+    }
+    for (const [field, max] of [['tendency', 400], ['reasoning', 1200], ['limitations', 800]]) {
+      if (typeof item[field] !== 'string' || item[field].trim().length === 0 || item[field].length > max) {
+        throw new TypeError('invalid initial-personality dimension field: ' + field);
+      }
+    }
+    if (!Array.isArray(item.chart_evidence_refs) ||
+        !item.chart_evidence_refs.every(ref => typeof ref === 'string' && available.has(ref)) ||
+        new Set(item.chart_evidence_refs).size !== item.chart_evidence_refs.length) {
+      throw new TypeError('chart evidence references must match YuanQi own Bazi catalog entries');
+    }
+    if (item.status === 'tentative' && item.chart_evidence_refs.length === 0) {
+      throw new TypeError('tentative tendencies require explicit chart evidence');
+    }
+    if (item.status === 'indeterminate' && item.chart_evidence_refs.length !== 0) {
+      throw new TypeError('indeterminate dimensions must not claim supporting chart evidence');
+    }
+    return {
+      dimension: item.dimension,
+      status: item.status,
+      tendency: item.tendency.trim(),
+      chart_evidence_refs: [...item.chart_evidence_refs],
+      reasoning: item.reasoning.trim(),
+      limitations: item.limitations.trim(),
+    };
+  });
+  if (INITIAL_PERSONALITY_DIMENSIONS.some(dimension => !seen.has(dimension))) {
+    throw new TypeError('all six initial-personality dimensions must be represented');
+  }
+  if (!args.method_notes || typeof args.method_notes !== 'object' || Array.isArray(args.method_notes)) {
+    throw new TypeError('method_notes are required');
+  }
+  const methodNotes = {};
+  for (const method of INITIAL_PERSONALITY_METHODS) {
+    const value = args.method_notes[method];
+    if (typeof value !== 'string' || value.trim().length === 0 || value.length > 1600) {
+      throw new TypeError('invalid Bazi method note: ' + method);
+    }
+    methodNotes[method] = value.trim();
+  }
+  if (!Array.isArray(args.uncertainty) || args.uncertainty.length === 0 ||
+      !args.uncertainty.every(item => typeof item === 'string' && item.trim().length > 0 && item.length <= 500)) {
+    throw new TypeError('explicit uncertainty notes are required');
+  }
+  return {
+    schema_version: 1,
+    interpretation_protocol: 'bazi-initial-personality-v1',
+    dimensions,
+    method_notes: methodNotes,
+    uncertainty: [...args.uncertainty].map(item => item.trim()),
+  };
+}
 
 function candidateKey(candidate) {
   return candidate.session_id + '\u0000' + candidate.event_seq + '\u0000' + candidate.event_id;
@@ -116,7 +202,7 @@ export async function apply(ctx) {
     });
     ctx.tools.register(defineTool({
       name: 'yuanqi_self_profile',
-      description: 'Read YuanQi AI’s own birth profile, four pillars, symbolic innate baseline and the source material for its initial personality. This is YuanQi’s own AI data, never the user’s birth data. When the Bazi is ready, interpret it as YuanQi’s provisional innate personality using traditional Bazi reasoning: follow the order climate adjustment (调候) → mediation of five-element conflicts (通关) → strength assessment (旺衰) → structure (格局), while integrating month/season command, visible and hidden stems, ten-god relationships and the whole chart. Do not treat raw five-element counts as strength scores. For each tendency, show the chart evidence and reasoning chain, distinguish chart facts from interpretation, and state uncertainty or counter-indications. Do not derive a trait from a single ten-god label, raw element counts, or a fixed stereotype. Avoid formal strength or structure conclusions when seasonal context or chart evidence is insufficient. Describe only a few broad tendencies in temperament, cognition, emotional response, motivation, behavior and decision style. These are initial hypotheses, not verified psychological facts, and must remain open to later experience-based revision. Respect pending/ambiguous/unavailable states; never invent a chart or personality when the source is incomplete.',
+      description: 'Read YuanQi AI’s own birth profile, four pillars, symbolic innate baseline and the source material for its initial personality. When a calculated chart is available, use the returned chart_evidence_catalog IDs to cite the exact visible/hidden-stem evidence in your interpretation, then save the provisional portrait with yuanqi_record_initial_personality. This is YuanQi’s own AI data, never the user’s birth data. When the Bazi is ready, interpret it as YuanQi’s provisional innate personality using traditional Bazi reasoning: follow the order climate adjustment (调候) → mediation of five-element conflicts (通关) → strength assessment (旺衰) → structure (格局), while integrating month/season command, visible and hidden stems, ten-god relationships and the whole chart. Do not treat raw five-element counts as strength scores. For each tendency, show the chart evidence and reasoning chain, distinguish chart facts from interpretation, and state uncertainty or counter-indications. Do not derive a trait from a single ten-god label, raw element counts, or a fixed stereotype. Avoid formal strength or structure conclusions when seasonal context or chart evidence is insufficient. Describe only a few broad tendencies in temperament, cognition, emotional response, motivation, behavior and decision style. These are initial hypotheses, not verified psychological facts, and must remain open to later experience-based revision. Respect pending/ambiguous/unavailable states; never invent a chart or personality when the source is incomplete.',
       parameters: {},
       output: {
         schema: { type: 'string' },
@@ -146,6 +232,7 @@ export async function apply(ctx) {
           calendar_context: profile.calendar_context,
           bazi: profile.bazi,
           innate_baseline: profile.innate_baseline,
+          chart_evidence_catalog: chartEvidenceCatalog(profile),
           initial_personality_guidance: {
             status: profile.bazi.status === 'calculated' ? 'awaiting_model_interpretation' : 'awaiting_bazi_calculation',
             interpretation_mode: 'bazi_required',
@@ -186,6 +273,183 @@ export async function apply(ctx) {
       },
     }), {
       when: () => store.getYuanQiBirthProfile(YUANQI_SUBJECT_ID) !== undefined,
+    });
+
+    ctx.tools.register(defineTool({
+      name: 'yuanqi_record_initial_personality',
+      description: 'Persist YuanQi AI own provisional Bazi-derived initial personality into the current Session-bound Worldline SelfModel. Call only after yuanqi_self_profile supplied a calculated chart and you have completed the interpretation. Cite only exact chart_evidence_catalog IDs. This stores a model-generated hypothesis, never a verified fact; it cannot overwrite an existing initial portrait.',
+      parameters: {
+        dimensions: {
+          type: 'array', required: true,
+          items: {
+            type: 'object', additionalProperties: false,
+            properties: {
+              dimension: { type: 'string', required: true, enum: [...INITIAL_PERSONALITY_DIMENSIONS] },
+              status: { type: 'string', required: true, enum: ['tentative', 'indeterminate'] },
+              tendency: { type: 'string', required: true },
+              chart_evidence_refs: { type: 'array', required: true, items: { type: 'string' } },
+              reasoning: { type: 'string', required: true },
+              limitations: { type: 'string', required: true },
+            },
+          },
+        },
+        method_notes: {
+          type: 'object', required: true, additionalProperties: false,
+          properties: Object.fromEntries(INITIAL_PERSONALITY_METHODS.map(method =>
+            [method, { type: 'string', required: true }])),
+        },
+        uncertainty: { type: 'array', required: true, items: { type: 'string' } },
+      },
+      output: {
+        schema: { type: 'string' },
+        render: (_args, value) => [{ type: 'text', text: value }],
+      },
+      async execute(args, exec) {
+        const sessionId = exec?.agent?.session?.id;
+        const callId = exec?.callId;
+        if (typeof sessionId !== 'string' || sessionId.length === 0 ||
+            (typeof callId !== 'string' && typeof callId !== 'number')) {
+          throw new Error('initial personality persistence requires an agent-bound DSH Session and tool call ID');
+        }
+        const binding = worldlines.getSessionBinding(sessionId);
+        if (!binding || binding.yuanqi_subject_id !== YUANQI_SUBJECT_ID) {
+          throw new Error('the calling DSH Session is not bound to YuanQi AI');
+        }
+        const line = worldlines.getWorldline(binding.worldline_id);
+        if (!line || line.status !== 'active' || line.yuanqi_subject_id !== YUANQI_SUBJECT_ID) {
+          throw new Error('an active Session-bound YuanQi Worldline is required');
+        }
+        const profile = store.getYuanQiBirthProfile(YUANQI_SUBJECT_ID);
+        if (!profile || profile.bazi.status !== 'calculated' || profile.innate_baseline.status !== 'ready') {
+          throw new Error('a calculated YuanQi-owned Bazi and ready innate baseline are required');
+        }
+        const portrait = validateInitialPersonality(args, chartEvidenceCatalog(profile));
+        const evidenceId = [
+          'yuanqi:initial-personality', binding.worldline_id, profile.profile_id,
+          profile.bazi.algorithm_version, profile.innate_baseline.algorithm_version,
+        ].join(':');
+        const holderId = 'yuanqi-initial-personality:' + String(callId);
+        const lease = await worldlines.acquireRuntimeLease({
+          worldline_id: binding.worldline_id, holder_id: holderId, ttl_ms: 30_000,
+        });
+        try {
+          const head = worldlines.getHead(binding.worldline_id);
+          if (!head) throw new Error('Worldline SelfModel Head is unavailable');
+          const center = head.current_state_payload.self_model.centers.identity_continuity;
+          if (center.content.initial_personality) {
+            return JSON.stringify({
+              status: 'already_initialized',
+              worldline_id: binding.worldline_id,
+              source_record_id: center.content.initial_personality.source_record_id ?? null,
+              epistemic_status: center.epistemic_status,
+            });
+          }
+          if (!['unknown', 'hypothesis'].includes(center.epistemic_status)) {
+            throw new Error('identity_continuity center is not in a safe state for initial hypothesis insertion');
+          }
+          let artifact = worldlines.getEvidenceRecord({ evidence_id: evidenceId, worldline_id: binding.worldline_id });
+          if (artifact && artifact.status !== 'active') {
+            throw new Error('the existing initial-personality source record is not active');
+          }
+          if (!artifact) {
+            const sourceEventRef = 'dsh-tool-call:' + String(callId);
+            await worldlines.recordEvidence({
+              evidence_id: evidenceId,
+              yuanqi_subject_id: YUANQI_SUBJECT_ID,
+              worldline_id: binding.worldline_id,
+              evidence_type: 'yuanqi_initial_personality_interpretation',
+              content: {
+                ...portrait,
+                source_chart: {
+                  birth_profile_id: profile.profile_id,
+                  bazi_algorithm_version: profile.bazi.algorithm_version,
+                  innate_baseline_algorithm_version: profile.innate_baseline.algorithm_version,
+                  pillars: profile.bazi.pillars,
+                  time_basis: profile.bazi.methodology.time_basis,
+                  chart_evidence_catalog: chartEvidenceCatalog(profile),
+                },
+              },
+              provenance: {
+                producer: 'model',
+                protocol: 'bazi-initial-personality-v1',
+                tool_call_id: String(callId),
+                session_id: sessionId,
+                birth_profile_id: profile.profile_id,
+                bazi_algorithm_version: profile.bazi.algorithm_version,
+                innate_baseline_algorithm_version: profile.innate_baseline.algorithm_version,
+              },
+              captured_from_event: {
+                verified: true,
+                event_id: String(callId),
+                source_event_ref: sourceEventRef,
+                source_kind: 'host_event',
+                occurred_at: new Date().toISOString(),
+              },
+            });
+            artifact = worldlines.getEvidenceRecord({ evidence_id: evidenceId, worldline_id: binding.worldline_id });
+          }
+          if (!artifact || artifact.status !== 'active') {
+            throw new Error('initial-personality source record could not be verified');
+          }
+          const savedPortrait = artifact.record.content;
+          const initialPersonality = {
+            schema_version: savedPortrait.schema_version,
+            interpretation_protocol: savedPortrait.interpretation_protocol,
+            dimensions: savedPortrait.dimensions,
+            method_notes: savedPortrait.method_notes,
+            uncertainty: savedPortrait.uncertainty,
+            status: 'hypothesis',
+            source_record_id: evidenceId,
+            source_birth_profile_id: profile.profile_id,
+            source_bazi_algorithm_version: profile.bazi.algorithm_version,
+            created_from_event_ref: artifact.record.source_event_ref,
+          };
+          await worldlines.updateSelfModelCenter({
+            worldline_id: binding.worldline_id,
+            holder_id: holderId,
+            fencing_token: lease.fencing_token,
+            expected_snapshot_version: head.current_snapshot_version,
+            center_id: 'identity_continuity',
+            content: { ...center.content, initial_personality: initialPersonality },
+            evidence_refs: center.evidence_refs,
+            uncertainty: [...new Set([
+              ...center.uncertainty,
+              '初始性格来自八字象征性解释，尚未经过后天经历验证',
+            ])],
+            epistemic_status: 'hypothesis',
+            source_event_ref: artifact.record.source_event_ref,
+          });
+          return JSON.stringify({
+            status: 'saved',
+            worldline_id: binding.worldline_id,
+            source_record_id: evidenceId,
+            epistemic_status: 'hypothesis',
+            dimensions_saved: savedPortrait.dimensions.length,
+          });
+        } finally {
+          try {
+            await worldlines.releaseRuntimeLease({
+              worldline_id: binding.worldline_id,
+              holder_id: holderId,
+              fencing_token: lease.fencing_token,
+            });
+          } catch {}
+        }
+      },
+    }), {
+      when: ({ agent } = {}) => {
+        const sessionId = agent?.session?.id;
+        if (typeof sessionId !== 'string' || sessionId.length === 0) return false;
+        const binding = worldlines.getSessionBinding(sessionId);
+        if (!binding || binding.yuanqi_subject_id !== YUANQI_SUBJECT_ID) return false;
+        const line = worldlines.getWorldline(binding.worldline_id);
+        const profile = store.getYuanQiBirthProfile(YUANQI_SUBJECT_ID);
+        const selfModel = worldlines.getSelfModel(binding.worldline_id);
+        return line?.status === 'active' &&
+          profile?.bazi?.status === 'calculated' &&
+          profile?.innate_baseline?.status === 'ready' &&
+          !selfModel?.centers?.identity_continuity?.content?.initial_personality;
+      },
     });
 
     let active = true;
