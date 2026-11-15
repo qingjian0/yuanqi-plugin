@@ -9,15 +9,15 @@
 
 | 项目 | 当前分支状态 | 说明 |
 |---|---|---|
-| 自动化测试 | GitHub Actions 通过 | PR #7 Run #776（`43657362889`），code commit `48d1b08e2aace06a1356bcb92691262bca96ac08`：101 passed / 0 failed |
-| JavaScript 语法检查 | GitHub Actions 通过 | PR #7 Run #776 的 `npm run check` 通过，Node.js 24.9.0 |
+| 自动化测试 | GitHub Actions 通过 | PR #7 Run #878（`43669987935`）与 Push Run #877（`43669983503`），commit `a540edf825e3dd33353887b659ecb75f39f16e7a`：104 passed / 0 failed |
+| JavaScript 语法检查 | GitHub Actions 通过 | PR #7 Run #878 的 `npm run check` 通过，Node.js 24.9.0 |
 | npm 安装包构建与归档检查 | 待复验 | 本分支尚未完成隔离归档复验 |
-| GitHub Actions CI | 通过 | PR #7 Run #776（`43657362889`）成功；Node.js 24.9.0 |
+| GitHub Actions CI | 通过 | PR #7 Run #878（`43669987935`）与 Push Run #877（`43669983503`）成功；Node.js 24.9.0 |
 | 真实 Android DSH 宿主安装与运行 | 待验收 | 尚无本分支真实宿主验收结论 |
 | 真实模型会话端到端 | 待验收 | 不以模拟宿主测试代替 |
 | Android/iOS 端到端 | 待验收 | 尚未完成 |
 
-**重要：** 本分支当前 101 项测试由 PR #7 Run #776 实际验证通过；这不代表真实 Android DSH 宿主验收通过。
+**重要：** 当前分支提交 `a540edf` 的 104 项测试由 PR Run #878 与 Push Run #877 实际验证通过；这不代表真实 Android DSH 宿主验收通过。
 
 ## 2. 工程交付状态（2026-11-05）
 
@@ -46,7 +46,7 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - 用户出生资料采集、确认和写入元炁主体的流程已移除。
 - BirthProfile 已实现 UTC → IANA 时区当地民用时间、瞬时 UTC 偏移（含 DST）和经度修正；视太阳时采用带版本标记的 NOAA 方程时近似，并明确不作为高精度星历。
 - BirthProfile.calendar_context 已实现 24 节气前后项、最近十二节与最近立春的 UTC 交接定位；USNO 简化太阳黄经公式按 15° 求交，30 分钟边界不确定窗口内标记 ambiguous。
-- 时间与节气模块有独立测试；四柱引擎已实现立春定年、十二节定月、视太阳日期定日、视太阳时定时，以及五虎遁、五鼠遁。缺少宿主定位时为 unavailable，边界不确定时为 ambiguous。
+- 时间与节气模块有独立测试；四柱引擎已实现立春定年、十二节定月、视太阳日期定日、视太阳时定时，以及五虎遁、五鼠遁。缺少宿主定位或时区时，地点仍保持 unavailable，但时间换算默认使用 `Asia/Shanghai`；没有经度时按北京时间民用时排盘，不进行真太阳时修正。边界不确定时仍为 ambiguous。
 - 旧版 Meeus、节气定界和完整四柱能力记录不能自动视为当前源码已恢复或已通过测试。
 
 ### 世界线
