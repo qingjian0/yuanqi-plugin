@@ -114,7 +114,7 @@ export function deriveBirthTimeContext({ birth_time, birth_location } = {}) {
   const longitude = location.longitude;
   if (!timeZone || longitude == null) {
     return {
-      status: 'pending', time_zone_id: timeZone, time_zone_source: timeZoneSource, local_datetime: null,
+      status: location.status === 'pending' ? 'pending' : 'unavailable', time_zone_id: timeZone, time_zone_source: timeZoneSource, local_datetime: null,
       utc_offset_minutes: null, longitude_correction_minutes: null,
       equation_of_time_minutes: null, true_solar_datetime: null,
       algorithm_version: 'noaa-eot-approx-v1',
