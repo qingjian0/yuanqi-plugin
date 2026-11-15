@@ -864,27 +864,41 @@ export async function apply(ctx) {
           const assessmentRecords = [];
           for (const [dimension, review] of reviewed) {
             const assessmentId = 'yuanqi:experience-assessment:' + args.evidence_id + ':' + dimension;
+            const requestedOutcome = review.outcome === 'supports' ? 'corroborated'
+              : review.outcome === 'contradicts' ? 'contradicted' : 'insufficient';
             const existing = worldlines.getEvidenceAssessment({
               assessment_id: assessmentId, worldline_id: binding.worldline_id,
             });
-            const assessment = existing?.assessment ?? await worldlines.assessEvidence({
-              assessment_id: assessmentId,
-              evidence_id: args.evidence_id,
-              worldline_id: binding.worldline_id,
-              outcome: review.outcome === 'supports' ? 'corroborated'
-                : review.outcome === 'contradicts' ? 'contradicted' : 'insufficient',
-              assessor_kind: 'model',
-              rationale: review.rationale,
-              confidence: null,
-              corroborating_evidence_refs: [],
-              assessed_from_event: {
-                verified: true,
-                event_id: sourceEventRef,
-                source_event_ref: sourceEventRef,
-                source_kind: 'host_event',
-                occurred_at: new Date().toISOString(),
-              },
-            });
+            let assessment;
+            if (existing) {
+              if (existing.status !== 'active' ||
+                  existing.assessment.evidence_id !== args.evidence_id ||
+                  existing.assessment.assessor_kind !== 'model' ||
+                  existing.assessment.outcome !== requestedOutcome ||
+                  existing.assessment.rationale !== review.rationale ||
+                  existing.assessment.corroborating_evidence_refs.length !== 0) {
+                throw new Error('existing immutable assessment conflicts with the requested review or is stale');
+              }
+              assessment = existing.assessment;
+            } else {
+              assessment = await worldlines.assessEvidence({
+                assessment_id: assessmentId,
+                evidence_id: args.evidence_id,
+                worldline_id: binding.worldline_id,
+                outcome: requestedOutcome,
+                assessor_kind: 'model',
+                rationale: review.rationale,
+                confidence: null,
+                corroborating_evidence_refs: [],
+                assessed_from_event: {
+                  verified: true,
+                  event_id: sourceEventRef,
+                  source_event_ref: sourceEventRef,
+                  source_kind: 'host_event',
+                  occurred_at: new Date().toISOString(),
+                },
+              });
+            }
             assessmentRecords.push({
               dimension, outcome: review.outcome, rationale: review.rationale,
               assessment_id: assessment.assessment_id,
