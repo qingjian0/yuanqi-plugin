@@ -53,6 +53,7 @@ test('YuanQi BirthProfile is derived from its own trusted wake event and stored 
   assert.equal(profile.time_context.time_zone_source, 'default_beijing');
   assert.equal(profile.bazi.status, 'calculated');
   assert.equal(profile.bazi.methodology.time_basis, 'beijing-standard-time-fallback-no-longitude-correction');
+  assert.equal(profile.bazi.methodology.time_context_engine, 'civil-time-only-v1');
   assert.equal(profile.innate_baseline.status, 'ready');
   assert.equal(profile.bazi.calendar_system, 'jieqi');
   assert.equal(profile.calendar_context.engine_version, 'usno-apparent-sun-v1');
