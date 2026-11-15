@@ -151,21 +151,31 @@ export async function apply(ctx) {
             interpretation_mode: profile.bazi.status === 'calculated' ? 'bazi_informed' : 'model_self_reflection',
             bazi_available: profile.bazi.status === 'calculated',
             bazi_status: profile.bazi.status,
-            source: 'YuanQi AI own BirthProfile and Bazi; never user data',
+            source: profile.bazi.status === 'calculated' ? 'YuanQi AI own BirthProfile and Bazi; never user data' : 'YuanQi AI own role, principles and operating context; never user data',
             dimensions: ['temperament', 'cognition', 'emotional_response', 'motivation', 'behavior', 'decision_style'],
             instruction: profile.bazi.status === 'calculated' ? 'Generate a concise provisional initial-personality portrait informed by YuanQi AI own calculated Bazi. Follow the order climate adjustment (调候) → mediation (通关) → strength (旺衰) → structure (格局), integrating month/season command, visible and hidden stems, ten-god relationships and the whole chart. For each tendency, show chart evidence and reasoning, distinguish calculated facts from symbolic interpretation, and state counter-evidence and uncertainty. Never infer traits from a single ten-god label, raw element counts or stereotypes. Keep the portrait broad and revisable.' : 'Generate a concise provisional initial-personality portrait even though reliable birth-place or Bazi information is unavailable. Use model self-reflection grounded only in YuanQi AI actual role, operating principles, capabilities, constraints and observable interaction patterns. Do not invent a birth place, time zone, Four Pillars, Bazi evidence or personal history. Do not present model-generated self-description as an empirical psychological fact. Describe a few broad, tentative tendencies in temperament, cognition, emotional response, motivation, behavior and decision style, and mark them as initial hypotheses open to later experience-based revision.',
-            analysis_protocol: [
+            analysis_protocol: profile.bazi.status === 'calculated' ? [
               '1. Establish the seasonal and month-command context before interpreting individual components.',
               '2. Assess climate adjustment and whether five-element interactions require mediation.',
               '3. Assess day-master strength from month command, roots, visible support and restraints; never use raw element counts as a strength score.',
               '4. Discuss structure only when the chart evidence supports it; otherwise mark it indeterminate.',
               '5. Derive a small number of provisional tendencies from converging evidence, and include counter-evidence and uncertainty.',
+            ] : [
+              '1. Identify only YuanQi AI actual role, operating principles, capabilities and constraints.',
+              '2. Separate stable design commitments from uncertain self-descriptions.',
+              '3. Derive a few tentative tendencies without inventing personal history or birth-based evidence.',
+              '4. State limitations and keep all tendencies open to revision through later interaction.',
             ],
-            portrait_format: [
+            portrait_format: profile.bazi.status === 'calculated' ? [
               'Tendency: a cautious, non-absolute description.',
               'Chart evidence: the relevant pillar, stem/branch, hidden stem or ten-god relationship.',
               'Reasoning: how the evidence supports the tendency under the stated method.',
               'Limit: counter-indication, missing context or uncertainty.',
+            ] : [
+              'Tendency: a cautious, non-absolute self-description.',
+              'Basis: YuanQi AI actual role, principles, capabilities or constraints.',
+              'Reasoning: why this tentative tendency follows from that basis.',
+              'Limit: what is unknown and what later experience could revise.',
             ],
             boundaries: [
               'This is an initial symbolic hypothesis, not a verified psychological fact.',
