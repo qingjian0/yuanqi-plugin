@@ -900,6 +900,24 @@ test('experience candidate tool records bounded behavior evidence without copyin
   const assessmentRecord = tables.get('evidence_assessments').get(assessed.assessment_ids[0]);
   assert.equal(assessmentRecord.outcome, 'corroborated');
   assert.equal(assessmentRecord.assessor_kind, 'model');
+
+  // Model crash after immutable Ledger write but before SelfModel history commit:
+  // an orphaned assessment must not be silently presented as a different review.
+  const committedHistory = structuredClone(reflection.content.experience_assessments);
+  reflection.content.experience_assessments = [];
+  const versionBeforeConflict = afterAssessment.current_snapshot_version;
+  await assert.rejects(assessmentTool.definition.execute({
+    evidence_id: result.evidence_id,
+    reviews: [{
+      dimension: 'behavior', outcome: 'contradicts',
+      rationale: '与已持久化的不可变评估相冲突。',
+    }],
+  }, { callId: 'assessment-conflict-retry', agent, signal: new AbortController().signal }),
+  /existing immutable assessment conflicts/);
+  assert.equal(assessmentRecord.outcome, 'corroborated');
+  assert.equal(tables.get('worldline_heads').get('worldline:main').current_snapshot_version, versionBeforeConflict);
+  reflection.content.experience_assessments = committedHistory;
+
   const repeated = JSON.parse(await assessmentTool.definition.execute({
     evidence_id: result.evidence_id,
     reviews: [{ dimension: 'behavior', outcome: 'contradicts', rationale: '不能覆盖原评估。' }],
