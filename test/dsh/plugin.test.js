@@ -1118,6 +1118,31 @@ test('experience reconciliation counts distinct Session evidence, preserves conf
     limitations: '该画像仍为假设，不构成稳定人格事实。',
     reconciliation_record_ids: item.dimension === 'behavior' ? [result.reconciliation_record_id] : [],
   }));
+  const evidenceRevocations = tables.get('evidence_revocations');
+  evidenceRevocations.set(candidateIds[0], {
+    evidence_id: candidateIds[0], worldline_id: 'worldline:main',
+    reason: 'test stale candidate source', revoked_from_event_ref: 'test-revocation',
+    revoked_at: new Date().toISOString(), schema_version: 1,
+  });
+  await assert.rejects(revisionTool.definition.execute({
+    reconciliation_record_ids: [result.reconciliation_record_id],
+    dimensions: revisionDimensions,
+  }, { callId: 'revision-stale-source', agent: agents[2], signal: new AbortController().signal }),
+  /reconciliation candidate source is missing, stale/);
+  evidenceRevocations.delete(candidateIds[0]);
+
+  const duplicateAggregateId = 'yuanqi:experience-reconciliation:worldline:main:duplicate-source-test';
+  tables.get('evidence_records').set(duplicateAggregateId, {
+    ...structuredClone(aggregate),
+    evidence_id: duplicateAggregateId,
+  });
+  await assert.rejects(revisionTool.definition.execute({
+    reconciliation_record_ids: [result.reconciliation_record_id, duplicateAggregateId],
+    dimensions: revisionDimensions,
+  }, { callId: 'revision-duplicate-source', agent: agents[2], signal: new AbortController().signal }),
+  /must not reuse candidate evidence/);
+  tables.get('evidence_records').delete(duplicateAggregateId);
+
   const invalidRevisionDimensions = revisionDimensions.map(item => item.dimension === 'behavior'
     ? { ...item, disposition: 'revise' }
     : item);
