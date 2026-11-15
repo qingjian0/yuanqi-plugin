@@ -158,6 +158,37 @@ test('model-facing self-profile tool exposes only YuanQi-owned birth data after 
   assert.equal(Object.hasOwn(profile.birth_location, 'longitude'), false);
 });
 
+test('ready YuanQi Bazi exposes provisional AI interpretation guidance without precomputing personality', async () => {
+  const storage = fakeStorageDomain();
+  const ctx = context(storage, {
+    yuanqiLocationProvider: {
+      async getCurrentPosition() {
+        return {
+          latitude: 31.2304, longitude: 121.4737, accuracy_meters: 12,
+          time_zone_id: 'Asia/Shanghai', time_zone_source: 'host_location_provider',
+          captured_at: '2026-11-14T11:23:48.000Z',
+        };
+      },
+    },
+  });
+  await apply(ctx);
+  const registration = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_self_profile');
+  const eventTime = Date.parse('2026-11-14T11:23:48.000Z');
+  await ctx.listener({ id: 'session-ready-profile' }, dshEvent('启动元炁', 'ready-profile-wake', 0, eventTime));
+  await ctx.flushListener({ id: 'session-ready-profile' });
+  await new Promise(resolve => setImmediate(resolve));
+
+  const profile = JSON.parse(await registration.definition.execute({}, { signal: new AbortController().signal }));
+  assert.equal(profile.birth_location.time_zone_id, 'Asia/Shanghai');
+  assert.equal(profile.bazi.status, 'calculated');
+  assert.equal(profile.innate_baseline.status, 'ready');
+  assert.equal(profile.innate_baseline.interpretation_status, 'not_interpreted');
+  assert.equal(profile.initial_personality_guidance.status, 'awaiting_model_interpretation');
+  assert.equal(profile.initial_personality_guidance.analysis_protocol.length, 5);
+  assert.equal(profile.initial_personality_guidance.portrait_format.length, 4);
+  await ctx.disposer();
+});
+
 test('ordinary conversation does not create a UserSubject before the exact YuanQi wake command', async () => {
   const storage = fakeStorageDomain(), ctx = context(storage);
   await apply(ctx);
