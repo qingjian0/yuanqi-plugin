@@ -279,7 +279,7 @@ export async function apply(ctx) {
 
     ctx.tools.register(defineTool({
       name: 'yuanqi_record_initial_personality',
-      description: 'Persist YuanQi AI own initial-personality state into the current Session-bound Worldline SelfModel. With a calculated Bazi, save the model's provisional chart-based interpretation; while Bazi is pending, ambiguous or unavailable, save only six indeterminate placeholder dimensions with no chart evidence. A later Bazi-based interpretation may replace that placeholder. Cite only exact chart_evidence_catalog IDs. This stores a model-generated hypothesis, never a verified fact; it cannot overwrite an existing initial portrait.',
+      description: 'Persist YuanQi AI own initial-personality state into the current Session-bound Worldline SelfModel. With a calculated Bazi, save the model-generated provisional chart-based interpretation; while Bazi is pending, ambiguous or unavailable, save only six indeterminate placeholder dimensions with no chart evidence. A later Bazi-based interpretation may replace that placeholder. Cite only exact chart_evidence_catalog IDs. This stores a model-generated hypothesis, never a verified fact; it cannot overwrite an existing initial portrait.',
       parameters: {
         dimensions: {
           type: 'array', required: true,
