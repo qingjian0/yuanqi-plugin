@@ -237,7 +237,7 @@ export async function apply(ctx) {
         };
       } catch (error) {
         warn('[yuanqi] birth location unavailable at wake: ' + String(error));
-        return { status: 'unavailable', latitude: null, longitude: null, accuracy_meters: null, place_label: null, time_zone_id: null, source: 'unavailable', captured_at: null };
+        return { status: 'unavailable', latitude: null, longitude: null, accuracy_meters: null, place_label: null, time_zone_id: null, time_zone_source: 'unavailable', source: 'unavailable', captured_at: null };
       } finally {
         clearTimeout(timeout);
       }
@@ -285,7 +285,7 @@ export async function apply(ctx) {
         direct_user_event: direct,
         birth_location: shouldCaptureLocation ? {
           status: 'pending', latitude: null, longitude: null, accuracy_meters: null,
-          place_label: null, time_zone_id: null, source: 'unavailable', captured_at: null,
+          place_label: null, time_zone_id: null, time_zone_source: 'unavailable', source: 'unavailable', captured_at: null,
         } : undefined,
       });
       if (!wake) return;
