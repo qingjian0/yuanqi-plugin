@@ -37,7 +37,7 @@ test('uses the offset in force at the exact instant across a DST repeated hour',
   assert.notEqual(daylight.true_solar_datetime, standard.true_solar_datetime);
 });
 
-test('keeps time context pending when the authorized host time zone or longitude is missing', () => {
+test('marks a captured location unavailable when its time zone or longitude is missing', () => {
   const missingZone = deriveBirthTimeContext({
     birth_time: '2024-02-04T08:00:00.000Z',
     birth_location: { status: 'captured', longitude: 121.4737 },
@@ -48,7 +48,7 @@ test('keeps time context pending when the authorized host time zone or longitude
   });
   assert.equal(missingZone.status, 'unavailable');
   assert.equal(missingZone.local_datetime, null);
-  assert.equal(missingLongitude.status, 'pending');
+  assert.equal(missingLongitude.status, 'unavailable');
 });
 
 test('does not derive civil time until the host location is marked captured', () => {
