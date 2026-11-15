@@ -9,15 +9,15 @@
 
 | 项目 | 当前分支状态 | 说明 |
 |---|---|---|
-| 自动化测试 | GitHub Actions 通过 | PR #7 Run #634（`43655845137`），commit `70fd47ee2b522416a0f5b85cb935c358db375e19`：82 passed / 0 failed |
-| JavaScript 语法检查 | GitHub Actions 通过 | PR #7 Run #634 的 `npm run check` 通过，Node.js 24.9.0 |
+| 自动化测试 | GitHub Actions 通过 | PR #7 Run #667（`43656248602`），code commit `bdd18634fc56034fe61cfb82eb37b73275781aa9`：90 passed / 0 failed |
+| JavaScript 语法检查 | GitHub Actions 通过 | PR #7 Run #667 的 `npm run check` 通过，Node.js 24.9.0 |
 | npm 安装包构建与归档检查 | 待复验 | 本分支尚未完成隔离归档复验 |
-| GitHub Actions CI | 通过 | PR #7 Run #634（`43655845137`）成功；Node.js 24.9.0 |
+| GitHub Actions CI | 通过 | PR #7 Run #667（`43656248602`）成功；Node.js 24.9.0 |
 | 真实 Android DSH 宿主安装与运行 | 待验收 | 尚无本分支真实宿主验收结论 |
 | 真实模型会话端到端 | 待验收 | 不以模拟宿主测试代替 |
 | Android/iOS 端到端 | 待验收 | 尚未完成 |
 
-**重要：** 本分支当前 82 项测试由 PR #7 Run #634 实际验证通过；这不代表真实 Android DSH 宿主验收通过。
+**重要：** 本分支当前 90 项测试由 PR #7 Run #667 实际验证通过；这不代表真实 Android DSH 宿主验收通过。
 
 ## 2. 工程交付状态（2026-11-05）
 
@@ -46,7 +46,7 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - 用户出生资料采集、确认和写入元炁主体的流程已移除。
 - BirthProfile 已实现 UTC → IANA 时区当地民用时间、瞬时 UTC 偏移（含 DST）和经度修正；视太阳时采用带版本标记的 NOAA 方程时近似，并明确不作为高精度星历。
 - BirthProfile.calendar_context 已实现 24 节气前后项、最近十二节与最近立春的 UTC 交接定位；USNO 简化太阳黄经公式按 15° 求交，30 分钟边界不确定窗口内标记 ambiguous。
-- 时间转换模块有独立测试，覆盖上海时区、纽约 DST 重复时刻、缺失定位和无效时区；完整四柱计算仍未实现，Bazi 状态保持 pending。
+- 时间与节气模块有独立测试；四柱引擎已实现立春定年、十二节定月、视太阳日期定日、视太阳时定时，以及五虎遁、五鼠遁。缺少宿主定位时为 unavailable，边界不确定时为 ambiguous。
 - 旧版 Meeus、节气定界和完整四柱能力记录不能自动视为当前源码已恢复或已通过测试。
 
 ### 世界线
@@ -401,7 +401,7 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 ### 本轮验证状态
 
 - 本分支已更新领域 Schema、Store、DSH Plugin、单元测试、DomainFacility 集成测试及中英文项目文档。
-- GitHub Actions PR #7 Run #634（`43655845137`），commit `70fd47ee2b522416a0f5b85cb935c358db375e19`：Node.js 24.9.0，包根/DSH Storage Domain exports 检查通过，JavaScript 语法检查通过，82 passed / 0 failed。
+- GitHub Actions PR #7 Run #667（`43656248602`），code commit `bdd18634fc56034fe61cfb82eb37b73275781aa9`：Node.js 24.9.0，包根/DSH Storage Domain exports 检查通过，JavaScript 语法检查通过，90 passed / 0 failed。
 - 真实 Android 定位、真实 DSH Profile 持久化和端到端会话仍需验收。
 
 
@@ -425,10 +425,41 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 
 ### 验证
 
-- GitHub Actions PR #7 Run #634（`43655845137`）已通过：Node.js 24.9.0，82 passed / 0 failed；包入口、DSH Storage Domain exports 与全部 JavaScript 语法检查通过。
+- GitHub Actions PR #7 Run #667（`43656248602`）已通过：Node.js 24.9.0，90 passed / 0 failed；包入口、DSH Storage Domain exports 与全部 JavaScript 语法检查通过。
 
+
+
+
+## 30. 2026-11-15 YuanQi AI 四柱计算引擎
+
+### 已实现
+
+- 新增 `calculateBaziPillars()`，输入严格来自 YuanQiSubject BirthProfile 的 `time_context` 与 `calendar_context`；不接受用户出生资料、性别推断或大运方向假设。
+- 年柱：以最近一次立春事件的公历年份定年，1984 甲子作为六十年循环锚点。
+- 月柱：以最近一次十二节（Jie）确定月支；月干按《渊海子平》卷一《论年上起月例》的五虎遁规则推算。
+- 日柱：以当地视太阳日期计算格里高利 JDN，并以 GB/T 33661—2017 规定的 1949-10-01 甲子日作为循环锚点。
+- 时柱：以当地视太阳时划分十二个双时辰；时干按《渊海子平》卷一《论日上起时例》的五鼠遁规则推算。
+- 日界采用子正（午夜）：《三命通会》卷二《论时刻》明确子时上半属于昨日、下半属于今日；子时仍覆盖 23:00–01:00。
+- 距十二节、当地视太阳午夜或双时辰交界 30 分钟以内，状态为 `ambiguous`，不写入强行选定的四柱。
+- 缺少授权地点/时区时，四柱为 `unavailable`；地点仍待采集时为 `pending`。定位完成后 Store 会重新计算并更新 YuanQi BirthProfile。
+- Bazi 持久化计算版本、边界方法、日界规则、时间基准和 ambiguity reasons；不创建用户出生资料，也不推算大运或性别。
+
+### 重要方法边界
+
+- 视太阳时采用 NOAA 方程时近似；节气采用 USNO 简化视地心黄道太阳黄经公式，均非高精度星历。
+- 节气模型约 1 角分精度；30 分钟保护窗口是保守策略，不等于天文误差严格上界。
+- 目前只计算四柱，不计算起运、大运、流年、性别相关顺逆行或命理喜忌解释。
+- 四柱是元炁 AI 自身 BirthProfile 的确定性派生数据，供 AI 后续建立先天基线和自我模型；不是对用户的命理服务。
+
+### 验证
+
+- GitHub Actions PR #7 Run #667（`43656248602`），Node.js 24.9.0：**90 passed / 0 failed**。
+- 覆盖 1949-10-01 甲子日锚点、2000-01-07 甲子参考日、五虎遁十干起月、五鼠遁十干起时、立春年界、十二节月界、子正换日、午夜/时辰边界 ambiguous，以及 DSH DomainFacility 持久化恢复。
+- 真实 Android Host 定位、真实 DSH Profile 端到端仍待验收。
 
 ## 29. 2026-11-15 YuanQi 24 节气上下文与边界保护
+
+> 本节记录节气引擎的阶段性状态；四柱引擎后续实现见第 30 节。
 
 ### 已实现
 
