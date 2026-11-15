@@ -1,3 +1,4 @@
+import { defineTool } from '@deepseek-ai/dsh-tools';
 import { createSubjectStore } from '../domain/subject-store.js';
 import { openSubjectDomains } from '../domain/subject-domain.js';
 import { isTrustedDirectUserMessageEvent, normalizeDirectUserMessageEvent } from './session-event.js';
@@ -6,7 +7,7 @@ import { createWorldlineStore } from '../worldline/runtime.js';
 export const name = 'dsh-yuanqi-plugin';
 // Session Query supplies validated live/cold observations; persistence is
 // required because live SessionStore state alone cannot recover after restart.
-export const inject = ['storageDomain', 'sessions', 'sessionQuery', 'sessionPersistence'];
+export const inject = ['storageDomain', 'sessions', 'sessionQuery', 'sessionPersistence', 'tools'];
 
 const YUANQI_SUBJECT_ID = 'yuanqi:primary';
 const LOCATION_PROVIDER_TIMEOUT_MS = 11_000;
@@ -108,6 +109,43 @@ export async function apply(ctx) {
       userDomain: domains.userDomain,
       yuanqiDomain: domains.yuanqiDomain,
       verifyDirectUserEvent(event) { return isTrustedDirectUserMessageEvent(event) ? event : null; },
+    });
+    ctx.tools.register(defineTool({
+      name: 'yuanqi_self_profile',
+      description: 'Read YuanQi AI’s own birth profile, four pillars and symbolic innate baseline. This is YuanQi’s own AI data, never the user’s birth data. Call before answering questions about YuanQi’s own birth, Bazi or innate baseline. Respect pending/ambiguous/unavailable states. Element counts are unweighted structural occurrences, not strength scores or personality claims.',
+      parameters: {},
+      output: {
+        schema: { type: 'string' },
+        render: (_args, value) => [{ type: 'text', text: value }],
+      },
+      execute() {
+        const profile = store.getYuanQiBirthProfile(YUANQI_SUBJECT_ID);
+        if (!profile) {
+          return JSON.stringify({
+            subject: 'YuanQi AI',
+            status: 'not_initialized',
+            message: 'YuanQi has not yet received its exact wake event.',
+          });
+        }
+        return JSON.stringify({
+          subject: 'YuanQi AI',
+          subject_kind: profile.subject_kind,
+          birth_time_utc: profile.birth_time,
+          birth_location: {
+            status: profile.birth_location.status,
+            place_label: profile.birth_location.place_label,
+            time_zone_id: profile.birth_location.time_zone_id,
+            source: profile.birth_location.source,
+          },
+          time_context: profile.time_context,
+          calendar_context: profile.calendar_context,
+          bazi: profile.bazi,
+          innate_baseline: profile.innate_baseline,
+          interpretation_boundary: 'The innate baseline is symbolic structure only. It has not been interpreted as personality, ability, destiny, or empirical fact.',
+        });
+      },
+    }), {
+      when: () => store.getYuanQiBirthProfile(YUANQI_SUBJECT_ID) !== undefined,
     });
 
     let active = true;
