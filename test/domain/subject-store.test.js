@@ -68,7 +68,7 @@ test('calculates all four pillars only from YuanQi wake time and authorized host
     direct_user_event: event(),
     birth_location: {
       status: 'captured', latitude: 31.2304, longitude: 121.4737,
-      accuracy_meters: 5, place_label: 'Shanghai', time_zone_id: 'Asia/Shanghai',
+      accuracy_meters: 5, place_label: 'Shanghai', time_zone_id: 'Asia/Shanghai', time_zone_source: 'host_location_provider',
       source: 'host_location_provider', captured_at: new Date(eventTime).toISOString(),
     },
   });
@@ -90,7 +90,7 @@ test('YuanQi BirthProfile location follows the immutable wake location completio
   await store.createYuanQiSubject({ subject_id: 'yuanqi:primary', created_from_event_ref: 'wake-1' });
   const pending = {
     status: 'pending', latitude: null, longitude: null, accuracy_meters: null,
-    place_label: null, time_zone_id: null, source: 'unavailable', captured_at: null,
+    place_label: null, time_zone_id: null, time_zone_source: 'unavailable', source: 'unavailable', captured_at: null,
   };
   const wake = await store.recordInitialWake({
     subject_id: 'yuanqi:primary', direct_user_event: event(), birth_location: pending,
@@ -98,7 +98,7 @@ test('YuanQi BirthProfile location follows the immutable wake location completio
   assert.equal(store.getYuanQiBirthProfile('yuanqi:primary').birth_location.status, 'pending');
   const captured = {
     status: 'captured', latitude: 31.23, longitude: 121.47, accuracy_meters: 15,
-    place_label: 'Shanghai', time_zone_id: 'Asia/Shanghai', source: 'host_location_provider',
+    place_label: 'Shanghai', time_zone_id: 'Asia/Shanghai', time_zone_source: 'host_location_provider', source: 'host_location_provider',
     captured_at: new Date(1793966400000).toISOString(),
   };
   await store.completeInitialWakeLocation({ subject_id: 'yuanqi:primary', birth_location: captured });
@@ -114,7 +114,7 @@ test('YuanQi BirthProfile location follows the immutable wake location completio
   assert.equal(store.getWakeRecord('yuanqi:primary').wake_event_ref, wake.wake_event_ref);
   await store.completeInitialWakeLocation({ subject_id: 'yuanqi:primary', birth_location: {
     status: 'unavailable', latitude: null, longitude: null, accuracy_meters: null,
-    place_label: null, time_zone_id: null, source: 'unavailable', captured_at: null,
+    place_label: null, time_zone_id: null, time_zone_source: 'unavailable', source: 'unavailable', captured_at: null,
   }});
   assert.deepEqual(store.getYuanQiBirthProfile('yuanqi:primary').birth_location, captured);
 });
