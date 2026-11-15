@@ -1104,5 +1104,47 @@ test('experience reconciliation counts distinct Session evidence, preserves conf
   await assert.rejects(reconcileTool.definition.execute({
     evidence_ids: candidateIds.slice(0, 2),
   }, { callId: 'reconcile-too-few', agent: agents[2], signal: new AbortController().signal }), /3-12 unique/);
+
+  const revisionTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_record_current_personality_revision');
+  assert.ok(revisionTool);
+  assert.equal(await revisionTool.registrationOptions.when({ agent: agents[2] }), true);
+  const revisionDimensions = initialBefore.dimensions.map(item => ({
+    dimension: item.dimension,
+    disposition: item.dimension === 'behavior' ? 'disputed' : 'retain_initial',
+    tendency: item.dimension === 'behavior' ? '行为表现可能随情境变化，当前存在支持与反驳证据。' : item.tendency,
+    reasoning: item.dimension === 'behavior'
+      ? '三个不同 Session 的评估中同时出现支持与反驳，不能消除冲突。'
+      : '该维度尚无达到门槛的跨 Session 证据，保留原始八字初始倾向。',
+    limitations: '该画像仍为假设，不构成稳定人格事实。',
+    reconciliation_record_ids: item.dimension === 'behavior' ? [result.reconciliation_record_id] : [],
+  }));
+  const revised = JSON.parse(await revisionTool.definition.execute({
+    reconciliation_record_ids: [result.reconciliation_record_id],
+    dimensions: revisionDimensions,
+  }, { callId: 'current-personality-revision-1', agent: agents[2], signal: new AbortController().signal }));
+  assert.equal(revised.status, 'saved');
+  assert.equal(revised.current_personality_version, 1);
+  assert.equal(revised.disputed_dimensions, 1);
+  assert.equal(revised.retained_initial_dimensions, 5);
+  assert.equal(revised.initial_personality_unchanged, true);
+  const afterRevision = tables.get('worldline_heads').get('worldline:main');
+  const revisedIdentity = afterRevision.current_state_payload.self_model.centers.identity_continuity;
+  assert.deepEqual(revisedIdentity.content.initial_personality, initialBefore);
+  assert.equal(revisedIdentity.content.current_personality.version, 1);
+  assert.equal(revisedIdentity.content.current_personality.status, 'hypothesis');
+  assert.equal(revisedIdentity.content.current_personality.dimensions.find(item => item.dimension === 'behavior').status, 'disputed_hypothesis');
+  assert.equal(revisedIdentity.content.current_personality.dimensions.find(item => item.dimension === 'cognition').status, 'retained_initial_hypothesis');
+  const revisionRecord = tables.get('evidence_records').get(revised.source_record_id);
+  assert.equal(revisionRecord.evidence_type, 'yuanqi_current_personality_revision');
+  assert.equal(revisionRecord.content.status, 'hypothesis');
+  assert.deepEqual(revisionRecord.provenance.reconciliation_record_ids, [result.reconciliation_record_id]);
+
+  const repeatedRevision = JSON.parse(await revisionTool.definition.execute({
+    reconciliation_record_ids: [result.reconciliation_record_id],
+    dimensions: revisionDimensions,
+  }, { callId: 'current-personality-revision-repeat', agent: agents[2], signal: new AbortController().signal }));
+  assert.equal(repeatedRevision.status, 'already_revised');
+  assert.equal(repeatedRevision.source_record_id, revised.source_record_id);
+  assert.equal(tables.get('worldline_heads').get('worldline:main').current_snapshot_version, afterRevision.current_snapshot_version);
   await ctx.disposer();
 });
