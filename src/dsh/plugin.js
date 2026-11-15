@@ -933,6 +933,310 @@ export async function apply(ctx) {
       },
     });
 
+
+    // Reconcile already-assessed behavior candidates across distinct DSH Sessions.
+    // Session diversity is the independence boundary; model assessments remain hypotheses.
+    ctx.tools.register(defineTool({
+      name: 'yuanqi_reconcile_personality_evidence',
+      description: 'Aggregate previously assessed YuanQi experience candidates from distinct DSH Sessions in the current Worldline. Provide 3-12 candidate evidence IDs; each must be active, refer to the same immutable Bazi initial-personality source, and have a model assessment for every linked dimension. The plugin derives session/event independence and per-dimension support/conflict counts from immutable provenance. Different model assessments are not independent evaluators. Conflicts remain disputed; no personality fact is promoted and the Bazi initial portrait is never overwritten. This records an evidence-reconciliation hypothesis in cognition_reflection only.',
+      parameters: {
+        evidence_ids: { type: 'array', required: true, items: { type: 'string' } },
+      },
+      output: {
+        schema: { type: 'string' },
+        render: (_args, value) => [{ type: 'text', text: value }],
+      },
+      async execute(args, exec) {
+        const sessionId = exec?.agent?.session?.id;
+        const callId = exec?.callId;
+        if (typeof sessionId !== 'string' || !sessionId ||
+            (typeof callId !== 'string' && typeof callId !== 'number')) {
+          throw new Error('evidence reconciliation requires the current agent Session and tool call ID');
+        }
+        const binding = worldlines.getSessionBinding(sessionId);
+        if (!binding || binding.yuanqi_subject_id !== YUANQI_SUBJECT_ID) {
+          throw new Error('the current DSH Session is not bound to YuanQi AI');
+        }
+        const line = worldlines.getWorldline(binding.worldline_id);
+        if (!line || line.status !== 'active' || line.yuanqi_subject_id !== YUANQI_SUBJECT_ID) {
+          throw new Error('an active Session-bound YuanQi Worldline is required');
+        }
+        const selfModel = worldlines.getSelfModel(binding.worldline_id);
+        const identity = selfModel?.centers?.identity_continuity;
+        const initial = identity?.content?.initial_personality;
+        if (!initial || initial.status !== 'hypothesis' || typeof initial.source_record_id !== 'string') {
+          throw new Error('the immutable Bazi initial-personality hypothesis is required');
+        }
+        const initialSource = worldlines.getEvidenceRecord({
+          evidence_id: initial.source_record_id,
+          worldline_id: binding.worldline_id,
+        });
+        if (!initialSource || initialSource.status !== 'active' ||
+            initialSource.record.evidence_type !== 'yuanqi_initial_personality_interpretation') {
+          throw new Error('the original Bazi initial-personality source record must remain active');
+        }
+        const ids = args?.evidence_ids;
+        if (!Array.isArray(ids) || ids.length < 3 || ids.length > 12 ||
+            !ids.every(id => typeof id === 'string' && id.startsWith('yuanqi:experience-candidate:')) ||
+            new Set(ids).size !== ids.length) {
+          throw new TypeError('provide 3-12 unique YuanQi experience candidate evidence IDs');
+        }
+
+        const candidates = [];
+        const sessions = new Set();
+        const behaviorEventRefs = new Set();
+        const assessmentIds = [];
+        for (const evidenceId of ids) {
+          const found = worldlines.getEvidenceRecord({
+            evidence_id: evidenceId,
+            worldline_id: binding.worldline_id,
+          });
+          const record = found?.record;
+          const provenance = record?.provenance;
+          if (!found || found.status !== 'active' ||
+              record.evidence_type !== 'yuanqi_experience_candidate' ||
+              record.content?.assessment_status !== 'unassessed' ||
+              provenance?.producer !== 'model' ||
+              provenance?.protocol !== 'bounded-experience-candidate-v1' ||
+              provenance?.worldline_id !== binding.worldline_id ||
+              provenance?.initial_personality_source_record_id !== initial.source_record_id ||
+              typeof provenance?.session_id !== 'string' || provenance.session_id.length === 0 ||
+              evidenceId.split(':')[2] !== binding.worldline_id) {
+            throw new Error('every candidate must be active, same-Worldline, and linked to the current Bazi initial portrait');
+          }
+          if (sessions.has(provenance.session_id)) {
+            throw new Error('only one candidate per distinct DSH Session may count toward independence');
+          }
+          sessions.add(provenance.session_id);
+          const refs = record.content?.event_refs;
+          if (!Array.isArray(refs) || refs.length === 0) {
+            throw new Error('candidate has no immutable behavior event references');
+          }
+          const behaviorRefs = refs.filter(ref => ref?.relation === 'observed_ai_behavior');
+          if (behaviorRefs.length === 0 || behaviorRefs.some(ref =>
+            ref.session_id !== provenance.session_id ||
+            !Number.isSafeInteger(ref.seq) || ref.seq < 0 ||
+            !['assistant/message', 'tool/call', 'tool/result'].includes(ref.event_type))) {
+            throw new Error('candidate behavior references do not match its recorded Session provenance');
+          }
+          for (const ref of behaviorRefs) {
+            const key = ref.session_id + ':seq:' + ref.seq;
+            if (behaviorEventRefs.has(key)) throw new Error('the same DSH behavior event cannot count more than once');
+            behaviorEventRefs.add(key);
+          }
+          const links = record.content?.dimension_links;
+          if (!Array.isArray(links) || links.length === 0) {
+            throw new Error('candidate has no linked initial-personality dimensions');
+          }
+          const assessments = new Map();
+          for (const link of links) {
+            if (!INITIAL_PERSONALITY_DIMENSIONS.includes(link.dimension) || assessments.has(link.dimension)) {
+              throw new Error('candidate contains invalid or duplicate personality dimension links');
+            }
+            const assessmentId = 'yuanqi:experience-assessment:' + evidenceId + ':' + link.dimension;
+            const assessed = worldlines.getEvidenceAssessment({
+              assessment_id: assessmentId,
+              worldline_id: binding.worldline_id,
+            });
+            if (!assessed || assessed.status !== 'active' ||
+                assessed.assessment.evidence_id !== evidenceId ||
+                assessed.assessment.assessor_kind !== 'model') {
+              throw new Error('every candidate-linked dimension must have an active immutable model assessment');
+            }
+            assessments.set(link.dimension, {
+              assessment_id: assessmentId,
+              outcome: assessed.assessment.outcome,
+            });
+            assessmentIds.push(assessmentId);
+          }
+          candidates.push({
+            evidence_id: evidenceId,
+            session_id: provenance.session_id,
+            source_event_ref: record.source_event_ref,
+            dimensions: assessments,
+          });
+        }
+        if (sessions.size < 3) throw new Error('at least three distinct DSH Sessions are required');
+
+        const dimensions = Object.fromEntries(INITIAL_PERSONALITY_DIMENSIONS.map(dimension => {
+          const observations = candidates
+            .filter(candidate => candidate.dimensions.has(dimension))
+            .map(candidate => ({
+              session_id: candidate.session_id,
+              evidence_id: candidate.evidence_id,
+              assessment_id: candidate.dimensions.get(dimension).assessment_id,
+              outcome: candidate.dimensions.get(dimension).outcome,
+            }));
+          const distinctSessions = new Set(observations.map(item => item.session_id)).size;
+          const supports = observations.filter(item => item.outcome === 'corroborated').length;
+          const contradicts = observations.filter(item => item.outcome === 'contradicted').length;
+          const insufficient = observations.filter(item => item.outcome === 'insufficient').length;
+          let status = 'insufficient';
+          if (distinctSessions >= 3 && supports > 0 && contradicts > 0) status = 'disputed';
+          else if (distinctSessions >= 3 && supports >= 2) status = 'supports';
+          else if (distinctSessions >= 3 && contradicts >= 2) status = 'contradicts';
+          return [dimension, {
+            status,
+            distinct_session_count: distinctSessions,
+            support_count: supports,
+            contradiction_count: contradicts,
+            insufficient_count: insufficient,
+            observations,
+            eligible_for_provisional_revision: status === 'supports' || status === 'contradicts',
+          }];
+        }));
+
+        const sortedIds = [...ids].sort();
+        const reconciliationId = [
+          'yuanqi:experience-reconciliation', binding.worldline_id, ...sortedIds,
+        ].join(':');
+        const holderId = 'yuanqi-experience-reconciliation:' + String(callId);
+        const lease = await worldlines.acquireRuntimeLease({
+          worldline_id: binding.worldline_id, holder_id: holderId, ttl_ms: 30_000,
+        });
+        try {
+          const head = worldlines.getHead(binding.worldline_id);
+          if (!head) throw new Error('Worldline SelfModel Head is unavailable');
+          const reflection = head.current_state_payload.self_model.centers.cognition_reflection;
+          const history = Array.isArray(reflection.content.experience_reconciliations)
+            ? reflection.content.experience_reconciliations
+            : [];
+          const previous = history.find(item => item.reconciliation_record_id === reconciliationId);
+          if (previous) {
+            return JSON.stringify({
+              status: 'already_reconciled',
+              reconciliation_record_id: reconciliationId,
+              session_count: sessions.size,
+              dimensions: previous.dimensions,
+              initial_personality_unchanged: true,
+            });
+          }
+          const sourceEventRef = 'dsh-tool-call:' + String(callId);
+          let artifact = worldlines.getEvidenceRecord({
+            evidence_id: reconciliationId,
+            worldline_id: binding.worldline_id,
+          });
+          if (artifact && artifact.status !== 'active') {
+            throw new Error('existing reconciliation record is not active');
+          }
+          if (!artifact) {
+            await worldlines.recordEvidence({
+              evidence_id: reconciliationId,
+              yuanqi_subject_id: YUANQI_SUBJECT_ID,
+              worldline_id: binding.worldline_id,
+              evidence_type: 'yuanqi_experience_evidence_reconciliation',
+              content: {
+                schema_version: 1,
+                protocol: 'distinct-session-evidence-reconciliation-v1',
+                initial_personality_source_record_id: initial.source_record_id,
+                candidate_evidence_ids: sortedIds,
+                session_count: sessions.size,
+                dimensions,
+                epistemic_status: 'hypothesis',
+                interpretation_boundary: 'Distinct Sessions establish independent event origins only. Model-generated assessments are not independent evaluators or verified personality facts.',
+              },
+              provenance: {
+                producer: 'system',
+                protocol: 'distinct-session-evidence-reconciliation-v1',
+                worldline_id: binding.worldline_id,
+                session_ids: [...sessions].sort(),
+                candidate_evidence_ids: sortedIds,
+                assessment_ids: [...new Set(assessmentIds)].sort(),
+                initial_personality_source_record_id: initial.source_record_id,
+              },
+              captured_from_event: {
+                verified: true,
+                event_id: sourceEventRef,
+                source_event_ref: sourceEventRef,
+                source_kind: 'host_event',
+                occurred_at: new Date().toISOString(),
+              },
+            });
+            artifact = worldlines.getEvidenceRecord({
+              evidence_id: reconciliationId,
+              worldline_id: binding.worldline_id,
+            });
+          }
+          if (!artifact || artifact.status !== 'active') {
+            throw new Error('reconciliation record could not be verified in the current Worldline');
+          }
+          const entry = {
+            schema_version: 1,
+            reconciliation_record_id: reconciliationId,
+            candidate_evidence_ids: sortedIds,
+            session_ids: [...sessions].sort(),
+            dimensions,
+            epistemic_status: 'hypothesis',
+            created_from_event_ref: artifact.record.source_event_ref,
+          };
+          await worldlines.updateSelfModelCenter({
+            worldline_id: binding.worldline_id,
+            holder_id: holderId,
+            fencing_token: lease.fencing_token,
+            expected_snapshot_version: head.current_snapshot_version,
+            center_id: 'cognition_reflection',
+            content: {
+              ...reflection.content,
+              experience_reconciliations: [...history, entry],
+              experience_reconciliation_version: (reflection.content.experience_reconciliation_version ?? 0) + 1,
+            },
+            evidence_refs: [...new Set([
+              ...reflection.evidence_refs,
+              ...sortedIds,
+              reconciliationId,
+            ])],
+            uncertainty: [...new Set([
+              ...reflection.uncertainty,
+              '跨 Session 聚合仅核验事件来源分离；逐维评估仍由模型生成，聚合结果保持 hypothesis',
+            ])],
+            epistemic_status: 'hypothesis',
+            source_event_ref: artifact.record.source_event_ref,
+          });
+          return JSON.stringify({
+            status: 'reconciled',
+            reconciliation_record_id: reconciliationId,
+            session_count: sessions.size,
+            distinct_behavior_event_count: behaviorEventRefs.size,
+            dimensions: Object.fromEntries(Object.entries(dimensions).map(([dimension, value]) => [
+              dimension, {
+                status: value.status,
+                distinct_session_count: value.distinct_session_count,
+                support_count: value.support_count,
+                contradiction_count: value.contradiction_count,
+                insufficient_count: value.insufficient_count,
+                eligible_for_provisional_revision: value.eligible_for_provisional_revision,
+              },
+            ])),
+            self_model_center: 'cognition_reflection',
+            initial_personality_unchanged: true,
+            epistemic_status: 'hypothesis',
+          });
+        } finally {
+          try {
+            await worldlines.releaseRuntimeLease({
+              worldline_id: binding.worldline_id,
+              holder_id: holderId,
+              fencing_token: lease.fencing_token,
+            });
+          } catch {}
+        }
+      },
+    }), {
+      when: ({ agent } = {}) => {
+        const sessionId = agent?.session?.id;
+        if (typeof sessionId !== 'string' || !sessionId) return false;
+        const binding = worldlines.getSessionBinding(sessionId);
+        if (!binding || binding.yuanqi_subject_id !== YUANQI_SUBJECT_ID) return false;
+        const line = worldlines.getWorldline(binding.worldline_id);
+        const initial = worldlines.getSelfModel(binding.worldline_id)
+          ?.centers?.identity_continuity?.content?.initial_personality;
+        const source = typeof initial?.source_record_id === 'string'
+          ? worldlines.getEvidenceRecord({ evidence_id: initial.source_record_id, worldline_id: binding.worldline_id })
+          : undefined;
+        return line?.status === 'active' && initial?.status === 'hypothesis' && source?.status === 'active';
+      },
+    });
+
     let active = true;
     let ready = false;
     let storageUncertain = false;
