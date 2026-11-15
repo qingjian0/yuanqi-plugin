@@ -1251,7 +1251,7 @@ export async function apply(ctx) {
             properties: {
               dimension: { type: 'string', required: true, enum: [...INITIAL_PERSONALITY_DIMENSIONS] },
               disposition: { type: 'string', required: true, enum: ['revise', 'disputed', 'retain_initial'] },
-              tendency: { type: 'string', required: true },
+              tendency: { type: 'string' },
               reasoning: { type: 'string', required: true },
               limitations: { type: 'string', required: true },
               reconciliation_record_ids: { type: 'array', required: true, items: { type: 'string' } },
@@ -1337,10 +1337,14 @@ export async function apply(ctx) {
             throw new TypeError('current-personality dimensions must be unique and complete');
           }
           seen.add(item.dimension);
-          for (const field of ['tendency', 'reasoning', 'limitations']) {
+          for (const field of ['reasoning', 'limitations']) {
             if (typeof item[field] !== 'string' || item[field].trim().length === 0 || item[field].length > 1200) {
               throw new TypeError('invalid current-personality dimension field: ' + field);
             }
+          }
+          if (item.disposition !== 'retain_initial' &&
+              (typeof item.tendency !== 'string' || item.tendency.trim().length === 0 || item.tendency.length > 1200)) {
+            throw new TypeError('revised or disputed dimensions require a bounded tendency');
           }
           if (!Array.isArray(item.reconciliation_record_ids) ||
               new Set(item.reconciliation_record_ids).size !== item.reconciliation_record_ids.length ||
@@ -1350,7 +1354,9 @@ export async function apply(ctx) {
           const original = initialDimensions.get(item.dimension);
           if (!original) throw new Error('the initial Bazi portrait is missing a required dimension');
           if (item.disposition === 'retain_initial') {
-            if (item.tendency.trim() !== original.tendency || item.reconciliation_record_ids.length !== 0) {
+            if ((item.tendency !== undefined &&
+                 (typeof item.tendency !== 'string' || item.tendency.trim() !== original.tendency)) ||
+                item.reconciliation_record_ids.length !== 0) {
               throw new Error('insufficiently supported dimensions must retain the exact initial Bazi tendency without revision references');
             }
             return {
