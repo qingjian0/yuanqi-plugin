@@ -137,7 +137,7 @@ test('YuanQi BirthProfile is created from YuanQi wake data, never from user birt
   assert.equal(profile.subject_kind, 'yuanqi');
   assert.equal(profile.birth_time, new Date(1793966400000).toISOString());
   assert.equal(profile.source_wake_event_ref, 'yuanqi-wake');
-  assert.equal(profile.bazi.status, 'pending');
+  assert.equal(profile.bazi.status, 'unavailable');
   assert.equal(profile.birth_location.status, 'unavailable');
   assert.equal(userTables.get('identities').has('user:primary'), false);
   await ctx.disposer();
