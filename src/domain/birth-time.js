@@ -91,7 +91,9 @@ export function deriveBirthTimeContext({ birth_time, birth_location } = {}) {
   const instant = new Date(birth_time);
   const location = birth_location ?? {};
   const timeZoneSource = ['host_location_provider', 'coordinate_lookup'].includes(location.time_zone_source)
-    ? location.time_zone_source : 'unavailable';
+    ? location.time_zone_source
+    : (typeof location.time_zone_id === 'string' && location.time_zone_id.length > 0
+      ? 'host_location_provider' : 'unavailable');
   if (location.status === 'unavailable') {
     return {
       status: 'unavailable', time_zone_id: null, time_zone_source: 'unavailable', local_datetime: null,
