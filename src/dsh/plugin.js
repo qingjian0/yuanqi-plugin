@@ -1301,11 +1301,16 @@ export async function apply(ctx) {
         }
         const reconciliations = new Map();
         const allSourceSessions = new Set();
+        const allCandidateEvidenceIds = new Set();
+        const allAssessmentIds = new Set();
+        const allBehaviorEventRefs = new Set();
         for (const id of reconciliationIds) {
           const found = worldlines.getEvidenceRecord({ evidence_id: id, worldline_id: binding.worldline_id });
           const record = found?.record;
           const provenance = record?.provenance;
           const sourceSessions = provenance?.session_ids;
+          const candidateIds = record?.content?.candidate_evidence_ids;
+          const recordedAssessmentIds = provenance?.assessment_ids;
           if (!found || found.status !== 'active' ||
               record.evidence_type !== 'yuanqi_experience_evidence_reconciliation' ||
               record.content?.protocol !== 'distinct-session-evidence-reconciliation-v1' ||
@@ -1313,11 +1318,89 @@ export async function apply(ctx) {
               provenance?.worldline_id !== binding.worldline_id ||
               !Array.isArray(sourceSessions) || sourceSessions.length < 3 ||
               new Set(sourceSessions).size !== sourceSessions.length ||
-              record.content?.session_count !== sourceSessions.length) {
+              record.content?.session_count !== sourceSessions.length ||
+              !Array.isArray(candidateIds) || candidateIds.length !== sourceSessions.length ||
+              new Set(candidateIds).size !== candidateIds.length ||
+              !Array.isArray(recordedAssessmentIds) || recordedAssessmentIds.length === 0 ||
+              new Set(recordedAssessmentIds).size !== recordedAssessmentIds.length) {
             throw new Error('each reconciliation record must be active, same-Worldline, and linked to the current Bazi initial portrait');
           }
           if (!sourceSessions.every(value => typeof value === 'string' && value.length > 0)) {
             throw new Error('reconciliation source Session IDs must be non-empty strings');
+          }
+          const observedSessions = new Set();
+          const expectedAssessmentIds = new Set();
+          for (const candidateId of candidateIds) {
+            if (allCandidateEvidenceIds.has(candidateId)) {
+              throw new Error('reconciliation records must not reuse candidate evidence');
+            }
+            const candidate = worldlines.getEvidenceRecord({
+              evidence_id: candidateId,
+              worldline_id: binding.worldline_id,
+            });
+            const candidateRecord = candidate?.record;
+            const candidateSession = candidateRecord?.provenance?.session_id;
+            if (!candidate || candidate.status !== 'active' ||
+                candidateRecord.evidence_type !== 'yuanqi_experience_candidate' ||
+                candidateRecord.provenance?.worldline_id !== binding.worldline_id ||
+                candidateRecord.provenance?.initial_personality_source_record_id !== initial.source_record_id ||
+                typeof candidateSession !== 'string' || !sourceSessions.includes(candidateSession) ||
+                observedSessions.has(candidateSession)) {
+              throw new Error('reconciliation candidate source is missing, stale, duplicated or outside its recorded Session set');
+            }
+            observedSessions.add(candidateSession);
+            const behaviorRefs = (candidateRecord.content?.event_refs ?? [])
+              .filter(ref => ref?.relation === 'observed_ai_behavior');
+            if (behaviorRefs.length === 0 || behaviorRefs.some(ref =>
+              ref.session_id !== candidateSession || !Number.isSafeInteger(ref.seq) || ref.seq < 0 ||
+              !['assistant/message', 'tool/call', 'tool/result'].includes(ref.event_type)) ||
+              !behaviorRefs.some(ref => candidateRecord.source_event_ref === ref.session_id + ':seq:' + ref.seq)) {
+              throw new Error('reconciliation candidate behavior references do not match immutable Session provenance');
+            }
+            for (const ref of behaviorRefs) {
+              const eventKey = ref.session_id + ':seq:' + ref.seq;
+              if (allBehaviorEventRefs.has(eventKey)) {
+                throw new Error('reconciliation records must not reuse behavior event references');
+              }
+              allBehaviorEventRefs.add(eventKey);
+            }
+            const links = candidateRecord.content?.dimension_links;
+            if (!Array.isArray(links) || links.length === 0) {
+              throw new Error('reconciliation candidate has no assessed personality dimensions');
+            }
+            const linkedDimensions = new Set();
+            for (const link of links) {
+              if (!INITIAL_PERSONALITY_DIMENSIONS.includes(link.dimension) || linkedDimensions.has(link.dimension)) {
+                throw new Error('reconciliation candidate has invalid or duplicate dimension links');
+              }
+              linkedDimensions.add(link.dimension);
+              const assessmentId = 'yuanqi:experience-assessment:' + candidateId + ':' + link.dimension;
+              const assessment = worldlines.getEvidenceAssessment({
+                assessment_id: assessmentId,
+                worldline_id: binding.worldline_id,
+              });
+              if (!assessment || assessment.status !== 'active' ||
+                  assessment.assessment.evidence_id !== candidateId ||
+                  assessment.assessment.assessor_kind !== 'model') {
+                throw new Error('reconciliation candidate has a missing, stale or non-model dimension assessment');
+              }
+              expectedAssessmentIds.add(assessmentId);
+            }
+            allCandidateEvidenceIds.add(candidateId);
+          }
+          if (observedSessions.size !== sourceSessions.length ||
+              sourceSessions.some(sourceSession => !observedSessions.has(sourceSession))) {
+            throw new Error('reconciliation Session provenance does not match its immutable candidate records');
+          }
+          if (expectedAssessmentIds.size !== recordedAssessmentIds.length ||
+              recordedAssessmentIds.some(assessmentId => !expectedAssessmentIds.has(assessmentId))) {
+            throw new Error('reconciliation assessment provenance does not match active candidate assessments');
+          }
+          for (const assessmentId of recordedAssessmentIds) {
+            if (allAssessmentIds.has(assessmentId)) {
+              throw new Error('reconciliation records must not reuse model assessment records');
+            }
+            allAssessmentIds.add(assessmentId);
           }
           for (const sourceSession of sourceSessions) {
             if (allSourceSessions.has(sourceSession)) {
