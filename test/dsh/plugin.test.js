@@ -799,6 +799,7 @@ test('experience candidate tool records bounded behavior evidence without copyin
   } };
   const storage = fakeStorageDomain();
   let experienceObservationCount = 0;
+  let experienceObservationDisposals = 0;
   const ctx = context(storage, {
     sessionQuery: {
       async listSessions() { return []; },
@@ -809,7 +810,7 @@ test('experience candidate tool records bounded behavior evidence without copyin
         return {
           header: { id: sessionId }, inheritedEventCount: 0,
           events: [directContext, ...behaviorEvents],
-          [Symbol.dispose]() {},
+          [Symbol.dispose]() { experienceObservationDisposals++; },
         };
       },
     },
@@ -868,6 +869,7 @@ test('experience candidate tool records bounded behavior evidence without copyin
   assert.equal(JSON.stringify(record).includes('private tool result'), false);
   assert.equal(record.provenance.initial_personality_source_record_id !== undefined, true);
   assert.equal(experienceObservationCount, 1, 'all selected seqs must share one Session observation');
+  assert.equal(experienceObservationDisposals, 1, 'the Session observation must be released after capture');
   await ctx.disposer();
 });
 
@@ -880,6 +882,8 @@ test('experience candidate tool rejects injected user context and unpaired tool 
   ]);
   const storage = fakeStorageDomain();
   let rejectedCaseObservationCount = 0;
+  let rejectedCaseObservationDisposals = 0;
+  let rejectedCaseInheritedCount = 0;
   const ctx = context(storage, {
     sessionQuery: {
       async listSessions() { return []; },
@@ -888,9 +892,9 @@ test('experience candidate tool rejects injected user context and unpaired tool 
         assert.deepEqual(options, { projectionMode: 'none' });
         rejectedCaseObservationCount++;
         return {
-          header: { id: sessionId }, inheritedEventCount: 0,
+          header: { id: sessionId }, inheritedEventCount: rejectedCaseInheritedCount,
           events: [...events.values()],
-          [Symbol.dispose]() {},
+          [Symbol.dispose]() { rejectedCaseObservationDisposals++; },
         };
       },
     },
@@ -922,12 +926,18 @@ test('experience candidate tool rejects injected user context and unpaired tool 
   await assert.rejects(tool.definition.execute({ ...base, context_event_seqs: [1] }, {
     callId: 'injected-context-call', agent, signal: new AbortController().signal,
   }), /direct human user/);
+  rejectedCaseInheritedCount = 4;
+  await assert.rejects(tool.definition.execute(base, {
+    callId: 'inherited-behavior-call', agent, signal: new AbortController().signal,
+  }), /missing, inherited or outside/);
+  rejectedCaseInheritedCount = 0;
   await assert.rejects(tool.definition.execute({ ...base, behavior_event_seqs: [2], dimension_links: [{
     dimension: 'behavior', relation: 'insufficient', rationale: '未配对工具结果。', behavior_event_seqs: [2],
   }] }, {
     callId: 'unpaired-result-call', agent, signal: new AbortController().signal,
   }), /matching tool\/call/);
-  assert.equal(rejectedCaseObservationCount, 2, 'each candidate attempt must use one Session observation');
+  assert.equal(rejectedCaseObservationCount, 3, 'each candidate attempt must use one Session observation');
+  assert.equal(rejectedCaseObservationDisposals, 3, 'failed validations must also release their Session observation');
   await ctx.disposer();
 });
 
