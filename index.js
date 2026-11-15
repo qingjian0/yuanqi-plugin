@@ -1,6 +1,15 @@
 // YuanQi package entry point: implemented Cordis host integration and domain capabilities only.
 export {
   createSubjectStore,
+  deriveBirthTimeContext,
+  apparentSunLongitudeDegrees,
+  deriveSolarTermContext,
+  SOLAR_TERMS,
+  BAZI_METHODOLOGY,
+  calculateBaziPillars,
+  BAZI_HIDDEN_STEMS,
+  deriveInnateBaseline,
+  resolveBirthTimeZone,
   createWorldlineStore,
   SELF_MODEL_CENTER_IDS,
   openSubjectDomains,

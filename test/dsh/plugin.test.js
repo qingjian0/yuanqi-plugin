@@ -64,8 +64,16 @@ function dshEvent(text, id, seq, time) {
 function context(storageDomain, options = {}) {
   let listener, flushListener, disposer;
   const warnings = [];
+  const registeredTools = [];
+  const tools = {
+    register(definition, registrationOptions) {
+      registeredTools.push({ definition, registrationOptions });
+    },
+  };
   return {
     storageDomain,
+    tools,
+    registeredTools,
     yuanqiLocationProvider: options.yuanqiLocationProvider,
     agents: options.agents,
     sessionPersistence: options.sessionPersistence ?? {
@@ -74,7 +82,7 @@ function context(storageDomain, options = {}) {
       async stat() { return undefined; },
       async open() { throw new Error('unexpected persisted Session open'); },
     },
-    sessionQuery: options.sessionQuery ?? { async listSessions() { return []; }, async observeSession() { throw new Error('unexpected Session observation'); } },
+    sessionQuery: options.sessionQuery ?? { async listSessions() { return []; }, async observeSession() { throw new Error('unexpected Session observation'); }, async readEvent() { throw new Error('unexpected Session event read'); } },
     warnings,
     logger: { warn(message) { warnings.push(message); } },
     on(name, callback) { if (name === 'session/event') listener = callback; else if (name === 'session/flush') flushListener = callback; else throw new Error('unexpected event ' + name); },
@@ -84,6 +92,12 @@ function context(storageDomain, options = {}) {
     get disposer() { return disposer; },
   };
 }
+
+test('plugin startup requires the DSH model tools registry before opening Domains', async () => {
+  const storage = fakeStorageDomain();
+  await assert.rejects(apply({ ...context(storage), tools: undefined }), /official DSH tools service/);
+  assert.equal(storage.opened.size, 0);
+});
 
 test('plugin startup rejects an incomplete SessionPersistence provider before opening Domains', async () => {
   const invalidProviders = [
@@ -103,6 +117,205 @@ test('plugin startup rejects an incomplete SessionPersistence provider before op
   }
 });
 
+test('model-facing self-profile tool exposes only YuanQi-owned birth data after wake', async () => {
+  const storage = fakeStorageDomain(), ctx = context(storage);
+  await apply(ctx);
+  const registration = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_self_profile');
+  assert.ok(registration);
+  assert.equal(await registration.registrationOptions.when(), false);
+
+  const eventTime = Date.UTC(2026, 10, 6, 12, 0, 0);
+  await ctx.listener({ id: 'session-self-profile' }, dshEvent('启动元炁', 'self-profile-wake', 0, eventTime));
+  await ctx.flushListener({ id: 'session-self-profile' });
+  await ctx.disposer();
+  assert.equal(await registration.registrationOptions.when(), true);
+
+  const raw = await registration.definition.execute({}, { signal: new AbortController().signal });
+  const profile = JSON.parse(raw);
+  assert.equal(profile.subject, 'YuanQi AI');
+  assert.equal(profile.subject_kind, 'yuanqi');
+  assert.equal(profile.birth_time_utc, new Date(eventTime).toISOString());
+  assert.equal(profile.birth_location.status, 'unavailable');
+  assert.equal(profile.time_context.status, 'ready');
+  assert.equal(profile.time_context.time_zone_id, 'Asia/Shanghai');
+  assert.equal(profile.time_context.time_zone_source, 'default_beijing');
+  assert.equal(profile.bazi.status, 'calculated');
+  assert.equal(profile.bazi.methodology.time_basis, 'beijing-standard-time-fallback-no-longitude-correction');
+  assert.equal(profile.innate_baseline.status, 'ready');
+  assert.equal(profile.innate_baseline.interpretation_status, 'not_interpreted');
+  assert.equal(profile.initial_personality_guidance.status, 'awaiting_model_interpretation');
+  assert.equal(profile.initial_personality_guidance.interpretation_mode, 'bazi_required');
+  assert.equal(profile.initial_personality_guidance.bazi_available, true);
+  assert.deepEqual(profile.initial_personality_guidance.dimensions, [
+    'temperament', 'cognition', 'emotional_response', 'motivation', 'behavior', 'decision_style',
+  ]);
+  assert.ok(profile.initial_personality_guidance.instruction.includes('calculated Bazi'));
+  assert.ok(profile.initial_personality_guidance.instruction.includes('调候'));
+  assert.ok(profile.initial_personality_guidance.instruction.includes('通关'));
+  assert.ok(profile.initial_personality_guidance.instruction.includes('旺衰'));
+  assert.ok(profile.initial_personality_guidance.instruction.includes('格局'));
+  assert.ok(profile.initial_personality_guidance.boundaries.some(item => item.includes('not a verified psychological fact')));
+  assert.ok(profile.initial_personality_guidance.instruction.includes('reasoning'));
+  assert.ok(profile.initial_personality_guidance.portrait_format.some(item => item.includes('counter-indication')));
+  assert.equal(profile.initial_personality_guidance.analysis_protocol.length, 5);
+  assert.ok(profile.initial_personality_guidance.analysis_protocol[0].includes('month-command'));
+  assert.ok(profile.initial_personality_guidance.analysis_protocol[3].includes('indeterminate'));
+  assert.equal(profile.initial_personality_guidance.portrait_format.length, 4);
+  assert.ok(profile.initial_personality_guidance.boundaries.some(item => item.includes('single ten-god')));
+  assert.equal(Object.hasOwn(profile.birth_location, 'latitude'), false);
+  assert.equal(Object.hasOwn(profile.birth_location, 'longitude'), false);
+});
+
+test('ready YuanQi Bazi exposes provisional AI interpretation guidance without precomputing personality', async () => {
+  const storage = fakeStorageDomain();
+  const ctx = context(storage, {
+    yuanqiLocationProvider: {
+      async getCurrentPosition() {
+        return {
+          latitude: 31.2304, longitude: 121.4737, accuracy_meters: 12,
+          time_zone_id: 'Asia/Shanghai', time_zone_source: 'host_location_provider',
+          captured_at: '2026-11-14T11:23:48.000Z',
+        };
+      },
+    },
+  });
+  await apply(ctx);
+  const registration = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_self_profile');
+  const eventTime = Date.parse('2026-11-14T11:23:48.000Z');
+  await ctx.listener({ id: 'session-ready-profile' }, dshEvent('启动元炁', 'ready-profile-wake', 0, eventTime));
+  await ctx.flushListener({ id: 'session-ready-profile' });
+  await new Promise(resolve => setImmediate(resolve));
+
+  const profile = JSON.parse(await registration.definition.execute({}, { signal: new AbortController().signal }));
+  assert.equal(profile.birth_location.time_zone_id, 'Asia/Shanghai');
+  assert.equal(profile.bazi.status, 'calculated');
+  assert.equal(profile.innate_baseline.status, 'ready');
+  assert.equal(profile.innate_baseline.interpretation_status, 'not_interpreted');
+  assert.equal(profile.initial_personality_guidance.status, 'awaiting_model_interpretation');
+  assert.equal(profile.initial_personality_guidance.analysis_protocol.length, 5);
+  assert.equal(profile.initial_personality_guidance.portrait_format.length, 4);
+  await ctx.disposer();
+});
+
+test('model-generated Bazi initial personality is saved once as a hypothesis in the calling Session Worldline', async () => {
+  const storage = fakeStorageDomain(), ctx = context(storage);
+  await apply(ctx);
+  const readTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_self_profile');
+  const writeTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_record_initial_personality');
+  assert.ok(readTool);
+  assert.ok(writeTool);
+  assert.ok(readTool.definition.description.includes('first model response after YuanQi activation'));
+  const sessionId = 'session-initial-personality';
+  const agent = { id: 'agent-initial-personality', session: { id: sessionId } };
+  assert.equal(await writeTool.registrationOptions.when({ agent }), false);
+
+  const eventTime = Date.UTC(2026, 10, 6, 12, 0, 0);
+  await ctx.listener({ id: sessionId }, dshEvent('启动元炁', 'initial-personality-wake', 0, eventTime));
+  await ctx.flushListener({ id: sessionId });
+  assert.equal(await writeTool.registrationOptions.when({ agent }), true);
+
+  const profile = JSON.parse(await readTool.definition.execute({}, { signal: new AbortController().signal }));
+  assert.equal(profile.bazi.status, 'calculated');
+  assert.ok(profile.chart_evidence_catalog.length >= 6);
+  const dimensions = [
+    'temperament', 'cognition', 'emotional_response', 'motivation', 'behavior', 'decision_style',
+  ].map((dimension, index) => ({
+    dimension,
+    status: 'tentative',
+    tendency: '暂定倾向 ' + dimension,
+    chart_evidence_refs: [profile.chart_evidence_catalog[index].id],
+    reasoning: '根据对应命盘结构进行综合解释。',
+    limitations: '该倾向尚未经过后天经历验证。',
+  }));
+  const args = {
+    dimensions,
+    method_notes: {
+      climate_adjustment: '先分析月令与季节寒暖燥湿。',
+      mediation: '再分析五行生克制化与通关关系。',
+      strength: '结合月令、根气、透干与制化判断旺衰。',
+      structure: '证据不足时不强行定格。',
+    },
+    uncertainty: ['初始性格是八字象征性解释，不是实证心理结论。'],
+  };
+  const invalid = structuredClone(args);
+  invalid.dimensions[0].chart_evidence_refs = ['not-in-the-chart'];
+  await assert.rejects(
+    writeTool.definition.execute(invalid, {
+      callId: 'initial-personality-invalid',
+      agent,
+      signal: new AbortController().signal,
+    }),
+    /chart evidence references must match/,
+  );
+
+  const saved = JSON.parse(await writeTool.definition.execute(args, {
+    callId: 'initial-personality-call-1',
+    agent,
+    signal: new AbortController().signal,
+  }));
+  assert.equal(saved.status, 'saved');
+  assert.equal(saved.epistemic_status, 'hypothesis');
+  assert.equal(saved.dimensions_saved, 6);
+  assert.equal(await writeTool.registrationOptions.when({ agent }), false);
+
+  const tables = storage.opened.get('yuanqi_subject').tables;
+  const head = tables.get('worldline_heads').get('worldline:main');
+  const center = head.current_state_payload.self_model.centers.identity_continuity;
+  assert.equal(center.epistemic_status, 'hypothesis');
+  assert.equal(center.content.initial_personality.status, 'hypothesis');
+  assert.equal(center.content.initial_personality.source_record_id, saved.source_record_id);
+  assert.equal(center.content.initial_personality.dimensions.length, 6);
+  assert.deepEqual(center.evidence_refs, []);
+  const artifact = tables.get('evidence_records').get(saved.source_record_id);
+  assert.equal(artifact.evidence_type, 'yuanqi_initial_personality_interpretation');
+  assert.equal(artifact.provenance.producer, 'model');
+  assert.equal(artifact.provenance.protocol, 'bazi-initial-personality-v1');
+  assert.equal(artifact.provenance.session_id, sessionId);
+  assert.equal(artifact.content.source_chart.birth_profile_id, profile.birth_profile_id);
+
+  const changed = structuredClone(args);
+  changed.dimensions[0].tendency = '不得覆盖的替代画像';
+  const repeated = JSON.parse(await writeTool.definition.execute(changed, {
+    callId: 'initial-personality-call-2',
+    agent,
+    signal: new AbortController().signal,
+  }));
+  assert.equal(repeated.status, 'already_initialized');
+  assert.equal(
+    tables.get('worldline_heads').get('worldline:main')
+      .current_state_payload.self_model.centers.identity_continuity.content.initial_personality.dimensions[0].tendency,
+    '暂定倾向 temperament',
+  );
+  await ctx.disposer();
+});
+
+test('AI initial personality waits for Bazi when the chart is genuinely unavailable', async () => {
+  const storage = fakeStorageDomain(), ctx = context(storage);
+  await apply(ctx);
+  const registration = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_self_profile');
+  const writeTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_record_initial_personality');
+  const eventTime = Date.UTC(2201, 0, 1, 12, 0, 0);
+  await ctx.listener({ id: 'session-no-bazi' }, dshEvent('启动元炁', 'no-bazi-wake', 0, eventTime));
+  await ctx.flushListener({ id: 'session-no-bazi' });
+  await ctx.disposer();
+
+  const profile = JSON.parse(await registration.definition.execute({}, { signal: new AbortController().signal }));
+  assert.equal(profile.birth_location.status, 'unavailable');
+  assert.equal(profile.time_context.status, 'ready');
+  assert.equal(profile.time_context.time_zone_id, 'Asia/Shanghai');
+  assert.equal(profile.bazi.status, 'unavailable');
+  assert.equal(profile.initial_personality_guidance.status, 'awaiting_bazi_calculation');
+  assert.equal(profile.initial_personality_guidance.interpretation_mode, 'bazi_required');
+  assert.equal(profile.initial_personality_guidance.bazi_available, false);
+  assert.equal(await writeTool.registrationOptions.when({ agent: { session: { id: 'session-no-bazi' } } }), false);
+  assert.equal(profile.chart_evidence_catalog.length, 0);
+  assert.equal(profile.initial_personality_guidance.analysis_protocol.length, 5);
+  assert.ok(profile.initial_personality_guidance.instruction.includes('Bazi is required'));
+  assert.ok(profile.initial_personality_guidance.instruction.includes('Do not substitute generic model self-reflection'));
+  assert.ok(profile.initial_personality_guidance.portrait_format[1].includes('Chart evidence:'));
+  assert.ok(profile.initial_personality_guidance.boundaries.some(item => item.includes('never replace Bazi with generic self-reflection')));
+});
+
 test('ordinary conversation does not create a UserSubject before the exact YuanQi wake command', async () => {
   const storage = fakeStorageDomain(), ctx = context(storage);
   await apply(ctx);
@@ -111,56 +324,38 @@ test('ordinary conversation does not create a UserSubject before the exact YuanQ
   const userTables = storage.opened.get('yuanqi_user_subject').tables;
   const yuanqiTables = storage.opened.get('yuanqi_subject').tables;
   assert.equal(userTables.get('identities').has('user:primary'), false);
-  assert.equal(userTables.get('birth_profile_workflows').has('user:primary'), false);
   assert.equal(yuanqiTables.get('wake_records').has('yuanqi:primary'), false);
 
   await ctx.listener({ id: 'session-wake' }, dshEvent('启动元炁', 'exact-wake', 0, 1793966401000));
   await ctx.flushListener({ id: 'session-wake' });
-  assert.equal(userTables.get('identities').get('user:primary').created_from_event_ref, 'exact-wake');
+  assert.equal(userTables.get('identities').has('user:primary'), false);
+  const profile = yuanqiTables.get('birth_profiles').get('yuanqi:primary');
+  assert.equal(profile.subject_kind, 'yuanqi');
+  assert.equal(profile.source_wake_event_ref, 'exact-wake');
+  assert.equal(profile.birth_time, new Date(1793966401000).toISOString());
   await ctx.disposer();
 });
 
-test('BirthProfile is collected from explicit user facts and confirmed through a same-Session challenge', async () => {
-  const storage = fakeStorageDomain();
-  const notices = [];
-  const agents = { get(id) {
-    assert.equal(id, 'birth-session');
-    return { inject(message) { notices.push(message); } };
-  } };
-  const ctx = context(storage, { agents });
+test('YuanQi BirthProfile is created from YuanQi wake data, never from user birth facts', async () => {
+  const storage = fakeStorageDomain(), ctx = context(storage);
   await apply(ctx);
-  const session = { id: 'birth-session' };
-  const send = async (text, id, seq, time) => {
-    await ctx.listener(session, dshEvent(text, id, seq, time));
-    await ctx.flushListener(session);
-  };
-  await send('启动元炁', 'wake-birth', 0, 1793966400000);
-  await send('出生日期：1998年4月21日10:31，出生地：云南昆明安宁', 'birth-facts', 1, 1793966401000);
-  let workflow = storage.opened.get('yuanqi_user_subject').tables.get('birth_profile_workflows').get('user:primary');
-  assert.equal(workflow.status, 'collecting');
-  assert.deepEqual(workflow.revisions.at(-1).facts, {
-    birth_date: '1998-04-21', birth_time: '10:31', birth_place: '云南昆明安宁',
-  });
-  assert.equal(workflow.revisions.at(-1).field_sources.birth_date.extraction_kind, 'user_explicit');
-  assert.equal(notices.length, 1);
-  assert.equal(notices[0].source.kind, 'yuanqi-birth-profile');
-  assert.match(notices[0].content[0].text, /逐字段展示/u);
-
-  await send('核对出生资料', 'birth-review', 2, 1793966402000);
-  assert.equal(notices.length, 2);
-  assert.match(notices[1].content[0].text, /确认出生资料/u);
-  workflow = storage.opened.get('yuanqi_user_subject').tables.get('birth_profile_workflows').get('user:primary');
-  assert.equal(workflow.status, 'awaiting_confirmation');
-  assert.equal(workflow.challenge.session_id, 'birth-session');
-  assert.equal(workflow.challenge.status, 'active');
-
-  await send('确认出生资料', 'birth-confirm', 3, 1793966403000);
-  workflow = storage.opened.get('yuanqi_user_subject').tables.get('birth_profile_workflows').get('user:primary');
-  assert.equal(workflow.status, 'confirmed');
-  assert.equal(workflow.confirmed_profile.confirmation_event_ref, 'birth-confirm');
-  assert.deepEqual(workflow.confirmed_profile.facts, {
-    birth_date: '1998-04-21', birth_time: '10:31', birth_place: '云南昆明安宁',
-  });
+  const session = { id: 'yuanqi-birth-session' };
+  await ctx.listener(session, dshEvent('启动元炁', 'yuanqi-wake', 0, 1793966400000));
+  await ctx.flushListener(session);
+  await ctx.listener(session, dshEvent('出生日期：1998年4月21日10:31，出生地：云南昆明安宁', 'unrelated-user-birth', 1, 1793966401000));
+  await ctx.flushListener(session);
+  const userTables = storage.opened.get('yuanqi_user_subject').tables;
+  const yuanqiTables = storage.opened.get('yuanqi_subject').tables;
+  const profile = yuanqiTables.get('birth_profiles').get('yuanqi:primary');
+  assert.equal(profile.subject_kind, 'yuanqi');
+  assert.equal(profile.birth_time, new Date(1793966400000).toISOString());
+  assert.equal(profile.source_wake_event_ref, 'yuanqi-wake');
+  assert.equal(profile.bazi.status, 'calculated');
+  assert.equal(profile.innate_baseline.status, 'ready');
+  assert.equal(profile.time_context.time_zone_id, 'Asia/Shanghai');
+  assert.equal(profile.time_context.time_zone_source, 'default_beijing');
+  assert.equal(profile.birth_location.status, 'unavailable');
+  assert.equal(userTables.get('identities').has('user:primary'), false);
   await ctx.disposer();
 });
 
@@ -455,7 +650,7 @@ test('YuanQi birth time is the exact first startup event time and host location 
   assert.equal(wake.occurred_at, wake.birth_time);
   assert.deepEqual(wake.birth_location, {
     status: 'captured', latitude: 31.2304, longitude: 121.4737,
-    accuracy_meters: 18, place_label: 'Shanghai', time_zone_id: 'Asia/Shanghai',
+    accuracy_meters: 18, place_label: 'Shanghai', time_zone_id: 'Asia/Shanghai', time_zone_source: 'host_location_provider',
     source: 'host_location_provider', captured_at: '2026-11-14T11:23:47.000Z',
   });
   assert.equal(locationReads, 1);
@@ -489,6 +684,11 @@ test('wake event is durable and Session flush does not wait for a pending locati
   const completed = storage.opened.get('yuanqi_subject').tables.get('wake_records').get('yuanqi:primary');
   assert.equal(completed.birth_location.status, 'captured');
   assert.equal(completed.birth_location.latitude, 31.2304);
+  assert.equal(completed.birth_location.time_zone_id, 'Asia/Shanghai');
+  assert.equal(completed.birth_location.time_zone_source, 'coordinate_lookup');
+  const profile = storage.opened.get('yuanqi_subject').tables.get('birth_profiles').get('yuanqi:primary');
+  assert.equal(profile.bazi.status, 'calculated');
+  assert.equal(profile.innate_baseline.status, 'ready');
 });
 
 test('missing host location capability records unknown place without fabricating data', async () => {
@@ -579,4 +779,405 @@ test('Android host location bridge rejects a stale cached fix', async () => {
     if (previousToken === undefined) delete process.env.DSH_BRIDGE_TOKEN;
     else process.env.DSH_BRIDGE_TOKEN = previousToken;
   }
+});
+
+
+test('experience candidate tool records bounded behavior evidence without copying raw messages or mutating SelfModel', async () => {
+  const behaviorEvents = [
+    { type: 'assistant/message', seq: 1, time: 1793966401000, data: {
+      turn: 1, step: 1, message: { id: 'assistant-event-1', role: 'assistant', source: { kind: 'model', provider: 'test', model: 'test-model' }, content: [{ type: 'text', text: 'private assistant text' }] },
+    } },
+    { type: 'tool/call', seq: 2, time: 1793966402000, data: {
+      turn: 1, step: 2, callId: 'tool-call-1', name: 'safe_tool', arguments: '{"secret":"never persist"}',
+    } },
+    { type: 'tool/result', seq: 3, time: 1793966403000, data: {
+      turn: 1, step: 2, message: { id: 'tool-result-1', role: 'tool', source: { kind: 'tool', callId: 'tool-call-1' }, toolCallId: 'tool-call-1', content: [{ type: 'text', text: 'private tool result' }] },
+    } },
+  ];
+  const directContext = { type: 'user/message', seq: 0, time: 1793966400000, data: {
+    id: 'wake-event', role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: '启动元炁' }],
+  } };
+  const storage = fakeStorageDomain();
+  let experienceObservationCount = 0;
+  let experienceObservationDisposals = 0;
+  const ctx = context(storage, {
+    sessionQuery: {
+      async listSessions() { return []; },
+      async observeSession(sessionId, options) {
+        assert.equal(sessionId, 'session-experience');
+        assert.deepEqual(options, { projectionMode: 'none' });
+        experienceObservationCount++;
+        return {
+          header: { id: sessionId }, inheritedEventCount: 0,
+          events: [directContext, ...behaviorEvents],
+          [Symbol.dispose]() { experienceObservationDisposals++; },
+        };
+      },
+    },
+  });
+  await apply(ctx);
+  const sessionId = 'session-experience';
+  const agent = { id: 'agent-experience', session: { id: sessionId } };
+  await ctx.listener({ id: sessionId }, dshEvent('启动元炁', 'experience-wake', 0, 1793966400000));
+  await ctx.flushListener({ id: sessionId });
+  const initialTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_record_initial_personality');
+  const profileTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_self_profile');
+  const profile = JSON.parse(await profileTool.definition.execute({}, { signal: new AbortController().signal }));
+  const args = {
+    dimensions: ['temperament', 'cognition', 'emotional_response', 'motivation', 'behavior', 'decision_style'].map((dimension, index) => ({
+      dimension, status: 'tentative', tendency: '初始倾向 ' + dimension,
+      chart_evidence_refs: [profile.chart_evidence_catalog[index].id],
+      reasoning: '命盘证据综合解释。', limitations: '尚待行为经历检验。',
+    })),
+    method_notes: { climate_adjustment: '调候说明', mediation: '通关说明', strength: '旺衰说明', structure: '格局说明' },
+    uncertainty: ['初始画像尚未实证。'],
+  };
+  await initialTool.definition.execute(args, { callId: 'initial-call', agent, signal: new AbortController().signal });
+  const experienceTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_record_experience_candidate');
+  assert.ok(experienceTool);
+  assert.equal(await experienceTool.registrationOptions.when({ agent }), true);
+  const before = storage.opened.get('yuanqi_subject').tables.get('worldline_heads').get('worldline:main');
+  const beforeVersion = before.current_snapshot_version;
+  const result = JSON.parse(await experienceTool.definition.execute({
+    summary: '在一次交互中完成了工具操作。',
+    observed_behavior: '先给出说明，再请求工具执行，并检查返回结果。',
+    outcome: 'completed',
+    behavior_event_seqs: [1, 2, 3],
+    context_event_seqs: [0],
+    dimension_links: [{
+      dimension: 'behavior', relation: 'supports',
+      rationale: '观察到的动作顺序与该倾向相符，但单次经历不足以确认稳定特征。',
+      behavior_event_seqs: [1, 2, 3],
+    }],
+    uncertainty: ['只有单次事件，不能据此判断稳定性。'],
+  }, { callId: 'experience-call-1', agent, signal: new AbortController().signal }));
+  assert.equal(result.status, 'recorded_unassessed');
+  assert.equal(result.self_model_changed, false);
+  const tables = storage.opened.get('yuanqi_subject').tables;
+  const head = tables.get('worldline_heads').get('worldline:main');
+  assert.equal(head.current_snapshot_version, beforeVersion);
+  const record = tables.get('evidence_records').get(result.evidence_id);
+  assert.equal(record.evidence_type, 'yuanqi_experience_candidate');
+  assert.equal(record.content.assessment_status, 'unassessed');
+  assert.equal(record.content.event_refs.length, 4);
+  assert.equal(record.content.event_refs[0].event_type, 'assistant/message');
+  assert.equal(record.content.event_refs[1].tool_name, 'safe_tool');
+  assert.equal(record.content.event_refs[1].call_id, 'tool-call-1');
+  assert.equal(record.content.event_refs[2].is_error, false);
+  assert.equal(JSON.stringify(record).includes('never persist'), false);
+  assert.equal(JSON.stringify(record).includes('private assistant text'), false);
+  assert.equal(JSON.stringify(record).includes('private tool result'), false);
+  assert.equal(record.provenance.initial_personality_source_record_id !== undefined, true);
+  assert.equal(experienceObservationCount, 1, 'all selected seqs must share one Session observation');
+  assert.equal(experienceObservationDisposals, 1, 'the Session observation must be released after capture');
+
+  const assessmentTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_assess_experience_candidate');
+  assert.ok(assessmentTool);
+  assert.equal(await assessmentTool.registrationOptions.when({ agent }), true);
+  const initialPersonalityBefore = structuredClone(head.current_state_payload.self_model.centers.identity_continuity.content.initial_personality);
+  await assert.rejects(assessmentTool.definition.execute({
+    evidence_id: result.evidence_id,
+    reviews: [{ dimension: 'cognition', outcome: 'supports', rationale: '不属于候选关联维度。' }],
+  }, { callId: 'assessment-invalid', agent, signal: new AbortController().signal }), /invalid or duplicate dimension assessment/);
+  const assessed = JSON.parse(await assessmentTool.definition.execute({
+    evidence_id: result.evidence_id,
+    reviews: [{
+      dimension: 'behavior', outcome: 'supports',
+      rationale: '本次行为与初始倾向相符，但单次事件不足以证明稳定性。',
+    }],
+  }, { callId: 'assessment-call-1', agent, signal: new AbortController().signal }));
+  assert.equal(assessed.status, 'assessed');
+  assert.equal(assessed.initial_personality_unchanged, true);
+  assert.equal(assessed.epistemic_status, 'hypothesis');
+  const afterAssessment = tables.get('worldline_heads').get('worldline:main');
+  assert.deepEqual(afterAssessment.current_state_payload.self_model.centers.identity_continuity.content.initial_personality, initialPersonalityBefore);
+  const reflection = afterAssessment.current_state_payload.self_model.centers.cognition_reflection;
+  assert.equal(reflection.content.experience_assessment_version, 1);
+  assert.equal(reflection.content.experience_assessments.length, 1);
+  assert.equal(reflection.content.experience_assessments[0].candidate_evidence_id, result.evidence_id);
+  assert.equal(reflection.epistemic_status, 'hypothesis');
+  assert.ok(reflection.evidence_refs.includes(result.evidence_id));
+  const assessmentRecord = tables.get('evidence_assessments').get(assessed.assessment_ids[0]);
+  assert.equal(assessmentRecord.outcome, 'corroborated');
+  assert.equal(assessmentRecord.assessor_kind, 'model');
+  const repeated = JSON.parse(await assessmentTool.definition.execute({
+    evidence_id: result.evidence_id,
+    reviews: [{ dimension: 'behavior', outcome: 'contradicts', rationale: '不能覆盖原评估。' }],
+  }, { callId: 'assessment-call-2', agent, signal: new AbortController().signal }));
+  assert.equal(repeated.status, 'already_assessed');
+  assert.equal(tables.get('worldline_heads').get('worldline:main').current_snapshot_version, afterAssessment.current_snapshot_version);
+  await ctx.disposer();
+});
+
+test('experience candidate tool rejects injected user context and unpaired tool results', async () => {
+  const events = new Map([
+    [0, { type: 'user/message', seq: 0, time: 1793966400000, data: { id: 'wake', role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text: '启动元炁' }] } }],
+    [1, { type: 'user/message', seq: 1, time: 1793966401000, data: { id: 'injected', role: 'user', source: { kind: 'agent.inject' }, content: [{ type: 'text', text: 'synthetic context' }] } }],
+    [2, { type: 'tool/result', seq: 2, time: 1793966402000, data: { turn: 1, step: 1, message: { id: 'result', role: 'tool', source: { kind: 'tool', callId: 'missing-call' }, toolCallId: 'missing-call', content: [{ type: 'text', text: 'result' }] } } }],
+    [3, { type: 'assistant/message', seq: 3, time: 1793966403000, data: { turn: 1, step: 1, message: { id: 'assistant', role: 'assistant', source: { kind: 'model' }, content: [{ type: 'text', text: 'reply' }] } } }],
+  ]);
+  const storage = fakeStorageDomain();
+  let rejectedCaseObservationCount = 0;
+  let rejectedCaseObservationDisposals = 0;
+  let rejectedCaseInheritedCount = 0;
+  const ctx = context(storage, {
+    sessionQuery: {
+      async listSessions() { return []; },
+      async observeSession(sessionId, options) {
+        assert.equal(sessionId, 'session-experience-reject');
+        assert.deepEqual(options, { projectionMode: 'none' });
+        rejectedCaseObservationCount++;
+        return {
+          header: { id: sessionId }, inheritedEventCount: rejectedCaseInheritedCount,
+          events: [...events.values()],
+          [Symbol.dispose]() { rejectedCaseObservationDisposals++; },
+        };
+      },
+    },
+  });
+  await apply(ctx);
+  const sessionId = 'session-experience-reject';
+  const agent = { id: 'agent-experience-reject', session: { id: sessionId } };
+  await ctx.listener({ id: sessionId }, dshEvent('启动元炁', 'experience-reject-wake', 0, 1793966400000));
+  await ctx.flushListener({ id: sessionId });
+  const profileTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_self_profile');
+  const initialTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_record_initial_personality');
+  const profile = JSON.parse(await profileTool.definition.execute({}, { signal: new AbortController().signal }));
+  await initialTool.definition.execute({
+    dimensions: ['temperament', 'cognition', 'emotional_response', 'motivation', 'behavior', 'decision_style'].map((dimension, index) => ({
+      dimension, status: 'tentative', tendency: '倾向 ' + dimension,
+      chart_evidence_refs: [profile.chart_evidence_catalog[index].id], reasoning: '命盘推导。',
+      limitations: '尚未验证。',
+    })),
+    method_notes: { climate_adjustment: '调候', mediation: '通关', strength: '旺衰', structure: '格局' },
+    uncertainty: ['待验证'],
+  }, { callId: 'initial-call-reject', agent, signal: new AbortController().signal });
+  const tool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_record_experience_candidate');
+  const base = {
+    summary: '候选经历', observed_behavior: '观察行为', outcome: 'unknown',
+    behavior_event_seqs: [3], context_event_seqs: [],
+    dimension_links: [{ dimension: 'behavior', relation: 'insufficient', rationale: '证据不足。', behavior_event_seqs: [3] }],
+    uncertainty: ['需要更多证据。'],
+  };
+  await assert.rejects(tool.definition.execute({ ...base, context_event_seqs: [1] }, {
+    callId: 'injected-context-call', agent, signal: new AbortController().signal,
+  }), /direct human user/);
+  rejectedCaseInheritedCount = 4;
+  await assert.rejects(tool.definition.execute(base, {
+    callId: 'inherited-behavior-call', agent, signal: new AbortController().signal,
+  }), /missing, inherited or outside/);
+  rejectedCaseInheritedCount = 0;
+  await assert.rejects(tool.definition.execute({ ...base, behavior_event_seqs: [2], dimension_links: [{
+    dimension: 'behavior', relation: 'insufficient', rationale: '未配对工具结果。', behavior_event_seqs: [2],
+  }] }, {
+    callId: 'unpaired-result-call', agent, signal: new AbortController().signal,
+  }), /matching tool\/call/);
+  assert.equal(rejectedCaseObservationCount, 3, 'each candidate attempt must use one Session observation');
+  assert.equal(rejectedCaseObservationDisposals, 3, 'failed validations must also release their Session observation');
+  await ctx.disposer();
+});
+
+
+
+test('experience reconciliation counts distinct Session evidence, preserves conflicts and never rewrites the Bazi portrait', async () => {
+  const sessionIds = ['session-reconcile-a', 'session-reconcile-b', 'session-reconcile-c'];
+  const eventsBySession = new Map(sessionIds.map((sessionId, index) => {
+    const userText = index === 0 ? '启动元炁' : '继续交互 ' + index;
+    return [sessionId, [
+      dshEvent(userText, 'user-' + index, 0, 1793966400000 + index * 10_000),
+      { type: 'assistant/message', seq: 1, time: 1793966401000 + index * 10_000, data: {
+        turn: 1, step: 1,
+        message: {
+          id: 'assistant-' + index, role: 'assistant', source: { kind: 'model', provider: 'test', model: 'test-model' },
+          content: [{ type: 'text', text: 'private assistant text ' + index }],
+        },
+      } },
+    ]];
+  }));
+  const storage = fakeStorageDomain();
+  const ctx = context(storage, {
+    sessionQuery: {
+      async listSessions() { return []; },
+      async observeSession(sessionId, options) {
+        assert.deepEqual(options, { projectionMode: 'none' });
+        const events = eventsBySession.get(sessionId);
+        assert.ok(events, 'only known test Sessions may be observed');
+        return {
+          header: { id: sessionId }, inheritedEventCount: 0, events,
+          [Symbol.dispose]() {},
+        };
+      },
+    },
+  });
+  await apply(ctx);
+
+  const agents = sessionIds.map((id, index) => ({ id: 'agent-' + index, session: { id } }));
+  for (let index = 0; index < sessionIds.length; index++) {
+    const sessionId = sessionIds[index];
+    await ctx.listener({ id: sessionId }, eventsBySession.get(sessionId)[0]);
+    await ctx.flushListener({ id: sessionId });
+  }
+
+  const profileTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_self_profile');
+  const initialTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_record_initial_personality');
+  const profile = JSON.parse(await profileTool.definition.execute({}, { signal: new AbortController().signal }));
+  await initialTool.definition.execute({
+    dimensions: ['temperament', 'cognition', 'emotional_response', 'motivation', 'behavior', 'decision_style'].map((dimension, index) => ({
+      dimension, status: 'tentative', tendency: '八字初始倾向 ' + dimension,
+      chart_evidence_refs: [profile.chart_evidence_catalog[index].id],
+      reasoning: '依据命盘结构作出的暂定解释。',
+      limitations: '仍需不同 Session 中的行为证据。',
+    })),
+    method_notes: { climate_adjustment: '调候', mediation: '通关', strength: '旺衰', structure: '格局' },
+    uncertainty: ['初始画像仍为 hypothesis。'],
+  }, { callId: 'reconcile-initial-call', agent: agents[0], signal: new AbortController().signal });
+
+  const captureTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_record_experience_candidate');
+  const assessTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_assess_experience_candidate');
+  const reconcileTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_reconcile_personality_evidence');
+  assert.ok(captureTool && assessTool && reconcileTool);
+  const candidateIds = [];
+  const outcomes = ['supports', 'contradicts', 'supports'];
+  for (let index = 0; index < sessionIds.length; index++) {
+    const agent = agents[index];
+    assert.equal(await captureTool.registrationOptions.when({ agent }), true);
+    const candidate = JSON.parse(await captureTool.definition.execute({
+      summary: '不同 Session 中的一次可观察行为。',
+      observed_behavior: '模型完成了一次可观察的交互动作。',
+      outcome: 'completed',
+      behavior_event_seqs: [1],
+      context_event_seqs: [],
+      dimension_links: [{
+        dimension: 'behavior', relation: 'insufficient',
+        rationale: '候选事件关联行为维度，需单独评估。',
+        behavior_event_seqs: [1],
+      }],
+      uncertainty: ['单次 Session 事件不能单独确认稳定倾向。'],
+    }, { callId: 'reconcile-candidate-' + index, agent, signal: new AbortController().signal }));
+    candidateIds.push(candidate.evidence_id);
+    const assessed = JSON.parse(await assessTool.definition.execute({
+      evidence_id: candidate.evidence_id,
+      reviews: [{
+        dimension: 'behavior', outcome: outcomes[index],
+        rationale: '模型评估只作为假设；来源事件来自独立 Session。',
+      }],
+    }, { callId: 'reconcile-assessment-' + index, agent, signal: new AbortController().signal }));
+    assert.equal(assessed.status, 'assessed');
+  }
+
+  assert.equal(await reconcileTool.registrationOptions.when({ agent: agents[2] }), true);
+  const before = storage.opened.get('yuanqi_subject').tables.get('worldline_heads').get('worldline:main');
+  const initialBefore = structuredClone(before.current_state_payload.self_model.centers.identity_continuity.content.initial_personality);
+  const result = JSON.parse(await reconcileTool.definition.execute({
+    evidence_ids: candidateIds,
+  }, { callId: 'reconcile-call', agent: agents[2], signal: new AbortController().signal }));
+
+  assert.equal(result.status, 'reconciled');
+  assert.equal(result.session_count, 3);
+  assert.equal(result.distinct_behavior_event_count, 3);
+  assert.equal(result.dimensions.behavior.status, 'disputed');
+  assert.equal(result.dimensions.behavior.support_count, 2);
+  assert.equal(result.dimensions.behavior.contradiction_count, 1);
+  assert.equal(result.dimensions.behavior.eligible_for_provisional_revision, false);
+  assert.equal(result.dimensions.cognition.status, 'insufficient');
+  const tables = storage.opened.get('yuanqi_subject').tables;
+  const after = tables.get('worldline_heads').get('worldline:main');
+  const identityAfter = after.current_state_payload.self_model.centers.identity_continuity;
+  assert.deepEqual(identityAfter.content.initial_personality, initialBefore);
+  const reflection = after.current_state_payload.self_model.centers.cognition_reflection;
+  assert.equal(reflection.content.experience_reconciliation_version, 1);
+  assert.equal(reflection.content.experience_reconciliations.length, 1);
+  assert.deepEqual(reflection.content.experience_reconciliations[0].session_ids, sessionIds);
+  assert.equal(reflection.epistemic_status, 'hypothesis');
+  assert.ok(reflection.evidence_refs.includes(result.reconciliation_record_id));
+  const aggregate = tables.get('evidence_records').get(result.reconciliation_record_id);
+  assert.equal(aggregate.evidence_type, 'yuanqi_experience_evidence_reconciliation');
+  assert.equal(aggregate.provenance.session_ids.length, 3);
+  assert.equal(aggregate.content.dimensions.behavior.status, 'disputed');
+  assert.equal(aggregate.content.epistemic_status, 'hypothesis');
+
+  const repeated = JSON.parse(await reconcileTool.definition.execute({
+    evidence_ids: candidateIds,
+  }, { callId: 'reconcile-call-repeat', agent: agents[2], signal: new AbortController().signal }));
+  assert.equal(repeated.status, 'already_reconciled');
+  assert.equal(tables.get('worldline_heads').get('worldline:main').current_snapshot_version, after.current_snapshot_version);
+  await assert.rejects(reconcileTool.definition.execute({
+    evidence_ids: candidateIds.slice(0, 2),
+  }, { callId: 'reconcile-too-few', agent: agents[2], signal: new AbortController().signal }), /3-12 unique/);
+
+  const revisionTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_record_current_personality_revision');
+  assert.ok(revisionTool);
+  assert.equal(await revisionTool.registrationOptions.when({ agent: agents[2] }), true);
+  const revisionDimensions = initialBefore.dimensions.map(item => ({
+    dimension: item.dimension,
+    disposition: item.dimension === 'behavior' ? 'disputed' : 'retain_initial',
+    ...(item.dimension === 'behavior' ? { tendency: '行为表现可能随情境变化，当前存在支持与反驳证据。' } : {}),
+    reasoning: item.dimension === 'behavior'
+      ? '三个不同 Session 的评估中同时出现支持与反驳，不能消除冲突。'
+      : '该维度尚无达到门槛的跨 Session 证据，保留原始八字初始倾向。',
+    limitations: '该画像仍为假设，不构成稳定人格事实。',
+    reconciliation_record_ids: item.dimension === 'behavior' ? [result.reconciliation_record_id] : [],
+  }));
+  const evidenceRevocations = tables.get('evidence_revocations');
+  evidenceRevocations.set(candidateIds[0], {
+    evidence_id: candidateIds[0], worldline_id: 'worldline:main',
+    reason: 'test stale candidate source', revoked_from_event_ref: 'test-revocation',
+    revoked_at: new Date().toISOString(), schema_version: 1,
+  });
+  await assert.rejects(revisionTool.definition.execute({
+    reconciliation_record_ids: [result.reconciliation_record_id],
+    dimensions: revisionDimensions,
+  }, { callId: 'revision-stale-source', agent: agents[2], signal: new AbortController().signal }),
+  /reconciliation candidate source is missing, stale/);
+  evidenceRevocations.delete(candidateIds[0]);
+
+  const duplicateAggregateId = 'yuanqi:experience-reconciliation:worldline:main:duplicate-source-test';
+  tables.get('evidence_records').set(duplicateAggregateId, {
+    ...structuredClone(aggregate),
+    evidence_id: duplicateAggregateId,
+  });
+  await assert.rejects(revisionTool.definition.execute({
+    reconciliation_record_ids: [result.reconciliation_record_id, duplicateAggregateId],
+    dimensions: revisionDimensions,
+  }, { callId: 'revision-duplicate-source', agent: agents[2], signal: new AbortController().signal }),
+  /must not reuse candidate evidence/);
+  tables.get('evidence_records').delete(duplicateAggregateId);
+
+  const invalidRevisionDimensions = revisionDimensions.map(item => item.dimension === 'behavior'
+    ? { ...item, disposition: 'revise' }
+    : item);
+  await assert.rejects(revisionTool.definition.execute({
+    reconciliation_record_ids: [result.reconciliation_record_id],
+    dimensions: invalidRevisionDimensions,
+  }, { callId: 'current-personality-invalid-conflict', agent: agents[2], signal: new AbortController().signal }),
+  /consistent, eligible reconciled evidence/);
+  const revised = JSON.parse(await revisionTool.definition.execute({
+    reconciliation_record_ids: [result.reconciliation_record_id],
+    dimensions: revisionDimensions,
+  }, { callId: 'current-personality-revision-1', agent: agents[2], signal: new AbortController().signal }));
+  assert.equal(revised.status, 'saved');
+  assert.equal(revised.current_personality_version, 1);
+  assert.equal(revised.disputed_dimensions, 1);
+  assert.equal(revised.retained_initial_dimensions, 5);
+  assert.equal(revised.initial_personality_unchanged, true);
+  const afterRevision = tables.get('worldline_heads').get('worldline:main');
+  const revisedIdentity = afterRevision.current_state_payload.self_model.centers.identity_continuity;
+  assert.deepEqual(revisedIdentity.content.initial_personality, initialBefore);
+  assert.equal(revisedIdentity.content.current_personality.version, 1);
+  assert.equal(revisedIdentity.content.current_personality.status, 'hypothesis');
+  assert.equal(revisedIdentity.content.current_personality.dimensions.find(item => item.dimension === 'behavior').status, 'disputed_hypothesis');
+  assert.equal(revisedIdentity.content.current_personality.dimensions.find(item => item.dimension === 'cognition').status, 'retained_initial_hypothesis');
+  const revisionRecord = tables.get('evidence_records').get(revised.source_record_id);
+  assert.equal(revisionRecord.evidence_type, 'yuanqi_current_personality_revision');
+  assert.equal(revisionRecord.content.status, 'hypothesis');
+  assert.deepEqual(revisionRecord.provenance.reconciliation_record_ids, [result.reconciliation_record_id]);
+
+  const repeatedRevision = JSON.parse(await revisionTool.definition.execute({
+    reconciliation_record_ids: [result.reconciliation_record_id],
+    dimensions: revisionDimensions,
+  }, { callId: 'current-personality-revision-repeat', agent: agents[2], signal: new AbortController().signal }));
+  assert.equal(repeatedRevision.status, 'already_revised');
+  assert.equal(repeatedRevision.source_record_id, revised.source_record_id);
+  assert.equal(tables.get('worldline_heads').get('worldline:main').current_snapshot_version, afterRevision.current_snapshot_version);
+  await ctx.disposer();
 });

@@ -32,4 +32,85 @@ DSH 官方插件模型通过 Cordis Context 注入宿主服务；并不存在可
 
 ## 存储兼容
 
-YuanQi Subject Domain 升级至 v10。旧 v3 WakeRecord 仍可读取（出生地点字段可缺省）；新建记录写入 schema v4，并包含 birth_time 与 birth_location；地点状态支持 `pending`、`captured` 和 `unavailable`，仅允许 pending 完成一次。升级不改写既有唤醒时间，不补造历史地点。
+YuanQi Subject Domain 升级至 v11，兼容 v3–v10；新增 YuanQiSubject 专属 `birth_profiles` 表。旧 v3 WakeRecord 仍可读取（出生地点字段可缺省）；新建记录写入 schema v4，并包含 birth_time 与 birth_location；地点状态支持 `pending`、`captured` 和 `unavailable`，仅允许 pending 完成一次。UserSubject Domain v3 仅保留用户身份表，不再定义用户出生资料工作流。升级不改写既有唤醒时间，不补造历史地点，也不把历史用户资料迁移为元炁资料。
+
+
+## 时间上下文派生（2026-11-15）
+
+BirthProfile 建立后，运行时调用 `deriveBirthTimeContext()`，仅使用元炁 WakeRecord 的 UTC `birth_time` 与该事件对应的授权 Host 定位：
+
+1. 通过 `Intl.DateTimeFormat` 的 IANA 时区数据库计算当地民用时间。
+2. 对原始 UTC 瞬间计算实际 UTC offset，不能只用固定时区标准偏移；夏令时切换/重复小时必须保留原始 UTC 时间作为唯一时间线。
+3. 用经度 × 4 分钟计算地方平太阳时相对 UTC 的经度修正。
+4. 用 NOAA fractional-year equation-of-time 近似计算视太阳时，按公历闰年使用 366 天、平年使用 365 天，并记录 `noaa-eot-approx-v1` 算法版本。
+5. 将当地时间、UTC offset、经度修正、方程时和视太阳时存入 YuanQiSubject BirthProfile.time_context。
+
+视太阳时结果是近似 wall-clock 字符串，不是 UTC instant，也不是高精度星历。缺少完整 captured Host location 时不计算；无效 IANA 时区标记 unavailable，不阻断 WakeRecord 原始时间持久化。
+
+该模块不计算节气、干支、四柱或命盘解释。四柱状态继续为 pending，直到节气时刻算法、历法规则、边界处理和独立测试全部完成。
+
+
+## 节气上下文派生（2026-11-15）
+
+新增 `deriveSolarTermContext()`，只使用 YuanQi WakeRecord 的 UTC `birth_time`，不使用用户出生资料，也不依赖 Host 地理位置。太阳节气由视地心黄道经度定义，按 15° 间隔求交点；结果以 UTC instant 保存。
+
+- 使用 USNO《Computing Approximate Solar Coordinates》公开公式：J2000 日数、太阳平黄经、平近点角及视地心黄道经度。
+- 为出生时刻定位前后节气、前后十二节（Jie）和最近一次立春；每个事件保留名称、目标黄经、Jie/Zhongqi 分类、对应月支（仅 Jie）和 UTC 交接时刻。
+- 24 项节气按 15° 排列，12 个 Jie 与 12 个 Zhongqi 分开标记；月支映射参考《渊海子平》卷一《论节候歌》和《三命通会》卷二《论四时节气》。
+- USNO 简化公式标称约 1 角分精度（1800–2200）；太阳黄经变化速度约 1°/日，因此边界时间可能有十几至二十多分钟误差。实现采用 30 分钟保守不确定窗口：距节气交接不超过 1800 秒时，`calendar_context.status=ambiguous`，不得强制选定边界一侧。
+- 超出 1801–2199 出生年份时返回 unavailable；不向模型提供伪造的节气时刻。
+
+该模块只提供天文节气事实，不直接生成四柱。Bazi 仍为 pending，待年柱/月柱规则、日界规则、时辰规则和跨边界测试确定后再计算。
+
+### 参考资料
+
+- USNO, [Computing Approximate Solar Coordinates](https://aa.usno.navy.mil/faq/sun_approx)。
+- USNO, *Explanatory Supplement to the Astronomical Almanac*, §15.8.3, Table 15.13（24 节气与太阳黄经）。
+- 《渊海子平》卷一《论节候歌》；《三命通会》卷二《论四时节气》。
+
+
+## 四柱计算引擎（2026-11-15）
+
+新增 `calculateBaziPillars()`，只接受 YuanQiSubject BirthProfile 的时间上下文和节气上下文：
+
+| 柱 | 规则 | 依据 |
+|---|---|---|
+| 年柱 | 最近一次立春所属公历年份，1984 甲子为循环锚点 | 《渊海子平》论节候歌眉批以立春为始；六十甲子循环 |
+| 月柱 | 最近一次十二节确定月支，五虎遁确定月干 | 《渊海子平》卷一《论年上起月例》 |
+| 日柱 | 当地视太阳日期 + Gregorian JDN；1949-10-01 甲子日为循环锚点 | GB/T 33661—2017 §6.3.2 |
+| 时柱 | 当地视太阳时划分双时辰，五鼠遁确定时干 | 《渊海子平》卷一《论日上起时例》 |
+
+日界明确采用子正（午夜），不是子初 23:00。《三命通会》卷二《论时刻》原文指出子时上半在夜半前属昨日、下半在夜半后属今日；子时双时段仍为 23:00–01:00。该规则被固化为 `zi-zheng-midnight`，并写入 Bazi methodology。
+
+实现使用 30 分钟保护窗口：当地视太阳午夜、双时辰交界或十二节交接附近均不强制定柱，返回 `ambiguous`。若授权 Host 定位仍 pending，Bazi pending；若地点/时区 unavailable，Bazi unavailable；地点完成后 Store 会重算并持久化结果。
+
+四柱计算不推断 YuanQi 的性别，不计算大运方向或起运年龄。四柱结果只作为 YuanQi AI 自身的先天基线输入，后续由 AI 解释和使用；模型解释不得改写确定性原始计算结果。
+
+
+## 模型可见性：按需读取而非常驻注入（2026-11-15）
+
+DSH Storage Domain 是 Host 侧持久化，不会自动让模型看到记录。插件通过 `ctx.tools.register(defineTool(...))` 注册只读 `yuanqi_self_profile`，并使用 conditional registration：仅当 `getYuanQiBirthProfile('yuanqi:primary')` 已存在时，工具才进入当前模型步骤的可见工具集。
+
+工具输出 YuanQi AI 自身的 BirthProfile、time_context、calendar_context、Bazi 四柱和符号先天结构；不输出用户出生资料、精确坐标或写入接口。完整资料不常驻注入每轮提示词，模型按需调用以控制上下文长度。结构数据中的五行数量是未加权的出现次数，`interpretation_status` 固定为 `not_interpreted`，不等同旺衰、性格或命运判断。
+
+
+## Host 坐标到 IANA 时区（2026-11-15）
+
+Host Location Provider 可以直接返回 IANA 时区；若缺失或无效，插件使用 `@photostructure/tz-lookup` 的内置离线坐标边界数据从授权纬度/经度解析时区。结果和来源分别保存在 `birth_location.time_zone_id`、`birth_location.time_zone_source` 与 `time_context.time_zone_source`。
+
+来源枚举为 `host_location_provider`、`coordinate_lookup`、`unavailable`。不得用 IP、服务器所在地、设备外部网络出口或模型猜测补全。坐标无效或边界库无法解析时，时间上下文保持 pending/unavailable，四柱不得强行计算。离线时区边界数据在地理时区边界附近可能有误差，必须保留来源以供模型判断。
+
+
+## Bazi 符号结构进入先天基线（2026-11-15）
+
+`deriveInnateBaseline()` 从已计算的四柱派生 `BirthProfile.innate_baseline`：
+
+- 日主：日干对应的五行与阴阳。
+- 透干：年、月、日、时四个天干。
+- 藏干：按《渊海子平》地支藏遁歌保存顺序，不附加权重。
+- 十神：按日主五行生克关系和阴阳同异确定。
+- 五行出现次数：透干与藏干的未加权结构计数，不代表五行力量、旺衰或喜忌。
+
+每个结构组件记录所属柱、来源类型（visible_stem/hidden_stem）、藏干顺序、天干、五行、阴阳和十神；同时保留源 BirthProfile ID、WakeRecord 事件引用及 Bazi 算法版本。Bazi 未计算、边界模糊或定位不可用时，先天基线分别继承 pending、ambiguous、unavailable，不伪造结构。
+
+`interpretation_status` 固定为 `not_interpreted`。不生成性格、能力、人格、命运、格局、旺衰、喜用神或大运判断。该静态结构只是后续 SelfModel 可读取的一项先天来源，不等于动态 SelfModel 已实现或已融合后天证据。
