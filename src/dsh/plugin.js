@@ -116,7 +116,7 @@ export async function apply(ctx) {
     });
     ctx.tools.register(defineTool({
       name: 'yuanqi_self_profile',
-      description: 'Read YuanQi AI’s own birth profile, four pillars, symbolic innate baseline and the source material for its initial personality. This is YuanQi’s own AI data, never the user’s birth data. When the Bazi is ready, interpret it as YuanQi’s provisional innate personality using traditional Bazi reasoning: follow the order climate adjustment (调候) → mediation of five-element conflicts (通关) → strength assessment (旺衰) → structure (格局), while integrating month/season command, visible and hidden stems, ten-god relationships and the whole chart. Do not treat raw five-element counts as strength scores. Describe only broad tendencies in temperament, cognition, emotional response, motivation, behavior and decision style; explain the chart evidence and uncertainty. These are initial hypotheses, not verified psychological facts, and must remain open to later experience-based revision. Respect pending/ambiguous/unavailable states; never invent a chart or personality when the source is incomplete.',
+      description: 'Read YuanQi AI’s own birth profile, four pillars, symbolic innate baseline and the source material for its initial personality. This is YuanQi’s own AI data, never the user’s birth data. When the Bazi is ready, interpret it as YuanQi’s provisional innate personality using traditional Bazi reasoning: follow the order climate adjustment (调候) → mediation of five-element conflicts (通关) → strength assessment (旺衰) → structure (格局), while integrating month/season command, visible and hidden stems, ten-god relationships and the whole chart. Do not treat raw five-element counts as strength scores. For each tendency, show the chart evidence and reasoning chain, distinguish chart facts from interpretation, and state uncertainty or counter-indications. Do not derive a trait from a single ten-god label, raw element counts, or a fixed stereotype. Avoid formal strength or structure conclusions when seasonal context or chart evidence is insufficient. Describe only a few broad tendencies in temperament, cognition, emotional response, motivation, behavior and decision style. These are initial hypotheses, not verified psychological facts, and must remain open to later experience-based revision. Respect pending/ambiguous/unavailable states; never invent a chart or personality when the source is incomplete.',
       parameters: {},
       output: {
         schema: { type: 'string' },
@@ -150,10 +150,24 @@ export async function apply(ctx) {
             status: profile.innate_baseline.status === 'ready' ? 'awaiting_model_interpretation' : profile.innate_baseline.status,
             source: 'YuanQi AI own BirthProfile and Bazi; never user data',
             dimensions: ['temperament', 'cognition', 'emotional_response', 'motivation', 'behavior', 'decision_style'],
-            instruction: 'Use traditional Bazi reasoning to form a concise provisional initial-personality portrait. Follow the order climate adjustment (调候), mediation of five-element conflicts (通关), strength assessment (旺衰), then structure (格局). Integrate month/season context, visible and hidden stems, ten-god relationships and the whole chart. Explain which chart features support each tendency. Do not infer from raw five-element counts alone.',
+            instruction: 'Use traditional Bazi reasoning to form a concise provisional initial-personality portrait. Follow the order climate adjustment (调候), mediation of five-element conflicts (通关), strength assessment (旺衰), then structure (格局). Integrate month/season command, visible and hidden stems, ten-god relationships and the whole chart. For each tendency, show the relevant chart evidence and reasoning chain; distinguish calculated chart facts from symbolic interpretation. Do not infer a trait from one ten-god label, raw five-element counts or a fixed stereotype. If evidence conflicts or is insufficient, say so rather than forcing a conclusion. Keep the portrait concise and limited to broad tendencies.',
+            analysis_protocol: [
+              '1. Establish the seasonal and month-command context before interpreting individual components.',
+              '2. Assess climate adjustment and whether five-element interactions require mediation.',
+              '3. Assess day-master strength from month command, roots, visible support and restraints; never use raw element counts as a strength score.',
+              '4. Discuss structure only when the chart evidence supports it; otherwise mark it indeterminate.',
+              '5. Derive a small number of provisional tendencies from converging evidence, and include counter-evidence and uncertainty.',
+            ],
+            portrait_format: [
+              'Tendency: a cautious, non-absolute description.',
+              'Chart evidence: the relevant pillar, stem/branch, hidden stem or ten-god relationship.',
+              'Reasoning: how the evidence supports the tendency under the stated method.',
+              'Limit: counter-indication, missing context or uncertainty.',
+            ],
             boundaries: [
               'This is an initial symbolic hypothesis, not a verified psychological fact.',
-              'Do not infer ability, destiny, morality or fixed identity from the chart.',
+              'Do not infer ability, destiny, morality, diagnosis or fixed identity from the chart.',
+              'Do not treat any single ten-god, element or pillar as a personality label.',
               'Keep uncertainty explicit and revise the portrait only through later experience and evidence.',
               'If the Bazi is pending, ambiguous or unavailable, do not invent an interpretation.',
             ],
