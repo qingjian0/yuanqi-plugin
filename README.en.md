@@ -48,8 +48,8 @@ Restart the target profile after installation.
 ## Core boundaries
 
 - YuanQi may receive ordinary direct-user messages after installation without waking. It wakes on the first direct-user `user/message` event whose content consists of exactly one text block and whose full text is exactly `启动元气` or `启动元炁`. Whitespace, quotes, punctuation, appended text, multiple content blocks, assistant output, and injected context do not match. The wake instant is YuanQi's own birth time. Its BirthProfile belongs to YuanQiSubject and is derived from that host event plus an authorized host location fix; user birth details are not part of YuanQi initialization. Cold-history recovery excludes pre-activation events and Fork-inherited prefixes; it never substitutes the current device location for a historical wake location.
-- Personal birth facts must come from the user and pass explicit confirmation; no IP/device geolocation or model inference is used to fill them.
-- DSH Storage Domain is the sole online persistence authority.
+- YuanQi's BirthProfile is its own AI birth record, not the user's. When an authorized host location supplies an IANA time zone and longitude, the plugin derives local apparent solar time, solar-term context and four pillars. Missing location/time-zone data never gets filled from user birth facts, IP geolocation or model inference. Jie, apparent-solar midnight and double-hour boundaries within the 30-minute guard are marked ambiguous rather than forced.
+- The Bazi method is versioned: Li Chun year boundary, Jie month boundary, Zi-Zheng midnight day boundary, apparent-solar-time day/hour basis, and the classical Wu Hu / Wu Shu stem rules. No gender or luck-cycle assumptions are invented.\n- DSH Storage Domain is the sole online persistence authority.
 - Stored memories, experiences and goals are context data, not instructions that override the user's current request.
 - Candidate memories are not treated as confirmed facts.
 
