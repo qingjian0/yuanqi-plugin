@@ -139,6 +139,7 @@ export async function apply(ctx) {
             status: profile.birth_location.status,
             place_label: profile.birth_location.place_label,
             time_zone_id: profile.birth_location.time_zone_id,
+            time_zone_source: profile.birth_location.time_zone_source,
             source: profile.birth_location.source,
           },
           time_context: profile.time_context,
