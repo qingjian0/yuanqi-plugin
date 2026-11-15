@@ -419,6 +419,10 @@ export async function apply(ctx) {
             source_bazi_algorithm_version: profile.bazi.algorithm_version,
             created_from_event_ref: artifact.record.source_event_ref,
           };
+          const retainedUncertainty = chartReady
+            ? center.uncertainty.filter(item =>
+              item !== '八字尚不可用：当前六维均为待定占位，不代表任何性格结论')
+            : center.uncertainty;
           await worldlines.updateSelfModelCenter({
             worldline_id: binding.worldline_id,
             holder_id: holderId,
@@ -428,7 +432,7 @@ export async function apply(ctx) {
             content: { ...center.content, initial_personality: initialPersonality },
             evidence_refs: center.evidence_refs,
             uncertainty: [...new Set([
-              ...center.uncertainty,
+              ...retainedUncertainty,
               chartReady
                 ? '初始性格来自八字象征性解释，尚未经过后天经历验证'
                 : '八字尚不可用：当前六维均为待定占位，不代表任何性格结论',
