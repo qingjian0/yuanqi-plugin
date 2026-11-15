@@ -2,7 +2,7 @@
 
 > 日期：2026-11-15  
 > 适用范围：DSH SessionEvent、SessionQuery、YuanQi Evidence Ledger、五中心 SelfModel  
-> 状态：模型选择的有界候选记录、逐维不可变评估历史和跨 Session 来源聚合已实现；自动采集与新当前人格画像版本生成仍未实现  
+> 状态：模型选择的有界候选记录、逐维不可变评估历史、跨 Session 来源聚合和版本化 current_personality 假设生成已实现；自动采集仍未实现  
 > 目的：明确如何让后天经历验证或反驳八字初始画像，同时避免把用户资料或模型自述误当成 AI 自身经历事实
 
 ## 1. 当前实现审计
@@ -157,3 +157,18 @@ DSH SessionEvent → bounded source references → model experience candidate �
 - 该工具只生成逐维证据汇总和“是否具备后续暂定修订条件”的标记；**当前尚未自动生成或替换 current_personality 版本**。下一阶段应基于聚合记录生成单独的版本化画像，并继续保持 hypothesis 与初始画像不可变。
 
 当前测试新增覆盖：三 Session 独立来源计数、同一维度支持/反驳冲突保留、其他维度证据不足、聚合记录不可变保存、SelfModel 仅追加认知反思、原始八字画像不变、重复聚合幂等和候选数量下限。
+
+
+## 11. 版本化 current_personality：第一阶段实现
+
+开发分支新增 `yuanqi_record_current_personality_revision`，将已聚合的经历证据接入 SelfModel，但不改变八字初始画像：
+
+- 工具只接受当前活动 Worldline 中仍 active 的 reconciliation records；每条记录必须来自至少三个不同 Session，并引用当前不可变的八字初始画像来源。
+- 每个维度必须明确选择 `revise`、`disputed` 或 `retain_initial`，并引用当前工具参数中已验证的聚合记录。
+- `revise` 仅允许所有引用聚合都对该维度给出同方向、达到门槛且无冲突的结果；跨聚合出现支持/反驳冲突或已标记 disputed 时，必须选择 `disputed`。
+- `retain_initial` 强制沿用原始八字初始画像该维度的精确 tendency，不允许在证据不足时借版本更新改写原倾向。
+- 新画像保存为独立的 `yuanqi_current_personality_revision` Evidence Ledger 来源记录，并在 `identity_continuity.content.current_personality` 保存版本号、来源记录、聚合记录引用及六维状态。
+- `identity_continuity.content.initial_personality` 保持原样且不可覆盖；当前版本及版本记录引用单独保存。新版本整体认识状态仍为 `hypothesis`，不宣称心理学事实。
+- 相同聚合记录集合重复提交时幂等返回已有版本；新证据集合才可创建后续版本。
+
+该阶段仍不自动采集普通对话，也不自动触发模型修订。模型必须先基于有效聚合记录明确提交六维修订方案；真实 Android DSH Profile 与真实模型端到端验收仍未完成。
