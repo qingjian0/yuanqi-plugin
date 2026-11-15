@@ -913,7 +913,7 @@ test('experience candidate tool rejects injected user context and unpaired tool 
   };
   await assert.rejects(tool.definition.execute({ ...base, context_event_seqs: [1] }, {
     callId: 'injected-context-call', agent, signal: new AbortController().signal,
-  }), /direct human user/message/);
+  }), /direct human user/);
   await assert.rejects(tool.definition.execute({ ...base, behavior_event_seqs: [2], dimension_links: [{
     dimension: 'behavior', relation: 'insufficient', rationale: '未配对工具结果。', behavior_event_seqs: [2],
   }] }, {
