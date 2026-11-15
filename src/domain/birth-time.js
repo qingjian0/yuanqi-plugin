@@ -90,9 +90,11 @@ export function deriveBirthTimeContext({ birth_time, birth_location } = {}) {
   }
   const instant = new Date(birth_time);
   const location = birth_location ?? {};
+  const timeZoneSource = ['host_location_provider', 'coordinate_lookup'].includes(location.time_zone_source)
+    ? location.time_zone_source : 'unavailable';
   if (location.status === 'unavailable') {
     return {
-      status: 'unavailable', time_zone_id: null, local_datetime: null,
+      status: 'unavailable', time_zone_id: null, time_zone_source: 'unavailable', local_datetime: null,
       utc_offset_minutes: null, longitude_correction_minutes: null,
       equation_of_time_minutes: null, true_solar_datetime: null,
       algorithm_version: 'noaa-eot-approx-v1',
@@ -100,7 +102,7 @@ export function deriveBirthTimeContext({ birth_time, birth_location } = {}) {
   }
   if (location.status !== 'captured') {
     return {
-      status: 'pending', time_zone_id: null, local_datetime: null,
+      status: 'pending', time_zone_id: null, time_zone_source: 'unavailable', local_datetime: null,
       utc_offset_minutes: null, longitude_correction_minutes: null,
       equation_of_time_minutes: null, true_solar_datetime: null,
       algorithm_version: 'noaa-eot-approx-v1',
@@ -110,7 +112,7 @@ export function deriveBirthTimeContext({ birth_time, birth_location } = {}) {
   const longitude = location.longitude;
   if (!timeZone || longitude == null) {
     return {
-      status: 'pending', time_zone_id: timeZone, local_datetime: null,
+      status: 'pending', time_zone_id: timeZone, time_zone_source: timeZoneSource, local_datetime: null,
       utc_offset_minutes: null, longitude_correction_minutes: null,
       equation_of_time_minutes: null, true_solar_datetime: null,
       algorithm_version: 'noaa-eot-approx-v1',
@@ -122,7 +124,7 @@ export function deriveBirthTimeContext({ birth_time, birth_location } = {}) {
     formatter = formatterFor(timeZone);
   } catch {
     return {
-      status: 'unavailable', time_zone_id: timeZone, local_datetime: null,
+      status: 'unavailable', time_zone_id: timeZone, time_zone_source: timeZoneSource, local_datetime: null,
       utc_offset_minutes: null, longitude_correction_minutes: null,
       equation_of_time_minutes: null, true_solar_datetime: null,
       algorithm_version: 'noaa-eot-approx-v1',
@@ -137,6 +139,7 @@ export function deriveBirthTimeContext({ birth_time, birth_location } = {}) {
   return {
     status: 'ready',
     time_zone_id: timeZone,
+    time_zone_source: timeZoneSource,
     local_datetime: formatLocal(parts),
     utc_offset_minutes: utcOffset,
     longitude_correction_minutes: Number(longitudeCorrection.toFixed(6)),
