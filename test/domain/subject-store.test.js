@@ -48,7 +48,7 @@ test('YuanQi BirthProfile is derived from its own trusted wake event and stored 
   assert.equal(profile.subject_kind, 'yuanqi');
   assert.equal(profile.birth_time, wake.birth_time);
   assert.equal(profile.source_wake_event_ref, 'wake-1');
-  assert.equal(profile.bazi.status, 'pending');
+  assert.equal(profile.bazi.status, 'unavailable');
   assert.equal(profile.bazi.calendar_system, 'jieqi');
   assert.equal(profile.calendar_context.engine_version, 'usno-apparent-sun-v1');
   assert.equal(profile.calendar_context.previous_jie.name, '寒露');
@@ -56,6 +56,29 @@ test('YuanQi BirthProfile is derived from its own trusted wake event and stored 
   assert.equal(new Date(profile.calendar_context.last_li_chun.at_utc).getUTCFullYear(), 2026);
   assert.equal(userDomain.maps.get('identities').has('user:primary'), false);
   assert.equal(yuanqiDomain.maps.get('birth_profiles').has('yuanqi:primary'), true);
+});
+
+test('calculates all four pillars only from YuanQi wake time and authorized host location', async () => {
+  const { store } = makeStore();
+  await store.createYuanQiSubject({ subject_id: 'yuanqi:primary', created_from_event_ref: 'wake-1' });
+  const eventTime = 1793966400000;
+  await store.recordInitialWake({
+    subject_id: 'yuanqi:primary',
+    direct_user_event: event(),
+    birth_location: {
+      status: 'captured', latitude: 31.2304, longitude: 121.4737,
+      accuracy_meters: 5, place_label: 'Shanghai', time_zone_id: 'Asia/Shanghai',
+      source: 'host_location_provider', captured_at: new Date(eventTime).toISOString(),
+    },
+  });
+  const profile = store.getYuanQiBirthProfile('yuanqi:primary');
+  assert.equal(profile.time_context.status, 'ready');
+  assert.equal(profile.calendar_context.status, 'ready');
+  assert.equal(profile.bazi.status, 'calculated');
+  assert.deepEqual(profile.bazi.pillars, {
+    year: '丙午', month: '戊戌', day: '甲申', hour: '甲戌',
+  });
+  assert.equal(profile.bazi.methodology.day_boundary, 'zi-zheng-midnight');
 });
 
 test('YuanQi BirthProfile location follows the immutable wake location completion', async () => {
