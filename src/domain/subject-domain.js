@@ -3,7 +3,6 @@ import { defineDomain, domainTable } from '@deepseek-ai/dsh-storage-domain';
 function identitySchema(kind) {
   return z.object({ subject_id:z.string().min(1), subject_kind:z.literal(kind), identity_version:z.number().int().min(1), status:z.enum(['active','suspended','retired']), created_from_event_ref:z.string().min(1) }).strict();
 }
-const birthProfile=z.object({ profile_id:z.string().min(1), subject_id:z.string().min(1), subject_kind:z.literal('user'), facts:z.record(z.string(),z.unknown()), confirmation_event_ref:z.string().min(1), status:z.enum(['confirmed','superseded','revoked']) }).strict();
 const installationState=z.object({ installation_id:z.literal('installation:primary'), activated_at_ms:z.number().int().nonnegative(), schema_version:z.literal(1) }).strict();
 const firstUserMessage=z.object({
  subject_id:z.string().min(1), subject_kind:z.literal('yuanqi'), first_session_id:z.string().min(1),
@@ -62,58 +61,60 @@ const worldlineHead=z.object({
 const wakeRecord=z.object({
  wake_record_id:z.string().min(1), subject_id:z.string().min(1), subject_kind:z.literal('yuanqi'),
  first_conversation_event_ref:z.string().min(1), first_session_id:z.string().min(1), first_event_seq:z.number().int().nonnegative(),
- wake_event_ref:z.string().min(1), trigger_command:z.enum(['启动元气','启动元炁']), occurred_at:z.string().datetime(), birth_time:z.string().datetime().optional(), birth_location:z.object({status:z.enum(['pending','captured','unavailable']),latitude:z.number().min(-90).max(90).nullable(),longitude:z.number().min(-180).max(180).nullable(),accuracy_meters:z.number().nonnegative().nullable(),place_label:z.string().nullable(),time_zone_id:z.string().nullable(),source:z.enum(['host_location_provider','android_location_bridge','unavailable']),captured_at:z.string().datetime().nullable()}).strict().optional(), schema_version:z.union([z.literal(3),z.literal(4)]),
+ wake_event_ref:z.string().min(1), trigger_command:z.enum(['启动元气','启动元炁']), occurred_at:z.string().datetime(), birth_time:z.string().datetime().optional(), birth_location:z.object({status:z.enum(['pending','captured','unavailable']),latitude:z.number().min(-90).max(90).nullable(),longitude:z.number().min(-180).max(180).nullable(),accuracy_meters:z.number().nonnegative().nullable(),place_label:z.string().nullable(),time_zone_id:z.string().nullable(),time_zone_source:z.enum(['host_location_provider','coordinate_lookup','default_beijing','unavailable']),source:z.enum(['host_location_provider','android_location_bridge','unavailable']),captured_at:z.string().datetime().nullable()}).strict().optional(), schema_version:z.union([z.literal(3),z.literal(4)]),
 }).strict();
 
-const birthProfileRevision=z.object({
- revision:z.number().int().positive(),
- facts:z.record(z.string(),z.unknown()),
- field_sources:z.record(z.string(),z.object({
-  source_event_ref:z.string().min(1),
-  raw_text:z.string(),
-  extraction_kind:z.enum(['user_explicit','model_extracted']),
- }).strict()),
- source_event_refs:z.array(z.string().min(1)).min(1),
- created_from_event_ref:z.string().min(1),
- created_at_ms:z.number().int().nonnegative(),
+const solarTermEvent=z.object({
+ name:z.string().min(1), longitude_deg:z.number().min(0).max(360),
+ kind:z.enum(['jie','zhongqi']), month_branch:z.string().nullable(),
+ at_utc:z.string().datetime(),
 }).strict();
-const birthProfileChallenge=z.object({
- challenge_id:z.string().min(1),
- revision:z.number().int().positive(),
- session_id:z.string().min(1),
- issued_from_event_ref:z.string().min(1),
- issued_at_ms:z.number().int().nonnegative(),
- expires_at_ms:z.number().int().positive(),
- status:z.enum(['active','consumed','invalidated','expired']),
- consumed_by_event_ref:z.string().min(1).nullable(),
+const solarTermContext=z.object({
+ status:z.enum(['ready','ambiguous','unavailable']),
+ engine_version:z.string().min(1),
+ calculation_basis:z.literal('apparent-geocentric-ecliptic-longitude'),
+ sun_apparent_longitude_deg:z.number().min(0).max(360).nullable(),
+ boundary_uncertainty_seconds:z.number().int().nonnegative(),
+ boundary_distance_seconds:z.number().nonnegative().nullable(),
+ term_boundary_distance_seconds:z.number().nonnegative().nullable(),
+ previous_term:solarTermEvent.nullable(), next_term:solarTermEvent.nullable(),
+ previous_jie:solarTermEvent.nullable(), next_jie:solarTermEvent.nullable(),
+ last_li_chun:solarTermEvent.nullable(),
 }).strict();
-const birthProfileAuditEvent=z.object({
- audit_id:z.string().min(1),
- action:z.enum(['candidate_created','candidate_revised','challenge_issued','challenge_invalidated','confirmed','rejected','revoked']),
- revision:z.number().int().positive(),
- event_ref:z.string().min(1).nullable(),
- occurred_at_ms:z.number().int().nonnegative(),
- details:z.record(z.string(),z.unknown()),
+const innateBaselineComponent=z.object({
+ pillar:z.enum(['year','month','day','hour']),
+ source:z.enum(['visible_stem','hidden_stem']),
+ order:z.number().int().nonnegative(),
+ stem:z.string().min(1),
+ element:z.enum(['wood','fire','earth','metal','water']),
+ polarity:z.enum(['yang','yin']),
+ ten_god:z.enum(['日主','比肩','劫财','食神','伤官','偏财','正财','七杀','正官','偏印','正印']),
 }).strict();
-const birthProfileWorkflow=z.object({
- subject_id:z.string().min(1),
- subject_kind:z.literal('user'),
- current_revision:z.number().int().positive(),
- status:z.enum(['collecting','awaiting_confirmation','confirmed','rejected','revoked']),
- revisions:z.array(birthProfileRevision).min(1),
- challenge:birthProfileChallenge.nullable(),
- confirmed_profile:z.object({
-  profile_id:z.string().min(1), subject_id:z.string().min(1), subject_kind:z.literal('user'),
-  revision:z.number().int().positive(), facts:z.record(z.string(),z.unknown()),
-  confirmation_event_ref:z.string().min(1), confirmed_at_ms:z.number().int().nonnegative(),
-  status:z.enum(['confirmed','superseded','revoked']),
- }).strict().nullable(),
- audit_events:z.array(birthProfileAuditEvent),
+const innateBaseline=z.object({
+ status:z.enum(['pending','ready','ambiguous','unavailable']),
+ algorithm_version:z.string().min(1),
+ source_birth_profile_id:z.string().nullable(),
+ source_wake_event_ref:z.string().nullable(),
+ source_bazi_algorithm_version:z.string().nullable(),
+ day_master:z.object({stem:z.string().min(1),element:z.enum(['wood','fire','earth','metal','water']),polarity:z.enum(['yang','yin'])}).strict().nullable(),
+ components:z.array(innateBaselineComponent).nullable(),
+ element_counts:z.object({wood:z.number().int().nonnegative(),fire:z.number().int().nonnegative(),earth:z.number().int().nonnegative(),metal:z.number().int().nonnegative(),water:z.number().int().nonnegative()}).strict().nullable(),
+ interpretation_status:z.literal('not_interpreted'),
+}).strict();
+const yuanqiBirthProfile=z.object({
+ profile_id:z.string().min(1), subject_id:z.string().min(1), subject_kind:z.literal('yuanqi'),
+ birth_time:z.string().datetime(),
+ birth_location:z.object({status:z.enum(['pending','captured','unavailable']),latitude:z.number().min(-90).max(90).nullable(),longitude:z.number().min(-180).max(180).nullable(),accuracy_meters:z.number().nonnegative().nullable(),place_label:z.string().nullable(),time_zone_id:z.string().nullable(),time_zone_source:z.enum(['host_location_provider','coordinate_lookup','unavailable']),source:z.enum(['host_location_provider','android_location_bridge','unavailable']),captured_at:z.string().datetime().nullable()}).strict(),
+ source_wake_event_ref:z.string().min(1), source_event_time_ms:z.number().int().nonnegative(),
+ time_context:z.object({status:z.enum(['pending','ready','unavailable']),time_zone_id:z.string().nullable(),time_zone_source:z.enum(['host_location_provider','coordinate_lookup','default_beijing','unavailable']),local_datetime:z.string().nullable(),utc_offset_minutes:z.number().nullable(),longitude_correction_minutes:z.number().nullable(),equation_of_time_minutes:z.number().nullable(),true_solar_datetime:z.string().nullable(),algorithm_version:z.string().min(1)}).strict(),
+ calendar_context:solarTermContext,
+ innate_baseline:innateBaseline,
+ bazi:z.object({status:z.enum(['pending','calculated','ambiguous','unavailable']),calendar_system:z.literal('jieqi'),pillars:z.object({year:z.string().min(1),month:z.string().min(1),day:z.string().min(1),hour:z.string().min(1)}).strict().nullable(),algorithm_version:z.string().min(1),calculated_at:z.string().datetime().nullable(),methodology:z.object({year_boundary:z.literal('li-chun'),month_boundary:z.literal('jie'),day_boundary:z.literal('zi-zheng-midnight'),time_basis:z.enum(['apparent-solar-time','beijing-standard-time-fallback-no-longitude-correction','local-civil-time-no-longitude-correction']),hour_period:z.literal('two-hour-branch-periods'),day_cycle_anchor:z.literal('1949-10-01-jiazi'),solar_term_engine:z.literal('usno-apparent-sun-v1'),time_context_engine:z.enum(['noaa-eot-approx-v1','civil-time-only-v1'])}).strict(),ambiguity_reasons:z.array(z.string().min(1))}).strict(),
  schema_version:z.literal(1),
 }).strict();
 
-export const userSubjectDomainSpec=defineDomain({name:'yuanqi_user_subject',version:2,compatibleVersions:[1],tables:{identities:domainTable(identitySchema('user')),birth_profiles:domainTable(birthProfile),birth_profile_workflows:domainTable(birthProfileWorkflow)}});
-export const yuanqiSubjectDomainSpec=defineDomain({name:'yuanqi_subject',version:10,compatibleVersions:[3,4,5,6,7,8,9],tables:{installation_state:domainTable(installationState),identities:domainTable(identitySchema('yuanqi')),first_user_messages:domainTable(firstUserMessage),wake_records:domainTable(wakeRecord),worldlines:domainTable(worldline),worldline_mainlines:domainTable(worldlineMainline),worldline_snapshots:domainTable(worldlineSnapshot),worldline_heads:domainTable(worldlineHead),worldline_snapshot_archive_entries:domainTable(snapshotArchiveEntry),worldline_snapshot_archive_manifests:domainTable(snapshotArchiveManifest),evidence_records:domainTable(evidenceRecord),evidence_revocations:domainTable(evidenceRevocation),evidence_assessments:domainTable(evidenceAssessment),transfer_authorizations:domainTable(transferAuthorization),transfer_authorization_revocations:domainTable(transferAuthorizationRevocation),evidence_transfers:domainTable(evidenceTransfer),worldline_events:domainTable(worldlineEvent),session_worldline_bindings:domainTable(sessionWorldlineBinding)}});
+export const userSubjectDomainSpec=defineDomain({name:'yuanqi_user_subject',version:3,compatibleVersions:[1,2],tables:{identities:domainTable(identitySchema('user'))}});
+export const yuanqiSubjectDomainSpec=defineDomain({name:'yuanqi_subject',version:11,compatibleVersions:[3,4,5,6,7,8,9,10],tables:{installation_state:domainTable(installationState),identities:domainTable(identitySchema('yuanqi')),first_user_messages:domainTable(firstUserMessage),wake_records:domainTable(wakeRecord),birth_profiles:domainTable(yuanqiBirthProfile),worldlines:domainTable(worldline),worldline_mainlines:domainTable(worldlineMainline),worldline_snapshots:domainTable(worldlineSnapshot),worldline_heads:domainTable(worldlineHead),worldline_snapshot_archive_entries:domainTable(snapshotArchiveEntry),worldline_snapshot_archive_manifests:domainTable(snapshotArchiveManifest),evidence_records:domainTable(evidenceRecord),evidence_revocations:domainTable(evidenceRevocation),evidence_assessments:domainTable(evidenceAssessment),transfer_authorizations:domainTable(transferAuthorization),transfer_authorization_revocations:domainTable(transferAuthorizationRevocation),evidence_transfers:domainTable(evidenceTransfer),worldline_events:domainTable(worldlineEvent),session_worldline_bindings:domainTable(sessionWorldlineBinding)}});
 export async function openSubjectDomains(storageDomain) {
  if(!storageDomain||typeof storageDomain.open!=='function') throw new TypeError('DSH storageDomain is required');
  const userDomain=await storageDomain.open(userSubjectDomainSpec);

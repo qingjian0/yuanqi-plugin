@@ -34,6 +34,7 @@
     "defaultLocale": "zh-CN"
   },
   "dependencies": {
+    "@photostructure/tz-lookup": "^11.7.0",
     "zod": "^4.4.3"
   },
   "files": [

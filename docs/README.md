@@ -14,7 +14,7 @@
 
 ## 工程落地
 
-- [E00-20N P0 BirthProfile 可信确认边界审计](./engineering/E00-20N-P0-BIRTH-PROFILE-TRUST-BOUNDARY-AUDIT.md)：核对现有 onboarding、Subject Domain 与 DSH Host 入口；给出候选版本、逐字段来源、一次性确认挑战、拒绝/撤销审计和持久化恢复设计。**这是审计文档，不代表运行时代码已修复。**
+- [E00-20N P0 BirthProfile 可信确认边界审计](./engineering/E00-20N-P0-BIRTH-PROFILE-TRUST-BOUNDARY-AUDIT.md)：历史审计：原先按 UserSubject 设计的 BirthProfile 用户确认流程；该流程已在最新架构修正中移除，当前 BirthProfile 改归 YuanQiSubject。
 - [E00-20E 工程落地执行计划](./engineering/E00-20E-EXECUTION-PLAN.md)：工程阶段、阻断项和验收标准。
 - [E00-20M P0 DSH Profile Provider 组合与冷读取契约审计](./engineering/E00-20M-P0-REAL-HOST-PROFILE-AUDIT.md)：官方 Base Profile 的 Session Provider 组合、精确冷读取能力、YuanQi 启动契约校验与 Android 验收清单。
 - [E00-20E 仓库基线审计](./engineering/E00-20E-BASELINE-AUDIT.md)：真实 Git Tree、入口依赖、测试与 CI 证据。
@@ -42,7 +42,7 @@
 1. 以简体中文作为默认维护语言。
 2. 明确区分已实现、本地测试通过、真实宿主验证通过、研究中和规划中。
 3. 天文、历法和时间尺度内容必须注明算法/数据来源、适用范围与精度边界。
-4. 涉及出生资料、位置、记忆和经验时，明确数据来源、用户确认边界及持久化范围。
+4. 涉及元炁出生资料、位置、记忆和经验时，明确主体归属、宿主事件来源、授权边界及持久化范围。
 5. 设计变更同步更新相关 ADR、研究文档和导航。
 6. 不得将未运行的测试、未安装的依赖或未完成的宿主验收写成已通过。
 7. 概念架构图不等同于当前源码调用图；研究目标不等同于已实现功能。
