@@ -1015,7 +1015,8 @@ export async function apply(ctx) {
           if (behaviorRefs.length === 0 || behaviorRefs.some(ref =>
             ref.session_id !== provenance.session_id ||
             !Number.isSafeInteger(ref.seq) || ref.seq < 0 ||
-            !['assistant/message', 'tool/call', 'tool/result'].includes(ref.event_type))) {
+            !['assistant/message', 'tool/call', 'tool/result'].includes(ref.event_type)) ||
+              !behaviorRefs.some(ref => record.source_event_ref === ref.session_id + ':seq:' + ref.seq)) {
             throw new Error('candidate behavior references do not match its recorded Session provenance');
           }
           for (const ref of behaviorRefs) {
