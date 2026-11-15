@@ -37,7 +37,7 @@ test('uses the offset in force at the exact instant across a DST repeated hour',
   assert.notEqual(daylight.true_solar_datetime, standard.true_solar_datetime);
 });
 
-test('marks a captured location unavailable when its time zone or longitude is missing', () => {
+test('uses Beijing civil time when a captured location has no usable time zone or longitude', () => {
   const missingZone = deriveBirthTimeContext({
     birth_time: '2024-02-04T08:00:00.000Z',
     birth_location: { status: 'captured', longitude: 121.4737 },
@@ -46,9 +46,14 @@ test('marks a captured location unavailable when its time zone or longitude is m
     birth_time: '2024-02-04T08:00:00.000Z',
     birth_location: { status: 'captured', time_zone_id: 'Asia/Shanghai', time_zone_source: 'host_location_provider', longitude: null },
   });
-  assert.equal(missingZone.status, 'unavailable');
-  assert.equal(missingZone.local_datetime, null);
-  assert.equal(missingLongitude.status, 'unavailable');
+  assert.equal(missingZone.status, 'ready');
+  assert.equal(missingZone.time_zone_id, 'Asia/Shanghai');
+  assert.equal(missingZone.time_zone_source, 'default_beijing');
+  assert.equal(missingZone.local_datetime, '2024-02-04T16:00:00');
+  assert.equal(missingZone.time_basis, 'beijing-standard-time-fallback');
+  assert.equal(missingLongitude.status, 'ready');
+  assert.equal(missingLongitude.time_zone_id, 'Asia/Shanghai');
+  assert.equal(missingLongitude.time_basis, 'beijing-standard-time-fallback');
 });
 
 test('does not derive civil time until the host location is marked captured', () => {
@@ -60,14 +65,18 @@ test('does not derive civil time until the host location is marked captured', ()
   assert.equal(pending.local_datetime, null);
 });
 
-test('does not infer a time zone or coordinates when host location is unavailable', () => {
+test('uses Beijing standard time without inventing coordinates when host location is unavailable', () => {
   const result = deriveBirthTimeContext({
     birth_time: '2024-02-04T08:00:00.000Z',
     birth_location: { status: 'unavailable' },
   });
-  assert.equal(result.status, 'unavailable');
-  assert.equal(result.time_zone_id, null);
-  assert.equal(result.true_solar_datetime, null);
+  assert.equal(result.status, 'ready');
+  assert.equal(result.time_zone_id, 'Asia/Shanghai');
+  assert.equal(result.time_zone_source, 'default_beijing');
+  assert.equal(result.local_datetime, '2024-02-04T16:00:00');
+  assert.equal(result.true_solar_datetime, '2024-02-04T16:00:00');
+  assert.equal(result.longitude_correction_minutes, null);
+  assert.equal(result.time_basis, 'beijing-standard-time-fallback');
 });
 
 test('rejects invalid timestamps, IANA zones and longitude values', () => {
