@@ -9,8 +9,8 @@ function calendarContext({ year = 1999, monthBranch = '丑', status = 'ready' } 
     previous_jie: { name: '小寒', month_branch: monthBranch, at_utc: year + '-01-05T00:00:00.000Z' },
   };
 }
-function timeContext(solarTime) {
-  return { status: 'ready', true_solar_datetime: solarTime };
+function timeContext(solarTime, timeBasis = 'apparent-solar-time') {
+  return { status: 'ready', true_solar_datetime: solarTime, time_basis: timeBasis };
 }
 
 test('calculates a reference chart from the 1949-10-01 Jiazi day-cycle anchor', () => {
@@ -97,4 +97,15 @@ test('does not calculate pillars for pending, unavailable or solar-term-ambiguou
   assert.equal(calculateBaziPillars({ time_context: { status: 'pending' }, calendar_context: calendar }).status, 'pending');
   assert.equal(calculateBaziPillars({ time_context: { status: 'unavailable' }, calendar_context: calendar }).status, 'unavailable');
   assert.equal(calculateBaziPillars({ time_context: timeContext('2000-01-07T12:00:00'), calendar_context: calendarContext({ status: 'ambiguous' }) }).status, 'ambiguous');
+});
+
+
+test('records Beijing standard-time fallback explicitly when no longitude is available', () => {
+  const result = calculateBaziPillars({
+    time_context: timeContext('2000-01-07T12:00:00', 'beijing-standard-time-fallback'),
+    calendar_context: calendarContext({ year: 1999, monthBranch: '丑' }),
+  });
+  assert.equal(result.status, 'calculated');
+  assert.equal(result.methodology.time_basis, 'beijing-standard-time-fallback-no-longitude-correction');
+  assert.deepEqual(result.pillars, { year: '己卯', month: '丁丑', day: '甲子', hour: '庚午' });
 });
