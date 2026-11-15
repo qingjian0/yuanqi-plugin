@@ -7,6 +7,8 @@ export {
   SOLAR_TERMS,
   BAZI_METHODOLOGY,
   calculateBaziPillars,
+  BAZI_HIDDEN_STEMS,
+  deriveInnateBaseline,
   createWorldlineStore,
   SELF_MODEL_CENTER_IDS,
   openSubjectDomains,
