@@ -7,7 +7,7 @@ test('derives Shanghai civil time and approximate apparent solar time from YuanQ
     birth_time: '2024-02-04T08:00:00.000Z',
     birth_location: {
       status: 'captured', longitude: 121.4737, latitude: 31.2304,
-      time_zone_id: 'Asia/Shanghai',
+      time_zone_id: 'Asia/Shanghai', time_zone_source: 'host_location_provider',
     },
   });
   assert.equal(result.status, 'ready');
@@ -23,11 +23,11 @@ test('derives Shanghai civil time and approximate apparent solar time from YuanQ
 test('uses the offset in force at the exact instant across a DST repeated hour', () => {
   const daylight = deriveBirthTimeContext({
     birth_time: '2024-11-03T05:30:00.000Z',
-    birth_location: { status: 'captured', longitude: -74.006, time_zone_id: 'America/New_York' },
+    birth_location: { status: 'captured', longitude: -74.006, time_zone_id: 'America/New_York', time_zone_source: 'host_location_provider' },
   });
   const standard = deriveBirthTimeContext({
     birth_time: '2024-11-03T06:30:00.000Z',
-    birth_location: { status: 'captured', longitude: -74.006, time_zone_id: 'America/New_York' },
+    birth_location: { status: 'captured', longitude: -74.006, time_zone_id: 'America/New_York', time_zone_source: 'host_location_provider' },
   });
   assert.equal(daylight.local_datetime, '2024-11-03T01:30:00');
   assert.equal(standard.local_datetime, '2024-11-03T01:30:00');
@@ -43,7 +43,7 @@ test('keeps time context pending when the authorized host time zone or longitude
   });
   const missingLongitude = deriveBirthTimeContext({
     birth_time: '2024-02-04T08:00:00.000Z',
-    birth_location: { status: 'captured', time_zone_id: 'Asia/Shanghai', longitude: null },
+    birth_location: { status: 'captured', time_zone_id: 'Asia/Shanghai', time_zone_source: 'host_location_provider', longitude: null },
   });
   assert.equal(missingZone.status, 'pending');
   assert.equal(missingZone.local_datetime, null);
@@ -73,11 +73,11 @@ test('rejects invalid timestamps, IANA zones and longitude values', () => {
   assert.throws(() => deriveBirthTimeContext({ birth_time: 'not-a-date', birth_location: {} }), /ISO timestamp/);
   const invalidZone = deriveBirthTimeContext({
     birth_time: '2024-02-04T08:00:00.000Z',
-    birth_location: { status: 'captured', longitude: 0, time_zone_id: 'Mars/Olympus' },
+    birth_location: { status: 'captured', longitude: 0, time_zone_id: 'Mars/Olympus', time_zone_source: 'host_location_provider' },
   });
   assert.equal(invalidZone.status, 'unavailable');
   assert.throws(() => deriveBirthTimeContext({
     birth_time: '2024-02-04T08:00:00.000Z',
-    birth_location: { status: 'captured', longitude: 181, time_zone_id: 'UTC' },
+    birth_location: { status: 'captured', longitude: 181, time_zone_id: 'UTC', time_zone_source: 'host_location_provider' },
   }), /longitude/);
 });
