@@ -107,5 +107,6 @@ test('records Beijing standard-time fallback explicitly when no longitude is ava
   });
   assert.equal(result.status, 'calculated');
   assert.equal(result.methodology.time_basis, 'beijing-standard-time-fallback-no-longitude-correction');
+  assert.equal(result.methodology.time_context_engine, 'civil-time-only-v1');
   assert.deepEqual(result.pillars, { year: '己卯', month: '丁丑', day: '甲子', hour: '庚午' });
 });
