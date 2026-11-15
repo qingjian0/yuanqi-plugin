@@ -29,6 +29,7 @@
 - 已新增测试覆盖：证据目录校验、无八字时工具不可见、当前 Session 世界线绑定、初始画像只写入一次、认识状态保持 hypothesis。
 - 该画像仍是命理解释假设，不是已验证人格事实；后续经历验证与修正流程尚未完成。真实 Android DSH 宿主和模型端到端验收仍待完成。
 - 详细设计与边界记录：[E00-21 八字初始性格与 SelfModel 持久化闭环](./engineering/E00-21-P0-BAZI-INITIAL-PERSONALITY-SELFMODEL.md)。
+- 后天经历采集研究：[E00-22 后天经历与证据采集管线](./engineering/E00-22-P0-EXPERIENCE-EVIDENCE-PIPELINE.md)；当前仅完成宿主事件契约研究，未新增自动经历采集代码。
 
 ## 2. 工程交付状态（2026-11-05）
 
