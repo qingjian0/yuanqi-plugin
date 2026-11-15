@@ -74,7 +74,7 @@ function wakeFields(event) {
 function unavailableLocation() {
   return {
     status: 'unavailable', latitude: null, longitude: null, accuracy_meters: null,
-    place_label: null, time_zone_id: null, source: 'unavailable', captured_at: null,
+    place_label: null, time_zone_id: null, time_zone_source: 'unavailable', source: 'unavailable', captured_at: null,
   };
 }
 
