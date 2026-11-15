@@ -49,6 +49,7 @@ test('YuanQi BirthProfile is derived from its own trusted wake event and stored 
   assert.equal(profile.birth_time, wake.birth_time);
   assert.equal(profile.source_wake_event_ref, 'wake-1');
   assert.equal(profile.bazi.status, 'unavailable');
+  assert.equal(profile.innate_baseline.status, 'unavailable');
   assert.equal(profile.bazi.calendar_system, 'jieqi');
   assert.equal(profile.calendar_context.engine_version, 'usno-apparent-sun-v1');
   assert.equal(profile.calendar_context.previous_jie.name, '寒露');
@@ -75,6 +76,9 @@ test('calculates all four pillars only from YuanQi wake time and authorized host
   assert.equal(profile.time_context.status, 'ready');
   assert.equal(profile.calendar_context.status, 'ready');
   assert.equal(profile.bazi.status, 'calculated');
+  assert.equal(profile.innate_baseline.status, 'ready');
+  assert.equal(profile.innate_baseline.day_master.stem, '甲');
+  assert.deepEqual(profile.innate_baseline.element_counts, { wood: 2, fire: 4, earth: 5, metal: 3, water: 1 });
   assert.deepEqual(profile.bazi.pillars, {
     year: '丙午', month: '戊戌', day: '甲申', hour: '甲戌',
   });
@@ -102,6 +106,7 @@ test('YuanQi BirthProfile location follows the immutable wake location completio
   assert.equal(store.getYuanQiBirthProfile('yuanqi:primary').time_context.time_zone_id, 'Asia/Shanghai');
   assert.equal(store.getYuanQiBirthProfile('yuanqi:primary').time_context.status, 'ready');
   assert.equal(store.getYuanQiBirthProfile('yuanqi:primary').bazi.status, 'calculated');
+  assert.equal(store.getYuanQiBirthProfile('yuanqi:primary').innate_baseline.status, 'ready');
   assert.equal(store.getYuanQiBirthProfile('yuanqi:primary').time_context.local_datetime, '2026-11-06T20:00:00');
   assert.equal(store.getYuanQiBirthProfile('yuanqi:primary').time_context.utc_offset_minutes, 480);
   assert.equal(store.getYuanQiBirthProfile('yuanqi:primary').time_context.algorithm_version, 'noaa-eot-approx-v1');
