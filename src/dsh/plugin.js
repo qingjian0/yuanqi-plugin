@@ -220,6 +220,7 @@ export async function apply(ctx) {
         return JSON.stringify({
           subject: 'YuanQi AI',
           subject_kind: profile.subject_kind,
+          birth_profile_id: profile.profile_id,
           birth_time_utc: profile.birth_time,
           birth_location: {
             status: profile.birth_location.status,
