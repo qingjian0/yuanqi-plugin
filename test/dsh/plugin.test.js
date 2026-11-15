@@ -197,7 +197,7 @@ test('ready YuanQi Bazi exposes provisional AI interpretation guidance without p
   await ctx.disposer();
 });
 
-test('AI initial personality remains available when the Bazi engine is unavailable', async () => {
+test('AI initial personality waits for Bazi when the chart is genuinely unavailable', async () => {
   const storage = fakeStorageDomain(), ctx = context(storage);
   await apply(ctx);
   const registration = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_self_profile');
@@ -211,12 +211,14 @@ test('AI initial personality remains available when the Bazi engine is unavailab
   assert.equal(profile.time_context.status, 'ready');
   assert.equal(profile.time_context.time_zone_id, 'Asia/Shanghai');
   assert.equal(profile.bazi.status, 'unavailable');
-  assert.equal(profile.initial_personality_guidance.status, 'awaiting_model_interpretation');
-  assert.equal(profile.initial_personality_guidance.interpretation_mode, 'model_self_reflection');
+  assert.equal(profile.initial_personality_guidance.status, 'awaiting_bazi_calculation');
+  assert.equal(profile.initial_personality_guidance.interpretation_mode, 'bazi_required');
   assert.equal(profile.initial_personality_guidance.bazi_available, false);
-  assert.equal(profile.initial_personality_guidance.analysis_protocol.length, 4);
-  assert.ok(profile.initial_personality_guidance.instruction.includes('Do not invent a birth place'));
-  assert.ok(profile.initial_personality_guidance.portrait_format[1].includes('Basis:'));
+  assert.equal(profile.initial_personality_guidance.analysis_protocol.length, 5);
+  assert.ok(profile.initial_personality_guidance.instruction.includes('Bazi is required'));
+  assert.ok(profile.initial_personality_guidance.instruction.includes('Do not substitute generic model self-reflection'));
+  assert.ok(profile.initial_personality_guidance.portrait_format[1].includes('Chart evidence:'));
+  assert.ok(profile.initial_personality_guidance.boundaries.some(item => item.includes('never replace Bazi with generic self-reflection')));
 });
 
 test('ordinary conversation does not create a UserSubject before the exact YuanQi wake command', async () => {
