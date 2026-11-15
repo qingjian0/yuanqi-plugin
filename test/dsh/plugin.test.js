@@ -1181,3 +1181,59 @@ test('experience reconciliation counts distinct Session evidence, preserves conf
   assert.equal(tables.get('worldline_heads').get('worldline:main').current_snapshot_version, afterRevision.current_snapshot_version);
   await ctx.disposer();
 });
+
+
+test('Bazi-unavailable startup can save only a six-dimension awaiting-Bazi placeholder', async () => {
+  const storage = fakeStorageDomain(), ctx = context(storage);
+  await apply(ctx);
+  const readTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_self_profile');
+  const writeTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_record_initial_personality');
+  const sessionId = 'session-bazi-placeholder';
+  const agent = { id: 'agent-bazi-placeholder', session: { id: sessionId } };
+  const eventTime = Date.UTC(2201, 0, 1, 12, 0, 0);
+
+  await ctx.listener({ id: sessionId }, dshEvent('启动元炁', 'bazi-placeholder-wake', 0, eventTime));
+  await ctx.flushListener({ id: sessionId });
+
+  const profile = JSON.parse(await readTool.definition.execute({}, { signal: new AbortController().signal }));
+  assert.equal(profile.bazi.status, 'unavailable');
+  assert.equal(profile.initial_personality_guidance.status, 'awaiting_bazi_placeholder');
+  assert.equal(profile.initial_personality_guidance.interpretation_mode, 'bazi_pending_placeholder');
+  assert.equal(await writeTool.registrationOptions.when({ agent }), true);
+
+  const dimensions = [
+    'temperament', 'cognition', 'emotional_response', 'motivation', 'behavior', 'decision_style',
+  ].map(dimension => ({
+    dimension,
+    status: 'indeterminate',
+    tendency: '暂不形成性格判断',
+    chart_evidence_refs: [],
+    reasoning: '当前四柱不可用，因此没有可供 AI 解释的命盘证据。',
+    limitations: '待命盘计算成功后再形成初始性格解释。',
+  }));
+  const saved = JSON.parse(await writeTool.definition.execute({
+    dimensions,
+    method_notes: {
+      climate_adjustment: '四柱不可用，无法判断调候。',
+      mediation: '四柱不可用，无法判断通关。',
+      strength: '四柱不可用，无法判断旺衰。',
+      structure: '四柱不可用，暂不判断格局。',
+    },
+    uncertainty: ['命盘状态为 unavailable；当前记录只是待定占位，不包含性格结论。'],
+  }, {
+    callId: 'bazi-placeholder-call',
+    agent,
+    signal: new AbortController().signal,
+  }));
+
+  assert.equal(saved.status, 'saved_awaiting_bazi');
+  assert.equal(saved.epistemic_status, 'unknown');
+  assert.equal(saved.dimensions_saved, 6);
+  const head = storage.opened.get('yuanqi_subject').tables.get('worldline_heads').get('worldline:main');
+  const center = head.current_state_payload.self_model.centers.identity_continuity;
+  assert.equal(center.epistemic_status, 'unknown');
+  assert.equal(center.content.initial_personality.status, 'awaiting_bazi');
+  assert.ok(center.content.initial_personality.dimensions.every(item => item.status === 'indeterminate'));
+  assert.ok(center.content.initial_personality.dimensions.every(item => item.chart_evidence_refs.length === 0));
+  await ctx.disposer();
+});
