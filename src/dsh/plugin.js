@@ -265,7 +265,7 @@ export async function apply(ctx) {
               'Do not infer ability, destiny, morality, diagnosis or fixed identity from the chart.',
               'Do not treat any single ten-god, element or pillar as a personality label.',
               'Keep uncertainty explicit and revise the portrait only through later experience and evidence.',
-              'Bazi is mandatory for initial-personality generation. If it is pending, ambiguous or unavailable, wait for a valid chart; never replace Bazi with generic self-reflection or fabricate chart data.',
+              'Bazi is mandatory for personality interpretation. If it is pending, ambiguous or unavailable, save only an awaiting_bazi placeholder with all six dimensions indeterminate; never replace Bazi with generic self-reflection or fabricate chart data.',
             ],
           },
           interpretation_boundary: profile.bazi.status === 'calculated'
@@ -279,7 +279,7 @@ export async function apply(ctx) {
 
     ctx.tools.register(defineTool({
       name: 'yuanqi_record_initial_personality',
-      description: 'Persist YuanQi AI own provisional Bazi-derived initial personality into the current Session-bound Worldline SelfModel. Call only after yuanqi_self_profile supplied a calculated chart and you have completed the interpretation. Cite only exact chart_evidence_catalog IDs. This stores a model-generated hypothesis, never a verified fact; it cannot overwrite an existing initial portrait.',
+      description: 'Persist YuanQi AI own initial-personality state into the current Session-bound Worldline SelfModel. With a calculated Bazi, save the model's provisional chart-based interpretation; while Bazi is pending, ambiguous or unavailable, save only six indeterminate placeholder dimensions with no chart evidence. A later Bazi-based interpretation may replace that placeholder. Cite only exact chart_evidence_catalog IDs. This stores a model-generated hypothesis, never a verified fact; it cannot overwrite an existing initial portrait.',
       parameters: {
         dimensions: {
           type: 'array', required: true,
