@@ -473,7 +473,7 @@ test('YuanQi birth time is the exact first startup event time and host location 
   assert.equal(wake.occurred_at, wake.birth_time);
   assert.deepEqual(wake.birth_location, {
     status: 'captured', latitude: 31.2304, longitude: 121.4737,
-    accuracy_meters: 18, place_label: 'Shanghai', time_zone_id: 'Asia/Shanghai',
+    accuracy_meters: 18, place_label: 'Shanghai', time_zone_id: 'Asia/Shanghai', time_zone_source: 'host_location_provider',
     source: 'host_location_provider', captured_at: '2026-11-14T11:23:47.000Z',
   });
   assert.equal(locationReads, 1);
@@ -507,6 +507,11 @@ test('wake event is durable and Session flush does not wait for a pending locati
   const completed = storage.opened.get('yuanqi_subject').tables.get('wake_records').get('yuanqi:primary');
   assert.equal(completed.birth_location.status, 'captured');
   assert.equal(completed.birth_location.latitude, 31.2304);
+  assert.equal(completed.birth_location.time_zone_id, 'Asia/Shanghai');
+  assert.equal(completed.birth_location.time_zone_source, 'coordinate_lookup');
+  const profile = storage.opened.get('yuanqi_subject').tables.get('birth_profiles').get('yuanqi:primary');
+  assert.equal(profile.bazi.status, 'calculated');
+  assert.equal(profile.innate_baseline.status, 'ready');
 });
 
 test('missing host location capability records unknown place without fabricating data', async () => {
