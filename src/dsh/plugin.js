@@ -122,7 +122,7 @@ export async function apply(ctx) {
         schema: { type: 'string' },
         render: (_args, value) => [{ type: 'text', text: value }],
       },
-      execute() {
+      async execute() {
         const profile = store.getYuanQiBirthProfile(YUANQI_SUBJECT_ID);
         if (!profile) {
           return JSON.stringify({
