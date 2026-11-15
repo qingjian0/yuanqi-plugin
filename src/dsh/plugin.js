@@ -307,9 +307,6 @@ export async function apply(ctx) {
         render: (_args, value) => [{ type: 'text', text: value }],
       },
       async execute(args, exec) {
-        if (typeof ctx.sessionQuery.readEvent !== 'function') {
-          throw new Error('bounded experience capture requires DSH sessionQuery.readEvent');
-        }
         const sessionId = exec?.agent?.session?.id;
         const callId = exec?.callId;
         if (typeof sessionId !== 'string' || sessionId.length === 0 ||
@@ -444,7 +441,6 @@ export async function apply(ctx) {
       },
     }), {
       when: ({ agent } = {}) => {
-        if (typeof ctx.sessionQuery.readEvent !== 'function') return false;
         const sessionId = agent?.session?.id;
         if (typeof sessionId !== 'string' || sessionId.length === 0) return false;
         const binding = worldlines.getSessionBinding(sessionId);
