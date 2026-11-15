@@ -67,7 +67,7 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - 支持快照 CAS、Runtime Lease/Fencing、快照归档，以及主线创建中断后的恢复。
 - Evidence Ledger 提供来源记录、撤销、评估和显式授权跨线转移等底层 API。
 - 当前插件没有提供 Worldline 运行时切换/重绑定工具，也没有自动合并不同世界线状态的流程。
-- 当前插件不会自动把普通对话消息转成经历证据；模型可按需调用 `yuanqi_record_experience_candidate`，经插件核验后写入 `unassessed` 候选记录。Evidence Ledger 的存在及候选记录入口均不等于证据评估和 SelfModel 更新闭环已完成。
+- 当前插件不会自动把普通对话消息转成经历证据；模型可按需调用 `yuanqi_record_experience_candidate`，经插件核验后写入 `unassessed` 候选记录。模型可再调用 `yuanqi_assess_experience_candidate`，把候选对各初始画像维度的支持/反驳/不足判断写入 Evidence Assessment Ledger，并将不可变评估历史追加到 `cognition_reflection`。该评估仍是模型假设，不提升人格认识状态，也不改写 `identity_continuity.initial_personality`；自动评估、跨 Session 独立佐证聚合及新画像版本生成尚未实现。
 
 `worldline_id` 是逻辑隔离键，不是用户身份认证或授权凭证。
 
@@ -75,12 +75,12 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 
 - 这些仍是长期研究方向；当前工作树没有独立的 Memory、Experience、Goals 或 Behavior 领域模块。
 - 当前没有通用候选记忆、用户确认升级、经验结果归因或经验置信评分的完整运行时流程。
-- 当前没有基于后天经历自动验证/反驳初始性格并更新 SelfModel 的流程。
+- 当前没有自动扫描经历、跨 Session 独立佐证聚合或基于证据生成新人格画像版本的流程；现有显式评估只追加模型评估历史，原始八字画像保持不变。
 - 后续实现必须复用 Evidence Ledger 的来源、撤销和评估能力，并保持模型推断与用户事实的认识状态区分。
 
 ### 上下文参与
 
-- 当前已实现的是按需读取 `yuanqi_self_profile`，以及在条件满足时向模型暴露 `yuanqi_record_initial_personality`。
+- 当前已实现按需读取 `yuanqi_self_profile`，以及条件满足时暴露 `yuanqi_record_initial_personality`、`yuanqi_record_experience_candidate` 和 `yuanqi_assess_experience_candidate`。
 - DSH 会把已注册工具的 schema/description 提供给模型；这不等于 YuanQi 已实现每轮上下文投影或自动注入完整自我模型。
 - 有长度上限的 Session 上下文投影、工具续步去重和历史筛选仍属于待实现/待验收能力。
 
