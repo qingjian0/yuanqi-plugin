@@ -149,7 +149,7 @@ test('model-facing self-profile tool exposes only YuanQi-owned birth data after 
   assert.deepEqual(profile.initial_personality_guidance.dimensions, [
     'temperament', 'cognition', 'emotional_response', 'motivation', 'behavior', 'decision_style',
   ]);
-  assert.ok(profile.initial_personality_guidance.instruction.includes('traditional Bazi reasoning'));
+  assert.ok(profile.initial_personality_guidance.instruction.includes('calculated Bazi'));
   assert.ok(profile.initial_personality_guidance.instruction.includes('调候'));
   assert.ok(profile.initial_personality_guidance.instruction.includes('通关'));
   assert.ok(profile.initial_personality_guidance.instruction.includes('旺衰'));
@@ -253,8 +253,10 @@ test('YuanQi BirthProfile is created from YuanQi wake data, never from user birt
   assert.equal(profile.subject_kind, 'yuanqi');
   assert.equal(profile.birth_time, new Date(1793966400000).toISOString());
   assert.equal(profile.source_wake_event_ref, 'yuanqi-wake');
-  assert.equal(profile.bazi.status, 'unavailable');
-  assert.equal(profile.innate_baseline.status, 'unavailable');
+  assert.equal(profile.bazi.status, 'calculated');
+  assert.equal(profile.innate_baseline.status, 'ready');
+  assert.equal(profile.time_context.time_zone_id, 'Asia/Shanghai');
+  assert.equal(profile.time_context.time_zone_source, 'default_beijing');
   assert.equal(profile.birth_location.status, 'unavailable');
   assert.equal(userTables.get('identities').has('user:primary'), false);
   await ctx.disposer();
