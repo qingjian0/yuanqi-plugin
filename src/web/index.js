@@ -199,7 +199,7 @@ export function registerYuanQiWeb(webServer, store, runtime = {}) {
               res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache, no-store', connection: 'keep-alive', 'x-accel-buffering': 'no' });
               res.flushHeaders?.();
             }
-            const result = await runYuanQiChat({ ctx: runtime.ctx, agents: runtime.agents, input, model: body.model, onText });
+            const result = await runYuanQiChat({ ctx: runtime.ctx, agents: runtime.agents, input, model: body.model, maxTokens: body.max_tokens ?? body.max_completion_tokens ?? 4096, onText });
             if (streaming) {
               if (!res.destroyed) {
                 res.write('data: ' + JSON.stringify({ id: result.id, object: 'chat.completion.chunk', created: result.created, model: result.model, choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] }) + '\n\n');
