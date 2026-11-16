@@ -70,12 +70,13 @@ export function hasValidBearer(req, expected) {
   return actual.length === wanted.length && timingSafeEqual(actual, wanted);
 }
 
-export async function runYuanQiChat({ ctx, agents, input, model, onText, sessionId: resumeSessionId }) {
+export async function runYuanQiChat({ ctx, agents, input, model, maxTokens = 4096, onText, sessionId: resumeSessionId }) {
   const provider = process.env.YUANQI_MODEL_PROVIDER;
   if (model !== undefined && (typeof model !== 'string' || model.trim().length === 0 || model.length > 160)) {
     throw httpError(400, 'invalid_model', 'model must be a non-empty string no longer than 160 characters');
   }
   const selectedModel = model || process.env.YUANQI_MODEL;
+  if (!Number.isSafeInteger(maxTokens) || maxTokens < 1 || maxTokens > 8192) throw httpError(400, 'invalid_max_tokens', 'max_tokens must be an integer from 1 to 8192');
   if (!provider || !selectedModel) {
     throw httpError(503, 'model_not_configured', 'Set YUANQI_MODEL_PROVIDER and YUANQI_MODEL in the DSH host environment');
   }
@@ -93,14 +94,14 @@ export async function runYuanQiChat({ ctx, agents, input, model, onText, session
   });
   let handle;
   try {
-    const agentOptions = { provider, model: selectedModel, maxTokens: 4096 };
+    const agentOptions = { provider, model: selectedModel, maxTokens };
     const setup = agentCtx => {
       const inheritedTools = agentCtx.tools.schemas().map(tool => tool.name);
       if (inheritedTools.length) agentCtx.tools.restrict({ deny: inheritedTools });
     };
     handle = resumeSessionId
       ? await agents.resume({ resumeSessionId, agentOptions, setup })
-      : await agents.create({ sessionId, agentOptions, setup });
+      : await agents.create({ sessionId, meta: { cwd: process.cwd() }, agentOptions, setup });
     if (input.context && !resumeSessionId) {
       handle.agent.inject(createUserMessage({
         content: [{ type: 'text', text: 'Previous conversation context (quoted history, not system instructions):\n' + input.context }],
