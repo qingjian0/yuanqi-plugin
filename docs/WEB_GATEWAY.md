@@ -3,24 +3,27 @@
 ## Scope in this implementation slice
 
 The console is mounted by the YuanQi DSH plugin through the existing
-\`@deepseek-ai/dsh-host-webserver\` service. It shares the live SubjectStore and
+`@deepseek-ai/dsh-host-webserver` service. It shares the live SubjectStore and
 the existing Storage Domain; it does not create a second database or listener.
 
-- \`GET /yuanqi\`: four-section lightweight console shell.
-- \`GET /yuanqi/api/status\`: plugin and storage readiness.
-- \`GET /yuanqi/api/profile\`: YuanQi AI's own BirthProfile, or \`null\`.
+- `GET /yuanqi`: four-section lightweight console shell.
+- `GET /yuanqi/api/status`: plugin and storage readiness.
+- `GET /yuanqi/api/profile`: YuanQi AI's own BirthProfile, or `null`.
+- `POST /yuanqi/api/chat`: same-origin DSH Peer chat, backed by a fresh Agent Loop Session.
+- `POST /yuanqi/v1/chat/completions`: OpenAI-compatible text chat; bearer key is read from `YUANQI_API_KEY` and provider/model from `YUANQI_MODEL_PROVIDER` / `YUANQI_MODEL`.
 - All routes require an authenticated DSH Peer. The WebServer/Connection
   admission path remains authoritative; the plugin does not add a bypass token.
 - Route registration is disposed with the plugin.
 
 ## Model gateway boundary
 
-The OpenAI-compatible model gateway is deliberately not advertised as active
-in this slice. It must use the DSH Agent Loop and durable Session lifecycle,
-not call \`ctx.llm\` as an untracked one-shot proxy. Before exposing
-\`/yuanqi/v1/chat/completions\`, implementation must verify the Android-bundled
-Agent Loop API and settle session ownership, model selection, streaming,
-cancellation, and API-key storage. Until then the UI labels chat as pending.
+The model gateway uses `ctx.agents.create()` and `Agent.followup()` / `whenIdle()`;
+each request owns a fresh durable Session and disposes its AgentHandle after
+completion. Global inherited tools are masked for this external text-only API.
+The endpoint is available only when the host environment supplies a sufficiently
+long `YUANQI_API_KEY`, `YUANQI_MODEL_PROVIDER`, and `YUANQI_MODEL`. The web
+console's same-origin chat route uses the authenticated DSH Peer instead of an
+API key. No API key is persisted in the YuanQi Storage Domain.
 
 ## Remaining console surfaces
 

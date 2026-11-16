@@ -9,7 +9,7 @@ import { registerYuanQiWeb } from '../web/index.js';
 export const name = 'dsh-yuanqi-plugin';
 // Session Query supplies validated live/cold observations; persistence is
 // required because live SessionStore state alone cannot recover after restart.
-export const inject = ['storageDomain', 'sessions', 'sessionQuery', 'sessionPersistence', 'tools', 'webServer'];
+export const inject = ['storageDomain', 'sessions', 'sessionQuery', 'sessionPersistence', 'tools', 'webServer', 'agents'];
 
 const YUANQI_SUBJECT_ID = 'yuanqi:primary';
 const LOCATION_PROVIDER_TIMEOUT_MS = 11_000;
@@ -202,7 +202,7 @@ export async function apply(ctx) {
       yuanqiDomain: domains.yuanqiDomain,
       verifyDirectUserEvent(event) { return isTrustedDirectUserMessageEvent(event) ? event : null; },
     });
-    const disposeYuanQiWeb = registerYuanQiWeb(ctx.webServer, store);
+    const disposeYuanQiWeb = registerYuanQiWeb(ctx.webServer, store, { ctx, agents: ctx.agents });
     ctx.effect(() => disposeYuanQiWeb);
     ctx.tools.register(defineTool({
       name: 'yuanqi_self_profile',
