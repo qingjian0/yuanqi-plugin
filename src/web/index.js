@@ -62,7 +62,7 @@ if(evidence.length===0){content.append(el('p','暂时没有已关联的经历证
 for(const item of evidence){const card=el('div',undefined,'tile');card.append(el('b',item.record?.evidence_type||'经历证据'),el('span','状态：'+item.status+' · '+(item.record?.captured_at||'')));const pre=el('pre');pre.textContent=JSON.stringify(item.record?.content??{},null,2);card.append(pre);content.append(card)}
 }else{
 content.append(el('h1','设置'),el('p','运行环境与接入信息','muted'));
-const g=el('div',undefined,'grid');tile(g,'插件','dsh-yuanqi-plugin');tile(g,'宿主','DeepSeek Harness');tile(g,'Core 状态',status?.ready?'已连接':'待确认');tile(g,'模型提供方',status?.provider||'未配置');tile(g,'默认模型',status?.model||'未配置');tile(g,'OpenAI API',status?.api_enabled?'已启用':'需配置 API Key');tile(g,'网页认证','由 DSH WebServer / Connection 负责');content.append(g);
+const g=el('div',undefined,'grid');tile(g,'插件','dsh-yuanqi-plugin');tile(g,'宿主','DeepSeek Harness');tile(g,'Core 状态',status?.ready?'已连接':'待确认');tile(g,'模型提供方',status?.provider||'未配置');tile(g,'默认模型',status?.model||'未配置');tile(g,'OpenAI API',status?.api_enabled&&status?.model_ready?'已启用':status?.api_enabled?'缺少模型配置':'需配置 API Key');tile(g,'API Base URL',location.origin+'/yuanqi/v1');tile(g,'API Key 配置','宿主环境变量 YUANQI_API_KEY');tile(g,'网页认证','由 DSH WebServer / Connection 负责');content.append(g);
 }
 }
 async function load(){
