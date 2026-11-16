@@ -1,3 +1,5 @@
+import { readJsonBody, normalizeChatInput, hasValidBearer, runYuanQiChat, modelGatewayConfig } from './model.js';
+
 const PAGE = String.raw`<!doctype html>
 <html lang="zh-CN">
 <head>
@@ -35,8 +37,12 @@ function tile(parent,title,value){const box=el('div',undefined,'tile');box.appen
 function render(){
 content.replaceChildren();
 if(current==='chat'){
-content.append(el('h1','对话'),el('p','对话入口已预留。模型会话接入完成后，将通过 DSH Agent Loop 和持久 Session 提供对话，不绕过会话日志。','muted'));
-const g=el('div',undefined,'grid');tile(g,'Core','YuanQi Core');tile(g,'数据存储','共享 DSH Storage Domain');tile(g,'模型会话','等待 Agent Loop 接口接入');content.append(g);
+content.append(el('h1','对话'),el('p','通过 DSH Agent Loop 创建持久 Session；此入口不绕过会话日志。','muted'));
+const transcript=el('div',undefined,'grid');transcript.style.gridTemplateColumns='1fr';content.append(transcript);
+const form=el('form');form.style.display='flex';form.style.gap='8px';form.style.marginTop='18px';
+const input=el('input');input.type='text';input.placeholder='输入消息…';input.required=true;input.maxLength=12000;input.style.cssText='flex:1;min-width:0;padding:12px;border-radius:10px;border:1px solid #354253;background:#111923;color:#e9edf4';
+const submit=el('button','发送');submit.type='submit';submit.style.cssText='padding:12px 18px;border:0;border-radius:10px;background:#d9e8ff;color:#142236;font-weight:600';form.append(input,submit);content.append(form);
+form.addEventListener('submit',async event=>{event.preventDefault();const text=input.value.trim();if(!text)return;input.disabled=true;submit.disabled=true;transcript.append(el('div','你：'+text,'tile'));input.value='';try{const response=await fetch('/yuanqi/api/chat',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({message:text})});const data=await response.json();if(!response.ok)throw new Error(data.message||('HTTP '+response.status));transcript.append(el('div','元炁：'+data.text,'tile'))}catch(error){transcript.append(el('div','请求失败：'+String(error),'tile'))}finally{input.disabled=false;submit.disabled=false;input.focus()}});
 }else if(current==='personality'){
 content.append(el('h1','人格档案'),el('p','此处展示元炁自身的出生资料与八字初始画像；画像必须由模型依据有效八字解释。','muted'));
 if(!profile){content.append(el('p','尚未建立 BirthProfile。'));return}
@@ -47,7 +53,7 @@ const baseline=profile.innate_baseline;tile(content,'先天画像状态',baselin
 content.append(el('h1','记忆与经历'),el('p','记忆、经历证据与人格修订将读取现有 YuanQi Domain，不建立第二套数据。','muted'),el('p','当前版本尚未开放浏览和编辑接口。'));
 }else{
 content.append(el('h1','设置'),el('p','运行环境与接入信息','muted'));
-const g=el('div',undefined,'grid');tile(g,'插件','dsh-yuanqi-plugin');tile(g,'宿主','DeepSeek Harness');tile(g,'Core 状态',status?.ready?'已连接':'待确认');tile(g,'网页认证','由 DSH WebServer / Connection 负责');content.append(g);
+const g=el('div',undefined,'grid');tile(g,'插件','dsh-yuanqi-plugin');tile(g,'宿主','DeepSeek Harness');tile(g,'Core 状态',status?.ready?'已连接':'待确认');tile(g,'模型提供方',status?.provider||'未配置');tile(g,'默认模型',status?.model||'未配置');tile(g,'OpenAI API',status?.api_enabled?'已启用':'需配置 API Key');tile(g,'网页认证','由 DSH WebServer / Connection 负责');content.append(g);
 }
 }
 async function load(){
@@ -68,7 +74,7 @@ function send(res, status, contentType, body) {
   res.end(body);
 }
 
-export function registerYuanQiWeb(webServer, store) {
+export function registerYuanQiWeb(webServer, store, runtime = {}) {
   if (!webServer || typeof webServer.register !== 'function') {
     throw new Error('YuanQi web console requires the DSH WebServer service');
   }
@@ -78,7 +84,7 @@ export function registerYuanQiWeb(webServer, store) {
   const dispose = webServer.register({
     kind: 'prefix',
     path: '/yuanqi',
-    auth: 'required',
+    auth: request => request.url.pathname.startsWith('/yuanqi/v1/') ? 'anonymous' : 'required',
     handler(req, res) {
       const url = new URL(req.url ?? '/', 'http://yuanqi.local');
       if (req.method !== 'GET' && req.method !== 'HEAD') {
@@ -96,12 +102,69 @@ export function registerYuanQiWeb(webServer, store) {
           service: 'yuanqi',
           storage: 'shared-dsh-domain',
           web: 'dsh-host-webserver',
+          ...modelGatewayConfig(),
         }));
         return;
       }
       if (url.pathname === '/yuanqi/api/profile') {
         const profile = store.getYuanQiBirthProfile('yuanqi:primary') ?? null;
         send(res, 200, 'application/json; charset=utf-8', JSON.stringify({ profile }));
+        return;
+      }
+      if (url.pathname === '/yuanqi/api/chat' && req.method === 'POST') {
+        void (async () => {
+          try {
+            const body = await readJsonBody(req);
+            const input = normalizeChatInput(body);
+            const result = await runYuanQiChat({ ctx: runtime.ctx, agents: runtime.agents, input });
+            send(res, 200, 'application/json; charset=utf-8', JSON.stringify({ text: result.text, model: result.model, session_id: result.session_id }));
+          } catch (error) {
+            send(res, error.status || 500, 'application/json; charset=utf-8', JSON.stringify({ error: error.code || 'internal_error', message: error.message || String(error) }));
+          }
+        })();
+        return;
+      }
+      if (url.pathname === '/yuanqi/v1/chat/completions' && req.method === 'POST') {
+        void (async () => {
+          let streaming = false;
+          try {
+            const expectedKey = process.env.YUANQI_API_KEY;
+            if (!expectedKey || expectedKey.length < 24) throw Object.assign(new Error('OpenAI-compatible API is not configured'), { status: 503, code: 'api_not_configured' });
+            if (!hasValidBearer(req, expectedKey)) throw Object.assign(new Error('Invalid bearer token'), { status: 401, code: 'invalid_api_key' });
+            const body = await readJsonBody(req);
+            const input = normalizeChatInput(body, { openAi: true });
+            streaming = body.stream === true;
+            const onText = streaming ? (delta, info) => {
+              if (!res.destroyed) res.write('data: ' + JSON.stringify({
+                id: info.id, object: 'chat.completion.chunk', created: info.created, model: info.model,
+                choices: [{ index: 0, delta: { content: delta }, finish_reason: null }],
+              }) + '\n\n');
+            } : undefined;
+            if (streaming) {
+              res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache, no-store', connection: 'keep-alive', 'x-accel-buffering': 'no' });
+              res.flushHeaders?.();
+            }
+            const result = await runYuanQiChat({ ctx: runtime.ctx, agents: runtime.agents, input, model: body.model, onText });
+            if (streaming) {
+              if (!res.destroyed) {
+                res.write('data: ' + JSON.stringify({ id: result.id, object: 'chat.completion.chunk', created: result.created, model: result.model, choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] }) + '\n\n');
+                res.write('data: [DONE]\n\n');
+                res.end();
+              }
+            } else {
+              send(res, 200, 'application/json; charset=utf-8', JSON.stringify({
+                id: result.id, object: 'chat.completion', created: result.created, model: result.model,
+                choices: [{ index: 0, message: { role: 'assistant', content: result.text }, finish_reason: 'stop' }],
+              }));
+            }
+          } catch (error) {
+            if (streaming && res.headersSent) {
+              if (!res.destroyed) { res.write('event: error\ndata: ' + JSON.stringify({ error: { code: error.code || 'internal_error', message: error.message || String(error) } }) + '\n\n'); res.end(); }
+            } else {
+              send(res, error.status || 500, 'application/json; charset=utf-8', JSON.stringify({ error: { code: error.code || 'internal_error', message: error.message || String(error) } }));
+            }
+          }
+        })();
         return;
       }
       send(res, 404, 'application/json; charset=utf-8', '{"error":"not_found"}');
