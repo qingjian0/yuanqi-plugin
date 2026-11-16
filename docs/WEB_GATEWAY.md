@@ -28,7 +28,8 @@ new request Session. Global inherited tools are masked for this external text-on
 The endpoint is available only when the host environment supplies a sufficiently
 long `YUANQI_API_KEY`, `YUANQI_MODEL_PROVIDER`, and `YUANQI_MODEL`. The web
 console's same-origin chat route uses the authenticated DSH Peer instead of an
-API key. No API key is persisted in the YuanQi Storage Domain.
+API key. OpenAI message history is flattened into quoted context for each
+stateless API request; it does not preserve provider-native role channels. No API key is persisted in the YuanQi Storage Domain.
 
 ## Current UI boundaries
 
