@@ -55,3 +55,22 @@ test('POST chat route is not rejected by the static-page method gate', async () 
   assert.equal(res.status, 503);
   assert.equal(JSON.parse(res.body).error, 'model_not_configured');
 });
+
+test('OpenAI model catalog requires the API key and advertises the configured model', () => {
+  const oldKey = process.env.YUANQI_API_KEY, oldProvider = process.env.YUANQI_MODEL_PROVIDER, oldModel = process.env.YUANQI_MODEL;
+  process.env.YUANQI_API_KEY = 'yuanqi-test-api-key-with-more-than-24-chars';
+  process.env.YUANQI_MODEL_PROVIDER = 'test-provider';
+  process.env.YUANQI_MODEL = 'test-model';
+  try {
+    let route;
+    registerYuanQiWeb({ register(value) { route = value; return () => {}; } }, { getYuanQiBirthProfile() { return null; } }, {});
+    const res = { status: 0, headers: {}, body: '', writeHead(status, headers) { this.status = status; this.headers = headers; }, end(body) { this.body = body; } };
+    route.handler({ method: 'GET', url: '/yuanqi/v1/models', headers: { authorization: 'Bearer ' + process.env.YUANQI_API_KEY } }, res);
+    assert.equal(res.status, 200);
+    assert.equal(JSON.parse(res.body).data[0].id, 'test-model');
+  } finally {
+    if (oldKey === undefined) delete process.env.YUANQI_API_KEY; else process.env.YUANQI_API_KEY = oldKey;
+    if (oldProvider === undefined) delete process.env.YUANQI_MODEL_PROVIDER; else process.env.YUANQI_MODEL_PROVIDER = oldProvider;
+    if (oldModel === undefined) delete process.env.YUANQI_MODEL; else process.env.YUANQI_MODEL = oldModel;
+  }
+});

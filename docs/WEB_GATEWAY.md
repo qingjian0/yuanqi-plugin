@@ -12,6 +12,7 @@ the existing Storage Domain; it does not create a second database or listener.
 - `GET /yuanqi/api/worldline`: main Worldline metadata, current snapshot version, and SelfModel.
 - `GET /yuanqi/api/evidence`: evidence records referenced by the current mainline SelfModel.
 - `POST /yuanqi/api/chat`: same-origin DSH Peer chat, backed by a fresh Agent Loop Session.
+- `GET /yuanqi/v1/models`: OpenAI-compatible model catalog, protected by the API bearer key.
 - `POST /yuanqi/v1/chat/completions`: OpenAI-compatible text chat; bearer key is read from `YUANQI_API_KEY` and provider/model from `YUANQI_MODEL_PROVIDER` / `YUANQI_MODEL`.
 - The console and `/yuanqi/api/*` routes require an authenticated DSH Peer.
   `/yuanqi/v1/*` uses WebServer anonymous admission plus a constant-time checked
