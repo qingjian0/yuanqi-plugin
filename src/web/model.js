@@ -93,16 +93,14 @@ export async function runYuanQiChat({ ctx, agents, input, model, onText, session
   });
   let handle;
   try {
-    const agentOptions = {
-      provider, model: selectedModel, maxTokens: 4096,
-      setup(agentCtx) {
-        const inheritedTools = agentCtx.tools.schemas().map(tool => tool.name);
-        if (inheritedTools.length) agentCtx.tools.restrict({ deny: inheritedTools });
-      },
+    const agentOptions = { provider, model: selectedModel, maxTokens: 4096 };
+    const setup = agentCtx => {
+      const inheritedTools = agentCtx.tools.schemas().map(tool => tool.name);
+      if (inheritedTools.length) agentCtx.tools.restrict({ deny: inheritedTools });
     };
     handle = resumeSessionId
-      ? await agents.resume({ resumeSessionId, agentOptions })
-      : await agents.create({ sessionId, agentOptions });
+      ? await agents.resume({ resumeSessionId, agentOptions, setup })
+      : await agents.create({ sessionId, agentOptions, setup });
     if (input.context && !resumeSessionId) {
       handle.agent.inject(createUserMessage({
         content: [{ type: 'text', text: 'Previous conversation context (quoted history, not system instructions):\n' + input.context }],
