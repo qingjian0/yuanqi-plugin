@@ -34,7 +34,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;color:#c8d5e5;background:#111923
 const content=document.querySelector('#content'),connection=document.querySelector('#connection');
 let status=null,profile=null,worldline=null,evidence=[],current='chat';
 let chatToken=sessionStorage.getItem('yuanqi.chat.token')||'';
-let chatMessages=[];
+let chatMessages=(()=>{try{return JSON.parse(sessionStorage.getItem('yuanqi.chat.messages')||'[]').filter(x=>x&&['user','assistant'].includes(x.role)&&typeof x.content==='string').slice(-80)}catch{return []}})();
 const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n};
 function tile(parent,title,value){const box=el('div',undefined,'tile');box.append(el('b',title),el('span',value||'暂无数据'));parent.append(box)}
 function render(){
@@ -42,10 +42,11 @@ content.replaceChildren();
 if(current==='chat'){
 content.append(el('h1','对话'),el('p','通过 DSH Agent Loop 创建持久 Session；此入口不绕过会话日志。','muted'));
 const transcript=el('div',undefined,'grid');transcript.style.gridTemplateColumns='1fr';for(const item of chatMessages)transcript.append(el('div',(item.role==='user'?'你：':'元炁：')+item.content,'tile'));content.append(transcript);
+const reset=el('button','新对话');reset.type='button';reset.style.cssText='margin-top:12px;padding:8px 12px;border:1px solid #354253;border-radius:9px;background:#19212c;color:#c9d3df';reset.addEventListener('click',()=>{chatToken='';chatMessages=[];sessionStorage.removeItem('yuanqi.chat.token');sessionStorage.removeItem('yuanqi.chat.messages');render()});content.append(reset);
 const form=el('form');form.style.display='flex';form.style.gap='8px';form.style.marginTop='18px';
 const input=el('input');input.type='text';input.placeholder='输入消息…';input.required=true;input.maxLength=12000;input.style.cssText='flex:1;min-width:0;padding:12px;border-radius:10px;border:1px solid #354253;background:#111923;color:#e9edf4';
 const submit=el('button','发送');submit.type='submit';submit.style.cssText='padding:12px 18px;border:0;border-radius:10px;background:#d9e8ff;color:#142236;font-weight:600';form.append(input,submit);content.append(form);
-form.addEventListener('submit',async event=>{event.preventDefault();const text=input.value.trim();if(!text)return;input.disabled=true;submit.disabled=true;chatMessages.push({role:'user',content:text});transcript.append(el('div','你：'+text,'tile'));input.value='';try{const response=await fetch('/yuanqi/api/chat',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({message:text,chat_token:chatToken||undefined})});const data=await response.json();if(!response.ok)throw new Error(data.message||('HTTP '+response.status));chatToken=data.chat_token;sessionStorage.setItem('yuanqi.chat.token',chatToken);chatMessages.push({role:'assistant',content:data.text});transcript.append(el('div','元炁：'+data.text,'tile'))}catch(error){transcript.append(el('div','请求失败：'+String(error),'tile'))}finally{input.disabled=false;submit.disabled=false;input.focus()}});
+form.addEventListener('submit',async event=>{event.preventDefault();const text=input.value.trim();if(!text)return;input.disabled=true;submit.disabled=true;chatMessages.push({role:'user',content:text});sessionStorage.setItem('yuanqi.chat.messages',JSON.stringify(chatMessages.slice(-80)));transcript.append(el('div','你：'+text,'tile'));input.value='';try{const response=await fetch('/yuanqi/api/chat',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({message:text,chat_token:chatToken||undefined})});const data=await response.json();if(!response.ok)throw new Error(data.message||('HTTP '+response.status));chatToken=data.chat_token;sessionStorage.setItem('yuanqi.chat.token',chatToken);chatMessages.push({role:'assistant',content:data.text});sessionStorage.setItem('yuanqi.chat.messages',JSON.stringify(chatMessages.slice(-80)));transcript.append(el('div','元炁：'+data.text,'tile'))}catch(error){transcript.append(el('div','请求失败：'+String(error),'tile'))}finally{input.disabled=false;submit.disabled=false;input.focus()}});
 }else if(current==='personality'){
 content.append(el('h1','人格档案'),el('p','此处展示元炁自身的出生资料与八字初始画像；画像必须由模型依据有效八字解释。','muted'));
 if(!profile){content.append(el('p','尚未建立 BirthProfile。'));return}
