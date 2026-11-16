@@ -89,9 +89,10 @@ test('chat resume tokens are scoped to the authenticated DSH Peer', async () => 
   };
   function makeHandle(id, options) {
     options.setup({ tools: { schemas: () => [], restrict() {} } });
+    const events = [];
     const agent = {
-      id, inject() {},
-      followup() { listener({ agent, frame: { type: 'chunk', chunk: { type: 'text-delta', text: 'reply' } } }); },
+      id, session: { snapshotEvents: () => events }, inject() {},
+      followup() { listener({ agent, frame: { type: 'chunk', chunk: { type: 'text-delta', text: 'reply' } } }); events.push({ seq: 0, type: 'assistant/message' }); },
       async whenIdle() {},
     };
     return { agent, async dispose() {} };

@@ -40,11 +40,14 @@ test('Agent Loop chat owns a fresh Session, masks inherited tools and disposes i
   const agents = {
     async create(options) {
       createOptions = options;
+      const events = [];
       const agent = {
         id: options.sessionId,
+        session: { snapshotEvents: () => events },
         inject() {},
         followup() {
           streamListener({ agent, frame: { type: 'chunk', chunk: { type: 'text-delta', text: 'hello' } } });
+          events.push({ seq: 0, type: 'assistant/message' });
         },
         async whenIdle() {},
       };
