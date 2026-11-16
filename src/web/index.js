@@ -87,8 +87,11 @@ export function registerYuanQiWeb(webServer, store, runtime = {}) {
     auth: request => request.url.pathname.startsWith('/yuanqi/v1/') ? 'anonymous' : 'required',
     handler(req, res) {
       const url = new URL(req.url ?? '/', 'http://yuanqi.local');
-      if (req.method !== 'GET' && req.method !== 'HEAD') {
-        res.writeHead(405, { allow: 'GET, HEAD', 'cache-control': 'no-store' });
+      const isPostApi = req.method === 'POST' && (
+        url.pathname === '/yuanqi/api/chat' || url.pathname === '/yuanqi/v1/chat/completions'
+      );
+      if (req.method !== 'GET' && req.method !== 'HEAD' && !isPostApi) {
+        res.writeHead(405, { allow: 'GET, HEAD, POST', 'cache-control': 'no-store' });
         res.end();
         return;
       }
