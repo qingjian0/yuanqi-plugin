@@ -42,3 +42,42 @@ it does not infer personality in the browser. The memory page lists evidence
 currently referenced by the mainline SelfModel. It does not yet enumerate
 unreferenced candidate evidence or mutate/revoke records. The four-page shell
 is intentionally read-only apart from chat.
+
+
+## Host configuration and client access
+
+Set these variables in the DSH host process before starting the engine:
+
+- `YUANQI_MODEL_PROVIDER`: registered DSH LLM adapter/provider id.
+- `YUANQI_MODEL`: default model id.
+- `YUANQI_API_KEY`: a random secret of at least 24 characters.
+
+The console's Settings page shows the active base URL and whether these values
+are configured; it never displays the secret.
+
+Local API base URL:
+
+`http://127.0.0.1:3080/yuanqi/v1`
+
+For a LAN client, use the existing DSH reverse proxy:
+
+`http://<phone-ip>:3090/yuanqi/v1`
+
+The LAN proxy has its own password cookie in addition to the YuanQi bearer key.
+A non-browser client must send both credentials when using port 3090:
+`Cookie: dsh_lan_pw=<LAN-proxy-password>` and
+`Authorization: Bearer <YUANQI_API_KEY>`. Do not put either secret in the
+URL or browser-visible query string.
+
+Example request:
+
+```bash
+curl http://127.0.0.1:3080/yuanqi/v1/chat/completions \\
+  -H "Authorization: Bearer $YUANQI_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{"model":"deepseek-chat","messages":[{"role":"user","content":"你好"}]}'
+```
+
+The requested `model` is routed through the configured
+`YUANQI_MODEL_PROVIDER`; `max_tokens` / `max_completion_tokens` is bounded to
+1–8192. Text is supported; multimodal content and tool calls are not.
