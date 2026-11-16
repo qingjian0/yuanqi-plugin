@@ -48,7 +48,7 @@ test('Agent Loop chat owns a fresh Session, masks inherited tools and disposes i
         },
         async whenIdle() {},
       };
-      options.setup({ tools: { schemas: () => [{ name: 'shell' }, { name: 'web' }], restrict(value) { assert.deepEqual(value, { deny: ['shell', 'web'] }); } } });
+      options.agentOptions.setup({ tools: { schemas: () => [{ name: 'shell' }, { name: 'web' }], restrict(value) { assert.deepEqual(value, { deny: ['shell', 'web'] }); } } });
       return { agent, async dispose() { disposed = true; } };
     },
   };
