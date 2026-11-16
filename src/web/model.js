@@ -30,8 +30,10 @@ export async function readJsonBody(req, maxBytes = 128 * 1024) {
 function textContent(value) {
   if (typeof value === 'string') return value;
   if (!Array.isArray(value)) return '';
-  return value.filter(item => item?.type === 'text' && typeof item.text === 'string')
-    .map(item => item.text).join('\n');
+  if (value.some(item => item?.type !== 'text' || typeof item.text !== 'string')) {
+    throw httpError(400, 'unsupported_content', 'Only text content blocks are supported');
+  }
+  return value.map(item => item.text).join('\n');
 }
 
 export function normalizeChatInput(body, { openAi = false } = {}) {
@@ -70,6 +72,9 @@ export function hasValidBearer(req, expected) {
 
 export async function runYuanQiChat({ ctx, agents, input, model, onText, sessionId: resumeSessionId }) {
   const provider = process.env.YUANQI_MODEL_PROVIDER;
+  if (model !== undefined && (typeof model !== 'string' || model.trim().length === 0 || model.length > 160)) {
+    throw httpError(400, 'invalid_model', 'model must be a non-empty string no longer than 160 characters');
+  }
   const selectedModel = model || process.env.YUANQI_MODEL;
   if (!provider || !selectedModel) {
     throw httpError(503, 'model_not_configured', 'Set YUANQI_MODEL_PROVIDER and YUANQI_MODEL in the DSH host environment');

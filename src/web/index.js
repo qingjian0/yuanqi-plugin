@@ -150,6 +150,21 @@ export function registerYuanQiWeb(webServer, store, runtime = {}) {
           }
         })();
       }
+      if (url.pathname === '/yuanqi/v1/models' && req.method === 'GET') {
+        const expectedKey = process.env.YUANQI_API_KEY;
+        if (!expectedKey || expectedKey.length < 24) {
+          send(res, 503, 'application/json; charset=utf-8', JSON.stringify({ error: { code: 'api_not_configured', message: 'OpenAI-compatible API is not configured' } }));
+          return;
+        }
+        if (!hasValidBearer(req, expectedKey)) {
+          send(res, 401, 'application/json; charset=utf-8', JSON.stringify({ error: { code: 'invalid_api_key', message: 'Invalid bearer token' } }));
+          return;
+        }
+        const config = modelGatewayConfig();
+        const data = config.model_ready ? [{ id: config.model, object: 'model', created: Math.floor(Date.now() / 1000), owned_by: config.provider }] : [];
+        send(res, 200, 'application/json; charset=utf-8', JSON.stringify({ object: 'list', data }));
+        return;
+      }
       if (url.pathname === '/yuanqi/v1/chat/completions' && req.method === 'POST') {
         return (async () => {
           let streaming = false;
