@@ -10,7 +10,8 @@ test('registers one authenticated YuanQi route and releases it', () => {
   const dispose = registerYuanQiWeb(webServer, store);
   assert.equal(route.kind, 'prefix');
   assert.equal(route.path, '/yuanqi');
-  assert.equal(route.auth, 'required');
+  assert.equal(route.auth({ url: new URL('http://localhost/yuanqi') }), 'required');
+  assert.equal(route.auth({ url: new URL('http://localhost/yuanqi/v1/chat/completions') }), 'anonymous');
   dispose();
   assert.equal(disposed, true);
 });
