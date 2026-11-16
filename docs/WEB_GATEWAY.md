@@ -11,8 +11,9 @@ the existing Storage Domain; it does not create a second database or listener.
 - `GET /yuanqi/api/profile`: YuanQi AI's own BirthProfile, or `null`.
 - `POST /yuanqi/api/chat`: same-origin DSH Peer chat, backed by a fresh Agent Loop Session.
 - `POST /yuanqi/v1/chat/completions`: OpenAI-compatible text chat; bearer key is read from `YUANQI_API_KEY` and provider/model from `YUANQI_MODEL_PROVIDER` / `YUANQI_MODEL`.
-- All routes require an authenticated DSH Peer. The WebServer/Connection
-  admission path remains authoritative; the plugin does not add a bypass token.
+- The console and `/yuanqi/api/*` routes require an authenticated DSH Peer.
+  `/yuanqi/v1/*` uses WebServer anonymous admission plus a constant-time checked
+  bearer API key; Connection's Host/Origin source fence still applies.
 - Route registration is disposed with the plugin.
 
 ## Model gateway boundary
