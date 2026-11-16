@@ -54,7 +54,7 @@ export function normalizeChatInput(body, { openAi = false } = {}) {
   const total = normalized.reduce((sum, item) => sum + item.content.length, 0);
   if (total > 64_000) throw httpError(413, 'conversation_too_large', 'Conversation exceeds 64000 characters');
   const context = normalized.slice(0, -1)
-    .map(item => \`${item.role.toUpperCase()}:\n${item.content}\`)
+    .map(item => `${item.role.toUpperCase()}:\n${item.content}`)
     .join('\n\n');
   return { context, message: last.content };
 }
