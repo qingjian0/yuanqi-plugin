@@ -91,6 +91,8 @@ export function registerYuanQiWeb(webServer, store, runtime = {}) {
     throw new TypeError('YuanQi web console requires the live SubjectStore');
   }
   const chatSessions = new Map();
+  const chatTokenTtlMs = 12 * 60 * 60 * 1000;
+  const maxChatSessions = 256;
   const dispose = webServer.register({
     kind: 'prefix',
     path: '/yuanqi',
@@ -148,10 +150,14 @@ export function registerYuanQiWeb(webServer, store, runtime = {}) {
             const peerId = peer?.id;
             if (!peerId) throw Object.assign(new Error('Authenticated DSH Peer is required'), { status: 401, code: 'peer_required' });
             const previous = token === undefined ? undefined : chatSessions.get(token);
-            if (token !== undefined && (typeof token !== 'string' || !/^[a-f0-9-]{36}$/i.test(token) || !previous || previous.peerId !== peerId)) throw Object.assign(new Error('chat_token is invalid, expired or belongs to another Peer'), { status: 404, code: 'invalid_chat_token' });
+            if (token !== undefined && (typeof token !== 'string' || !/^[a-f0-9-]{36}$/i.test(token) || !previous || previous.peerId !== peerId || previous.expiresAt <= Date.now())) {
+              if (typeof token === 'string') chatSessions.delete(token);
+              throw Object.assign(new Error('chat_token is invalid, expired or belongs to another Peer'), { status: 404, code: 'invalid_chat_token' });
+            }
             const result = await runYuanQiChat({ ctx: runtime.ctx, agents: runtime.agents, input, sessionId: previous?.sessionId });
             const chatToken = token || randomUUID();
-            chatSessions.set(chatToken, { sessionId: result.session_id, peerId });
+            if (!token && chatSessions.size >= maxChatSessions) chatSessions.delete(chatSessions.keys().next().value);
+            chatSessions.set(chatToken, { sessionId: result.session_id, peerId, expiresAt: Date.now() + chatTokenTtlMs });
             send(res, 200, 'application/json; charset=utf-8', JSON.stringify({ text: result.text, model: result.model, chat_token: chatToken }));
           } catch (error) {
             send(res, error.status || 500, 'application/json; charset=utf-8', JSON.stringify({ error: error.code || 'internal_error', message: error.message || String(error) }));
