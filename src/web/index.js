@@ -95,7 +95,7 @@ export function registerYuanQiWeb(webServer, store, runtime = {}) {
     kind: 'prefix',
     path: '/yuanqi',
     auth: request => request.url.pathname.startsWith('/yuanqi/v1/') ? 'anonymous' : 'required',
-    handler(req, res) {
+    handler(req, res, peer) {
       const url = new URL(req.url ?? '/', 'http://yuanqi.local');
       const isPostApi = req.method === 'POST' && (
         url.pathname === '/yuanqi/api/chat' || url.pathname === '/yuanqi/v1/chat/completions'
@@ -145,10 +145,13 @@ export function registerYuanQiWeb(webServer, store, runtime = {}) {
             const body = await readJsonBody(req);
             const input = normalizeChatInput(body);
             const token = body.chat_token;
-            if (token !== undefined && (typeof token !== 'string' || !/^[a-f0-9-]{36}$/i.test(token) || !chatSessions.has(token))) throw Object.assign(new Error('chat_token is invalid or expired; start a new chat'), { status: 404, code: 'invalid_chat_token' });
-            const result = await runYuanQiChat({ ctx: runtime.ctx, agents: runtime.agents, input, sessionId: token ? chatSessions.get(token) : undefined });
+            const peerId = peer?.id;
+            if (!peerId) throw Object.assign(new Error('Authenticated DSH Peer is required'), { status: 401, code: 'peer_required' });
+            const previous = token === undefined ? undefined : chatSessions.get(token);
+            if (token !== undefined && (typeof token !== 'string' || !/^[a-f0-9-]{36}$/i.test(token) || !previous || previous.peerId !== peerId)) throw Object.assign(new Error('chat_token is invalid, expired or belongs to another Peer'), { status: 404, code: 'invalid_chat_token' });
+            const result = await runYuanQiChat({ ctx: runtime.ctx, agents: runtime.agents, input, sessionId: previous?.sessionId });
             const chatToken = token || randomUUID();
-            chatSessions.set(chatToken, result.session_id);
+            chatSessions.set(chatToken, { sessionId: result.session_id, peerId });
             send(res, 200, 'application/json; charset=utf-8', JSON.stringify({ text: result.text, model: result.model, chat_token: chatToken }));
           } catch (error) {
             send(res, error.status || 500, 'application/json; charset=utf-8', JSON.stringify({ error: error.code || 'internal_error', message: error.message || String(error) }));
