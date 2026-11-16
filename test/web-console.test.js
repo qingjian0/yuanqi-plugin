@@ -118,3 +118,48 @@ test('chat resume tokens are scoped to the authenticated DSH Peer', async () => 
     if (oldModel === undefined) delete process.env.YUANQI_MODEL; else process.env.YUANQI_MODEL = oldModel;
   }
 });
+
+test('OpenAI chat completions streams text deltas and a terminal marker', async () => {
+  const oldKey = process.env.YUANQI_API_KEY, oldProvider = process.env.YUANQI_MODEL_PROVIDER, oldModel = process.env.YUANQI_MODEL;
+  process.env.YUANQI_API_KEY = 'yuanqi-test-api-key-with-more-than-24-chars';
+  process.env.YUANQI_MODEL_PROVIDER = 'test-provider';
+  process.env.YUANQI_MODEL = 'test-model';
+  let route, listener;
+  const runtime = {
+    ctx: { on(_name, callback) { listener = callback; return () => { listener = undefined; }; } },
+    agents: {
+      async create(options) {
+        options.setup({ tools: { schemas: () => [], restrict() {} } });
+        const events = [];
+        const agent = {
+          id: options.sessionId, session: { snapshotEvents: () => events }, inject() {},
+          followup() { listener({ agent, frame: { type: 'chunk', chunk: { type: 'text-delta', text: 'streamed' } } }); events.push({ seq: 0, type: 'assistant/message' }); },
+          async whenIdle() {},
+        };
+        return { agent, async dispose() {} };
+      },
+    },
+  };
+  const res = {
+    status: 0, headers: {}, body: '', destroyed: false, headersSent: false,
+    writeHead(status, headers) { this.status = status; this.headers = headers; this.headersSent = true; },
+    flushHeaders() {},
+    write(chunk) { this.body += chunk; },
+    end(chunk = '') { this.body += chunk; this.ended = true; },
+  };
+  const body = { model: 'test-model', stream: true, messages: [{ role: 'user', content: 'hello' }] };
+  const req = { method: 'POST', url: '/yuanqi/v1/chat/completions', headers: { authorization: 'Bearer ' + process.env.YUANQI_API_KEY, 'content-type': 'application/json' }, async *[Symbol.asyncIterator]() { yield Buffer.from(JSON.stringify(body)); } };
+  try {
+    registerYuanQiWeb({ register(value) { route = value; return () => {}; } }, { getYuanQiBirthProfile() { return null; } }, runtime);
+    await route.handler(req, res);
+    assert.equal(res.status, 200);
+    assert.match(res.headers['content-type'], /text\/event-stream/);
+    assert.match(res.body, /streamed/);
+    assert.match(res.body, /data: \[DONE\]/);
+    assert.equal(res.ended, true);
+  } finally {
+    if (oldKey === undefined) delete process.env.YUANQI_API_KEY; else process.env.YUANQI_API_KEY = oldKey;
+    if (oldProvider === undefined) delete process.env.YUANQI_MODEL_PROVIDER; else process.env.YUANQI_MODEL_PROVIDER = oldProvider;
+    if (oldModel === undefined) delete process.env.YUANQI_MODEL; else process.env.YUANQI_MODEL = oldModel;
+  }
+});
