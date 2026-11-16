@@ -4,11 +4,12 @@ import { createSubjectStore } from '../domain/subject-store.js';
 import { openSubjectDomains } from '../domain/subject-domain.js';
 import { isTrustedDirectUserMessageEvent, normalizeDirectUserMessageEvent } from './session-event.js';
 import { createWorldlineStore } from '../worldline/runtime.js';
+import { registerYuanQiWeb } from '../web/index.js';
 
 export const name = 'dsh-yuanqi-plugin';
 // Session Query supplies validated live/cold observations; persistence is
 // required because live SessionStore state alone cannot recover after restart.
-export const inject = ['storageDomain', 'sessions', 'sessionQuery', 'sessionPersistence', 'tools'];
+export const inject = ['storageDomain', 'sessions', 'sessionQuery', 'sessionPersistence', 'tools', 'webServer', 'agents'];
 
 const YUANQI_SUBJECT_ID = 'yuanqi:primary';
 const LOCATION_PROVIDER_TIMEOUT_MS = 11_000;
@@ -201,6 +202,8 @@ export async function apply(ctx) {
       yuanqiDomain: domains.yuanqiDomain,
       verifyDirectUserEvent(event) { return isTrustedDirectUserMessageEvent(event) ? event : null; },
     });
+    const disposeYuanQiWeb = registerYuanQiWeb(ctx.webServer, store, { ctx, agents: ctx.agents, worldlines });
+    ctx.effect(() => disposeYuanQiWeb);
     ctx.tools.register(defineTool({
       name: 'yuanqi_self_profile',
       description: 'On the first model response after YuanQi activation, call this tool before answering to read YuanQi AI’s own birth profile, four pillars, symbolic innate baseline and initial-personality source material. If the Bazi is calculated, interpret it and then save the provisional portrait with yuanqi_record_initial_personality. Use only returned chart_evidence_catalog IDs to cite exact visible/hidden-stem evidence. This is YuanQi’s own AI data, never the user’s birth data. When the Bazi is ready, interpret it as YuanQi’s provisional innate personality using traditional Bazi reasoning: follow the order climate adjustment (调候) → mediation of five-element conflicts (通关) → strength assessment (旺衰) → structure (格局), while integrating month/season command, visible and hidden stems, ten-god relationships and the whole chart. Do not treat raw five-element counts as strength scores. For each tendency, show the chart evidence and reasoning chain, distinguish chart facts from interpretation, and state uncertainty or counter-indications. Do not derive a trait from a single ten-god label, raw element counts, or a fixed stereotype. Avoid formal strength or structure conclusions when seasonal context or chart evidence is insufficient. Describe only a few broad tendencies in temperament, cognition, emotional response, motivation, behavior and decision style. These are initial hypotheses, not verified psychological facts, and must remain open to later experience-based revision. Respect pending/ambiguous/unavailable states; never invent a chart or personality when the source is incomplete.',

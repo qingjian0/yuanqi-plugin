@@ -36,7 +36,7 @@
 | 许可证 | GNU GPL-3.0-only |
 | 默认文档语言 | 简体中文（zh-CN） |
 
-**验证边界：** alpha.9 发布记录记载本地自动化测试 96 项通过、0 项失败；但当前远端 Git Tree 缺少测试源码，因此本次审计无法独立复核该数字，也没有在当前快照上重新运行测试或 CI。真实 Android DSH 宿主安装与运行、真实模型会话及 Android/iOS 端到端验收尚未完成。历史本地测试记录不等于当前快照可复现，也不等于真实宿主验收通过。
+**验证边界：** alpha.9 发布记录记载本地自动化测试 96 项通过、0 项失败；但当前远端 Git Tree 缺少测试源码，因此本次审计无法独立复核该数字，也没有在当前快照上重新运行测试或 CI。真实 Android DSH 宿主安装与运行、真实模型会话及 Android/iOS 端到端验收尚未完成。新增 Web 控制台和模型网关目前仅完成 CI 与模拟接口测试，仍待真实 Android 宿主验证。历史本地测试记录不等于当前快照可复现，也不等于真实宿主验收通过。
 
 ## 核心理念
 
@@ -135,6 +135,9 @@ flowchart TB
 ## 当前已实现能力（alpha.9）
 
 - DSH Cordis 插件入口、工具注册与 Storage Domain 持久化接入。
+- 轻量 YuanQi Web 控制台：复用 DSH WebServer，提供对话、人格、记忆、设置四个页面；共享 SubjectStore / Worldline，不另建数据库。
+- DSH Agent Loop 驱动的可恢复网页对话；同源请求使用 DSH Peer 认证，浏览器续聊 token 绑定 Peer 并有过期/容量限制。
+- OpenAI 兼容 `/yuanqi/v1/models` 与 `/yuanqi/v1/chat/completions`，支持 SSE；API Key、Provider、Model 从宿主环境变量读取，外部 API 不开放继承的工具能力。
 - 元炁 AI 自身 WakeRecord 与 YuanQiSubject BirthProfile；用户出生资料采集/确认流程已移除。
 - UTC→IANA 当地时间、DST、经度修正、NOAA 近似视太阳时和 USNO 24 节气上下文。
 - 确定性四柱计算（立春定年、十二节定月、子正换日、五虎遁/五鼠遁）及边界不确定保护。
@@ -223,6 +226,9 @@ dsh plugin --profile web add ./dist/dsh-yuanqi-plugin-1.1.0-alpha.9.tgz
 - `@deepseek-ai/dsh-llm`：`>=0.2.2-rc.1 <0.3.0-0`
 - `@deepseek-ai/dsh-session-query`：`>=0.2.2-rc.1 <0.3.0-0`
 - `@deepseek-ai/dsh-session-persistence`：`>=0.2.2-rc.1 <0.3.0-0`
+- `@deepseek-ai/dsh-host-webserver`：`>=0.2.2-rc.1 <0.3.0-0`
+- `@deepseek-ai/dsh-agent`：`>=0.2.2-rc.1 <0.3.0-0`
+- `@deepseek-ai/dsh-agent-loop`：`>=0.2.2-rc.1 <0.3.0-0`
 
 当前 CI 在 Node.js 24.9.0 上解析六个 DSH peer packages 为 0.2.2-rc.1，并验证 DSH Storage Domain API 契约；这是依赖/API 兼容性验证，不代表范围内所有宿主版本均已通过真实运行验证。
 
@@ -245,6 +251,7 @@ dsh plugin --profile web add ./dist/dsh-yuanqi-plugin-1.1.0-alpha.9.tgz
 - [整体架构与自我模型](./docs/ARCHITECTURE.md)
 - [设计原则与研究边界](./docs/DESIGN-PRINCIPLES.md)
 - [安装与配置](./docs/INSTALLATION.md)
+- [Web 控制台与模型网关](./docs/WEB_GATEWAY.md)
 - [安全与隐私](./docs/SECURITY.md)
 - [当前实现状态与验证边界](./docs/STATUS.md)
 - [alpha.9 发布记录](./releases/1.1.0-alpha.9.md)

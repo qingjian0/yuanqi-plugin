@@ -27,7 +27,7 @@ jobs:
           if (major < 24 || (major === 24 && minor < 9)) throw new Error('YuanQi requires Node.js >=24.9.0');
           console.log('Node.js runtime:', process.versions.node);
           "
-          npm ls --depth=0 @deepseek-ai/dsh-tools @deepseek-ai/dsh-storage @deepseek-ai/dsh-storage-domain @deepseek-ai/dsh-session @deepseek-ai/dsh-llm
+          npm ls --depth=0 @deepseek-ai/dsh-tools @deepseek-ai/dsh-storage @deepseek-ai/dsh-storage-domain @deepseek-ai/dsh-session @deepseek-ai/dsh-llm @deepseek-ai/dsh-host-webserver @deepseek-ai/dsh-agent @deepseek-ai/dsh-agent-loop
       - name: Validate package root and DSH Storage Domain exports
         run: >-
           node --input-type=module -e "
