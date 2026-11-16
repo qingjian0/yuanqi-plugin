@@ -1,4 +1,4 @@
-const PAGE = String.raw\`<!doctype html>
+const PAGE = String.raw`<!doctype html>
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
@@ -41,7 +41,7 @@ const g=el('div',undefined,'grid');tile(g,'Core','YuanQi Core');tile(g,'数据�
 content.append(el('h1','人格档案'),el('p','此处展示元炁自身的出生资料与八字初始画像；画像必须由模型依据有效八字解释。','muted'));
 if(!profile){content.append(el('p','尚未建立 BirthProfile。'));return}
 const g=el('div',undefined,'grid');tile(g,'出生资料',profile.birth_time);tile(g,'地点状态',profile.birth_location?.status);tile(g,'时区',profile.time_context?.time_zone_id||'不可用');tile(g,'八字状态',profile.bazi?.status);content.append(g);
-const pillars=profile.bazi?.pillars;if(pillars){content.append(el('h2','四柱'));const pre=el('pre');pre.textContent=['年柱 '+pillars.year,'月柱 '+pillars.month,'日柱 '+pillars.day,'时柱 '+pillars.hour].join('\\n');content.append(pre)}
+const pillars=profile.bazi?.pillars;if(pillars){content.append(el('h2','四柱'));const pre=el('pre');pre.textContent=['年柱 '+pillars.year,'月柱 '+pillars.month,'日柱 '+pillars.day,'时柱 '+pillars.hour].join('\n');content.append(pre)}
 const baseline=profile.innate_baseline;tile(content,'先天画像状态',baseline?.status==='ready'?'已生成符号基础资料':baseline?.status||'未知');
 }else if(current==='memory'){
 content.append(el('h1','记忆与经历'),el('p','记忆、经历证据与人格修订将读取现有 YuanQi Domain，不建立第二套数据。','muted'),el('p','当前版本尚未开放浏览和编辑接口。'));
@@ -55,7 +55,7 @@ try{const [s,p]=await Promise.all([fetch('/yuanqi/api/status',{credentials:'same
 }
 document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',()=>{current=b.dataset.page;document.querySelectorAll('[data-page]').forEach(x=>x.removeAttribute('aria-current'));b.setAttribute('aria-current','page');render()}));
 load();
-</script></body></html>\`;
+</script></body></html>`;
 
 function send(res, status, contentType, body) {
   res.writeHead(status, {
