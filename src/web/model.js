@@ -108,11 +108,16 @@ export async function runYuanQiChat({ ctx, agents, input, model, maxTokens = 409
         source: { kind: 'p' },
       }));
     }
+    const baselineSeq = handle.agent.session.snapshotEvents().at(-1)?.seq ?? -1;
     handle.agent.followup(createUserMessage({
       content: [{ type: 'text', text: input.message }],
       source: { kind: 'user' },
     }));
     await handle.agent.whenIdle();
+    const settledEvents = handle.agent.session.snapshotEvents().filter(event => event.seq > baselineSeq);
+    if (!settledEvents.some(event => event.type === 'assistant/message')) {
+      throw httpError(502, 'model_request_failed', 'DSH Agent Loop did not commit a successful assistant message');
+    }
     return { id: completionId, created, model: selectedModel, text: output, session_id: sessionId };
   } finally {
     stop?.();
