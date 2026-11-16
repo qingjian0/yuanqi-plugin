@@ -47,6 +47,7 @@ function pluginContext(host, storageDomain, dropSessionEvents = false) {
   let disposer;
   return {
     storageDomain,
+    webServer: { register() { return () => {}; } },
     tools: { register() {} },
     sessionQuery: host.sessionQuery,
     sessionPersistence: host.sessionPersistence,
