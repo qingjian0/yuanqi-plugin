@@ -11,7 +11,7 @@ the existing Storage Domain; it does not create a second database or listener.
 - `GET /yuanqi/api/profile`: YuanQi AI's own BirthProfile, or `null`.
 - `GET /yuanqi/api/worldline`: main Worldline metadata, current snapshot version, and SelfModel.
 - `GET /yuanqi/api/evidence`: evidence records referenced by the current mainline SelfModel.
-- `POST /yuanqi/api/chat`: same-origin DSH Peer chat, backed by a fresh Agent Loop Session.
+- `POST /yuanqi/api/chat`: same-origin DSH Peer chat, backed by a resumable Agent Loop Session and a peer-bound chat token.
 - `GET /yuanqi/v1/models`: OpenAI-compatible model catalog, protected by the API bearer key.
 - `POST /yuanqi/v1/chat/completions`: OpenAI-compatible text chat; bearer key is read from `YUANQI_API_KEY` and provider/model from `YUANQI_MODEL_PROVIDER` / `YUANQI_MODEL`.
 - The console and `/yuanqi/api/*` routes require an authenticated DSH Peer.
@@ -28,8 +28,12 @@ new request Session. Global inherited tools are masked for this external text-on
 The endpoint is available only when the host environment supplies a sufficiently
 long `YUANQI_API_KEY`, `YUANQI_MODEL_PROVIDER`, and `YUANQI_MODEL`. The web
 console's same-origin chat route uses the authenticated DSH Peer instead of an
-API key. OpenAI message history is flattened into quoted context for each
-stateless API request; it does not preserve provider-native role channels. No API key is persisted in the YuanQi Storage Domain.
+API key. It returns an opaque token mapped to that Peer and Session in process
+memory; tokens expire after 12 hours, the map is capped at 256 entries, and
+plugin unload invalidates the tokens. The raw Session ID is never returned.
+OpenAI message history is flattened into quoted context for each stateless API
+request; it does not preserve provider-native role channels. No API key is
+persisted in the YuanQi Storage Domain.
 
 ## Current UI boundaries
 
