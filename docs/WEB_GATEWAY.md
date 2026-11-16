@@ -22,7 +22,8 @@ the existing Storage Domain; it does not create a second database or listener.
 
 The model gateway uses `ctx.agents.create()` and `Agent.followup()` / `whenIdle()`;
 each request owns a fresh durable Session and disposes its AgentHandle after
-completion. Global inherited tools are masked for this external text-only API.
+completion. Conversation history is carried as bounded, quoted context into the
+new request Session. Global inherited tools are masked for this external text-only API.
 The endpoint is available only when the host environment supplies a sufficiently
 long `YUANQI_API_KEY`, `YUANQI_MODEL_PROVIDER`, and `YUANQI_MODEL`. The web
 console's same-origin chat route uses the authenticated DSH Peer instead of an

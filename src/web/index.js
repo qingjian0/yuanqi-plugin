@@ -147,7 +147,7 @@ export function registerYuanQiWeb(webServer, store, runtime = {}) {
         })();
       }
       if (url.pathname === '/yuanqi/v1/chat/completions' && req.method === 'POST') {
-        void (async () => {
+        return (async () => {
           let streaming = false;
           try {
             const expectedKey = process.env.YUANQI_API_KEY;
