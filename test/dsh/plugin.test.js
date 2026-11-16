@@ -72,6 +72,7 @@ function context(storageDomain, options = {}) {
   };
   return {
     storageDomain,
+    webServer: options.webServer ?? { register() { return () => {}; } },
     tools,
     registeredTools,
     yuanqiLocationProvider: options.yuanqiLocationProvider,
