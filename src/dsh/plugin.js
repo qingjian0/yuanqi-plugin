@@ -202,7 +202,7 @@ export async function apply(ctx) {
       yuanqiDomain: domains.yuanqiDomain,
       verifyDirectUserEvent(event) { return isTrustedDirectUserMessageEvent(event) ? event : null; },
     });
-    const disposeYuanQiWeb = registerYuanQiWeb(ctx.webServer, store, { ctx, agents: ctx.agents });
+    const disposeYuanQiWeb = registerYuanQiWeb(ctx.webServer, store, { ctx, agents: ctx.agents, worldlines });
     ctx.effect(() => disposeYuanQiWeb);
     ctx.tools.register(defineTool({
       name: 'yuanqi_self_profile',

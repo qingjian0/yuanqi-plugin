@@ -31,7 +31,7 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;color:#c8d5e5;background:#111923
 </main>
 <script>
 const content=document.querySelector('#content'),connection=document.querySelector('#connection');
-let status=null,profile=null,current='chat';
+let status=null,profile=null,worldline=null,evidence=[],current='chat';
 const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n};
 function tile(parent,title,value){const box=el('div',undefined,'tile');box.append(el('b',title),el('span',value||'暂无数据'));parent.append(box)}
 function render(){
@@ -50,14 +50,18 @@ const g=el('div',undefined,'grid');tile(g,'出生资料',profile.birth_time);til
 const pillars=profile.bazi?.pillars;if(pillars){content.append(el('h2','四柱'));const pre=el('pre');pre.textContent=['年柱 '+pillars.year,'月柱 '+pillars.month,'日柱 '+pillars.day,'时柱 '+pillars.hour].join('\n');content.append(pre)}
 const baseline=profile.innate_baseline;tile(content,'先天画像状态',baseline?.status==='ready'?'已生成符号基础资料':baseline?.status||'未知');
 }else if(current==='memory'){
-content.append(el('h1','记忆与经历'),el('p','记忆、经历证据与人格修订将读取现有 YuanQi Domain，不建立第二套数据。','muted'),el('p','当前版本尚未开放浏览和编辑接口。'));
+content.append(el('h1','记忆与经历'),el('p','读取现有 Worldline Evidence Ledger；此页面暂不提供删除或自动修订。','muted'));
+if(!worldline){content.append(el('p','尚未建立主世界线。'));return}
+content.append(el('p','当前世界线：'+worldline.worldline?.worldline_id+' · 快照版本 '+worldline.head?.current_snapshot_version));
+if(evidence.length===0){content.append(el('p','暂时没有已关联的经历证据。'));return}
+for(const item of evidence){const card=el('div',undefined,'tile');card.append(el('b',item.record?.evidence_type||'经历证据'),el('span','状态：'+item.status+' · '+(item.record?.captured_at||'')));const pre=el('pre');pre.textContent=JSON.stringify(item.record?.content??{},null,2);card.append(pre);content.append(card)}
 }else{
 content.append(el('h1','设置'),el('p','运行环境与接入信息','muted'));
 const g=el('div',undefined,'grid');tile(g,'插件','dsh-yuanqi-plugin');tile(g,'宿主','DeepSeek Harness');tile(g,'Core 状态',status?.ready?'已连接':'待确认');tile(g,'模型提供方',status?.provider||'未配置');tile(g,'默认模型',status?.model||'未配置');tile(g,'OpenAI API',status?.api_enabled?'已启用':'需配置 API Key');tile(g,'网页认证','由 DSH WebServer / Connection 负责');content.append(g);
 }
 }
 async function load(){
-try{const [s,p]=await Promise.all([fetch('/yuanqi/api/status',{credentials:'same-origin'}),fetch('/yuanqi/api/profile',{credentials:'same-origin'})]);if(!s.ok||!p.ok)throw new Error('HTTP '+(!s.ok?s.status:p.status));status=await s.json();profile=(await p.json()).profile;connection.textContent='DSH 已连接';render()}catch(e){connection.textContent='连接失败';content.replaceChildren(el('h1','无法读取 YuanQi 状态'),el('p',String(e),'muted'))}
+try{const [s,p,w,e]=await Promise.all([fetch('/yuanqi/api/status',{credentials:'same-origin'}),fetch('/yuanqi/api/profile',{credentials:'same-origin'}),fetch('/yuanqi/api/worldline',{credentials:'same-origin'}),fetch('/yuanqi/api/evidence',{credentials:'same-origin'})]);if(!s.ok||!p.ok||!w.ok||!e.ok)throw new Error('HTTP '+[s,p,w,e].find(x=>!x.ok).status);status=await s.json();profile=(await p.json()).profile;worldline=(await w.json()).worldline;evidence=(await e.json()).items||[];connection.textContent='DSH 已连接';render()}catch(e){connection.textContent='连接失败';content.replaceChildren(el('h1','无法读取 YuanQi 状态'),el('p',String(e),'muted'))}
 }
 document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',()=>{current=b.dataset.page;document.querySelectorAll('[data-page]').forEach(x=>x.removeAttribute('aria-current'));b.setAttribute('aria-current','page');render()}));
 load();
@@ -112,6 +116,21 @@ export function registerYuanQiWeb(webServer, store, runtime = {}) {
       if (url.pathname === '/yuanqi/api/profile') {
         const profile = store.getYuanQiBirthProfile('yuanqi:primary') ?? null;
         send(res, 200, 'application/json; charset=utf-8', JSON.stringify({ profile }));
+        return;
+      }
+      if (url.pathname === '/yuanqi/api/worldline') {
+        const id = 'worldline:main';
+        const line = runtime.worldlines?.getWorldline(id) ?? null;
+        const head = runtime.worldlines?.getHead(id) ?? null;
+        send(res, 200, 'application/json; charset=utf-8', JSON.stringify({ worldline: line ? { worldline: line, head: head ? { current_snapshot_version: head.current_snapshot_version, current_evidence_refs: head.current_evidence_refs } : null, self_model: runtime.worldlines?.getSelfModel(id) ?? null } : null }));
+        return;
+      }
+      if (url.pathname === '/yuanqi/api/evidence') {
+        const id = 'worldline:main';
+        const head = runtime.worldlines?.getHead(id);
+        const refs = new Set([...(head?.current_evidence_refs ?? []), ...Object.values(head?.current_state_payload?.self_model?.centers ?? {}).flatMap(center => center?.evidence_refs ?? [])]);
+        const items = [...refs].map(evidence_id => runtime.worldlines?.getEvidenceRecord({ evidence_id, worldline_id: id })).filter(Boolean);
+        send(res, 200, 'application/json; charset=utf-8', JSON.stringify({ items }));
         return;
       }
       if (url.pathname === '/yuanqi/api/chat' && req.method === 'POST') {
