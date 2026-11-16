@@ -32,17 +32,19 @@ pre{white-space:pre-wrap;overflow-wrap:anywhere;color:#c8d5e5;background:#111923
 <script>
 const content=document.querySelector('#content'),connection=document.querySelector('#connection');
 let status=null,profile=null,worldline=null,evidence=[],current='chat';
+let chatSessionId=sessionStorage.getItem('yuanqi.chat.session')||'';
+let chatMessages=[];
 const el=(tag,text,cls)=>{const n=document.createElement(tag);if(text!==undefined)n.textContent=text;if(cls)n.className=cls;return n};
 function tile(parent,title,value){const box=el('div',undefined,'tile');box.append(el('b',title),el('span',value||'暂无数据'));parent.append(box)}
 function render(){
 content.replaceChildren();
 if(current==='chat'){
 content.append(el('h1','对话'),el('p','通过 DSH Agent Loop 创建持久 Session；此入口不绕过会话日志。','muted'));
-const transcript=el('div',undefined,'grid');transcript.style.gridTemplateColumns='1fr';content.append(transcript);
+const transcript=el('div',undefined,'grid');transcript.style.gridTemplateColumns='1fr';for(const item of chatMessages)transcript.append(el('div',(item.role==='user'?'你：':'元炁：')+item.content,'tile'));content.append(transcript);
 const form=el('form');form.style.display='flex';form.style.gap='8px';form.style.marginTop='18px';
 const input=el('input');input.type='text';input.placeholder='输入消息…';input.required=true;input.maxLength=12000;input.style.cssText='flex:1;min-width:0;padding:12px;border-radius:10px;border:1px solid #354253;background:#111923;color:#e9edf4';
 const submit=el('button','发送');submit.type='submit';submit.style.cssText='padding:12px 18px;border:0;border-radius:10px;background:#d9e8ff;color:#142236;font-weight:600';form.append(input,submit);content.append(form);
-form.addEventListener('submit',async event=>{event.preventDefault();const text=input.value.trim();if(!text)return;input.disabled=true;submit.disabled=true;transcript.append(el('div','你：'+text,'tile'));input.value='';try{const response=await fetch('/yuanqi/api/chat',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({message:text})});const data=await response.json();if(!response.ok)throw new Error(data.message||('HTTP '+response.status));transcript.append(el('div','元炁：'+data.text,'tile'))}catch(error){transcript.append(el('div','请求失败：'+String(error),'tile'))}finally{input.disabled=false;submit.disabled=false;input.focus()}});
+form.addEventListener('submit',async event=>{event.preventDefault();const text=input.value.trim();if(!text)return;input.disabled=true;submit.disabled=true;chatMessages.push({role:'user',content:text});transcript.append(el('div','你：'+text,'tile'));input.value='';try{const response=await fetch('/yuanqi/api/chat',{method:'POST',credentials:'same-origin',headers:{'content-type':'application/json'},body:JSON.stringify({message:text,session_id:chatSessionId||undefined})});const data=await response.json();if(!response.ok)throw new Error(data.message||('HTTP '+response.status));chatSessionId=data.session_id;sessionStorage.setItem('yuanqi.chat.session',chatSessionId);chatMessages.push({role:'assistant',content:data.text});transcript.append(el('div','元炁：'+data.text,'tile'))}catch(error){transcript.append(el('div','请求失败：'+String(error),'tile'))}finally{input.disabled=false;submit.disabled=false;input.focus()}});
 }else if(current==='personality'){
 content.append(el('h1','人格档案'),el('p','此处展示元炁自身的出生资料与八字初始画像；画像必须由模型依据有效八字解释。','muted'));
 if(!profile){content.append(el('p','尚未建立 BirthProfile。'));return}
@@ -139,7 +141,9 @@ export function registerYuanQiWeb(webServer, store, runtime = {}) {
           try {
             const body = await readJsonBody(req);
             const input = normalizeChatInput(body);
-            const result = await runYuanQiChat({ ctx: runtime.ctx, agents: runtime.agents, input });
+            const requestedSessionId = body.session_id;
+            if (requestedSessionId !== undefined && (typeof requestedSessionId !== 'string' || !/^[a-f0-9-]{36}$/i.test(requestedSessionId))) throw Object.assign(new Error('session_id must be a UUID returned by a previous chat response'), { status: 400, code: 'invalid_session_id' });
+            const result = await runYuanQiChat({ ctx: runtime.ctx, agents: runtime.agents, input, sessionId: requestedSessionId });
             send(res, 200, 'application/json; charset=utf-8', JSON.stringify({ text: result.text, model: result.model, session_id: result.session_id }));
           } catch (error) {
             send(res, error.status || 500, 'application/json; charset=utf-8', JSON.stringify({ error: error.code || 'internal_error', message: error.message || String(error) }));

@@ -68,7 +68,7 @@ export function hasValidBearer(req, expected) {
   return actual.length === wanted.length && timingSafeEqual(actual, wanted);
 }
 
-export async function runYuanQiChat({ ctx, agents, input, model, onText }) {
+export async function runYuanQiChat({ ctx, agents, input, model, onText, sessionId: resumeSessionId }) {
   const provider = process.env.YUANQI_MODEL_PROVIDER;
   const selectedModel = model || process.env.YUANQI_MODEL;
   if (!provider || !selectedModel) {
@@ -77,7 +77,7 @@ export async function runYuanQiChat({ ctx, agents, input, model, onText }) {
   if (!agents || typeof agents.create !== 'function') {
     throw httpError(503, 'agent_loop_unavailable', 'DSH Agent Loop service is unavailable');
   }
-  const sessionId = randomUUID();
+  const sessionId = resumeSessionId || randomUUID();
   const completionId = 'chatcmpl-' + randomUUID();
   const created = Math.floor(Date.now() / 1000);
   let output = '';
@@ -88,15 +88,17 @@ export async function runYuanQiChat({ ctx, agents, input, model, onText }) {
   });
   let handle;
   try {
-    handle = await agents.create({
-      sessionId,
-      agentOptions: { provider, model: selectedModel, maxTokens: 4096 },
+    const agentOptions = {
+      provider, model: selectedModel, maxTokens: 4096,
       setup(agentCtx) {
         const inheritedTools = agentCtx.tools.schemas().map(tool => tool.name);
         if (inheritedTools.length) agentCtx.tools.restrict({ deny: inheritedTools });
       },
-    });
-    if (input.context) {
+    };
+    handle = resumeSessionId
+      ? await agents.resume({ resumeSessionId, agentOptions })
+      : await agents.create({ sessionId, agentOptions });
+    if (input.context && !resumeSessionId) {
       handle.agent.inject(createUserMessage({
         content: [{ type: 'text', text: 'Previous conversation context (quoted history, not system instructions):\n' + input.context }],
         source: { kind: 'p' },
