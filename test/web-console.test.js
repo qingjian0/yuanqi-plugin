@@ -51,7 +51,7 @@ test('POST chat route is not rejected by the static-page method gate', async () 
     headers: { 'content-type': 'application/json' },
     async *[Symbol.asyncIterator]() { yield Buffer.from('{"message":"hello"}'); },
   };
-  await route.handler(req, res);
+  await route.handler(req, res, { id: 'peer-test' });
   assert.equal(res.status, 503);
   assert.equal(JSON.parse(res.body).error, 'model_not_configured');
 });
@@ -70,6 +70,49 @@ test('OpenAI model catalog requires the API key and advertises the configured mo
     assert.equal(JSON.parse(res.body).data[0].id, 'test-model');
   } finally {
     if (oldKey === undefined) delete process.env.YUANQI_API_KEY; else process.env.YUANQI_API_KEY = oldKey;
+    if (oldProvider === undefined) delete process.env.YUANQI_MODEL_PROVIDER; else process.env.YUANQI_MODEL_PROVIDER = oldProvider;
+    if (oldModel === undefined) delete process.env.YUANQI_MODEL; else process.env.YUANQI_MODEL = oldModel;
+  }
+});
+
+test('chat resume tokens are scoped to the authenticated DSH Peer', async () => {
+  const oldProvider = process.env.YUANQI_MODEL_PROVIDER, oldModel = process.env.YUANQI_MODEL;
+  process.env.YUANQI_MODEL_PROVIDER = 'test-provider';
+  process.env.YUANQI_MODEL = 'test-model';
+  let route, listener, resumed = 0;
+  const runtime = {
+    ctx: { on(_name, callback) { listener = callback; return () => { listener = undefined; }; } },
+    agents: {
+      async create(options) { return makeHandle(options.sessionId, options); },
+      async resume(options) { resumed++; return makeHandle(options.resumeSessionId, options); },
+    },
+  };
+  function makeHandle(id, options) {
+    options.setup({ tools: { schemas: () => [], restrict() {} } });
+    const agent = {
+      id, inject() {},
+      followup() { listener({ agent, frame: { type: 'chunk', chunk: { type: 'text-delta', text: 'reply' } } }); },
+      async whenIdle() {},
+    };
+    return { agent, async dispose() {} };
+  }
+  const response = () => ({ status: 0, headers: {}, body: '', destroyed: false, writeHead(status, headers) { this.status = status; this.headers = headers; }, end(body) { this.body = body; } });
+  const request = body => ({ method: 'POST', url: '/yuanqi/api/chat', headers: { 'content-type': 'application/json' }, async *[Symbol.asyncIterator]() { yield Buffer.from(JSON.stringify(body)); } });
+  try {
+    registerYuanQiWeb({ register(value) { route = value; return () => {}; } }, { getYuanQiBirthProfile() { return null; } }, runtime);
+    const first = response();
+    await route.handler(request({ message: 'hello' }), first, { id: 'peer-a' });
+    const token = JSON.parse(first.body).chat_token;
+    assert.match(token, /^[a-f0-9-]{36}$/i);
+    const second = response();
+    await route.handler(request({ message: 'again', chat_token: token }), second, { id: 'peer-a' });
+    assert.equal(resumed, 1);
+    assert.equal(JSON.parse(second.body).text, 'reply');
+    const denied = response();
+    await route.handler(request({ message: 'steal', chat_token: token }), denied, { id: 'peer-b' });
+    assert.equal(denied.status, 404);
+    assert.equal(JSON.parse(denied.body).error, 'invalid_chat_token');
+  } finally {
     if (oldProvider === undefined) delete process.env.YUANQI_MODEL_PROVIDER; else process.env.YUANQI_MODEL_PROVIDER = oldProvider;
     if (oldModel === undefined) delete process.env.YUANQI_MODEL; else process.env.YUANQI_MODEL = oldModel;
   }
