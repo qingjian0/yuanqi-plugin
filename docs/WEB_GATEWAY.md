@@ -9,6 +9,8 @@ the existing Storage Domain; it does not create a second database or listener.
 - `GET /yuanqi`: four-section lightweight console shell.
 - `GET /yuanqi/api/status`: plugin and storage readiness.
 - `GET /yuanqi/api/profile`: YuanQi AI's own BirthProfile, or `null`.
+- `GET /yuanqi/api/worldline`: main Worldline metadata, current snapshot version, and SelfModel.
+- `GET /yuanqi/api/evidence`: evidence records referenced by the current mainline SelfModel.
 - `POST /yuanqi/api/chat`: same-origin DSH Peer chat, backed by a fresh Agent Loop Session.
 - `POST /yuanqi/v1/chat/completions`: OpenAI-compatible text chat; bearer key is read from `YUANQI_API_KEY` and provider/model from `YUANQI_MODEL_PROVIDER` / `YUANQI_MODEL`.
 - The console and `/yuanqi/api/*` routes require an authenticated DSH Peer.
@@ -26,9 +28,10 @@ long `YUANQI_API_KEY`, `YUANQI_MODEL_PROVIDER`, and `YUANQI_MODEL`. The web
 console's same-origin chat route uses the authenticated DSH Peer instead of an
 API key. No API key is persisted in the YuanQi Storage Domain.
 
-## Remaining console surfaces
+## Current UI boundaries
 
-The Memory and experience-evidence pages are navigation shells only. They
-must be connected to existing domain query APIs before showing or mutating
-records. The personality page reads only YuanQi AI's own BirthProfile and does
-not infer personality in the browser.
+The personality page reads YuanQi AI's own BirthProfile and current SelfModel;
+it does not infer personality in the browser. The memory page lists evidence
+currently referenced by the mainline SelfModel. It does not yet enumerate
+unreferenced candidate evidence or mutate/revoke records. The four-page shell
+is intentionally read-only apart from chat.

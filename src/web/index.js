@@ -49,6 +49,7 @@ if(!profile){content.append(el('p','尚未建立 BirthProfile。'));return}
 const g=el('div',undefined,'grid');tile(g,'出生资料',profile.birth_time);tile(g,'地点状态',profile.birth_location?.status);tile(g,'时区',profile.time_context?.time_zone_id||'不可用');tile(g,'八字状态',profile.bazi?.status);content.append(g);
 const pillars=profile.bazi?.pillars;if(pillars){content.append(el('h2','四柱'));const pre=el('pre');pre.textContent=['年柱 '+pillars.year,'月柱 '+pillars.month,'日柱 '+pillars.day,'时柱 '+pillars.hour].join('\n');content.append(pre)}
 const baseline=profile.innate_baseline;tile(content,'先天画像状态',baseline?.status==='ready'?'已生成符号基础资料':baseline?.status||'未知');
+const centers=worldline?.self_model?.centers;if(centers){content.append(el('h2','当前 SelfModel'));for(const [name,value] of Object.entries(centers)){const card=el('div',undefined,'tile');card.append(el('b',name),el('span',value.epistemic_status||'hypothesis'));const pre=el('pre');pre.textContent=JSON.stringify(value.content??{},null,2);card.append(pre);content.append(card)}}
 }else if(current==='memory'){
 content.append(el('h1','记忆与经历'),el('p','读取现有 Worldline Evidence Ledger；此页面暂不提供删除或自动修订。','muted'));
 if(!worldline){content.append(el('p','尚未建立主世界线。'));return}
@@ -134,7 +135,7 @@ export function registerYuanQiWeb(webServer, store, runtime = {}) {
         return;
       }
       if (url.pathname === '/yuanqi/api/chat' && req.method === 'POST') {
-        void (async () => {
+        return (async () => {
           try {
             const body = await readJsonBody(req);
             const input = normalizeChatInput(body);
@@ -144,7 +145,6 @@ export function registerYuanQiWeb(webServer, store, runtime = {}) {
             send(res, error.status || 500, 'application/json; charset=utf-8', JSON.stringify({ error: error.code || 'internal_error', message: error.message || String(error) }));
           }
         })();
-        return;
       }
       if (url.pathname === '/yuanqi/v1/chat/completions' && req.method === 'POST') {
         void (async () => {
@@ -187,7 +187,6 @@ export function registerYuanQiWeb(webServer, store, runtime = {}) {
             }
           }
         })();
-        return;
       }
       send(res, 404, 'application/json; charset=utf-8', '{"error":"not_found"}');
     },
