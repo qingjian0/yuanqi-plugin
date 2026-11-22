@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { registerYuanQiWeb } from '../src/web/index.js';
 
-test('registers one authenticated YuanQi route and releases it', () => {
+test('registers one authenticated YuanQi route and releases it', async () => {
   let route;
   let disposed = false;
   const webServer = { register(value) { route = value; return () => { disposed = true; }; } };
