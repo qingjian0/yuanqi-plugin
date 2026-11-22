@@ -265,6 +265,7 @@ dsh plugin --profile web add ./dist/dsh-yuanqi-plugin-1.1.0-alpha.9.tgz
 - [安装与配置](./docs/INSTALLATION.md)
 - [Web 控制台与模型网关](./docs/WEB_GATEWAY.md)
 - [安全与隐私](./docs/SECURITY.md)
+- [DSH 真实宿主生命周期与端到端验收](./docs/acceptance/DSH-LIFECYCLE.md)
 - [当前实现状态与验证边界](./docs/STATUS.md)
 - [alpha.9 发布记录](./releases/1.1.0-alpha.9.md)
 - [英文 README](./README.en.md)

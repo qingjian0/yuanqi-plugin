@@ -564,3 +564,10 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - README、设计原则、架构与安装说明已同步该约束。
 - 本节记录的是领域语义和文档契约；运行时是否在所有路径上完全满足这些要求，仍须由源码审计、无用户出生资料测试及真实 DSH 宿主验收证明，不在此处预先宣称通过。
 
+
+
+## 36. 2026-11-22 DSH 真实宿主生命周期验收清单
+
+- 新增 [DSH 真实宿主生命周期与端到端验收](./acceptance/DSH-LIFECYCLE.md)，覆盖安装/卸载、首条消息与精确唤醒、Session flush、冷启动恢复、故障关闭、双主体隔离、Worldline/Evidence、Web 控制台与 OpenAI 网关。
+- 当前仓库 GitHub Actions 已通过 Node.js/DSH API 检查、自动化测试、npm pack 和包归档上传。
+- **真实 Android DSH 宿主、生产 Storage Domain 后端、真实模型供应商端到端仍未验收。** 未实际执行的项目必须标记“未执行”，不得用模拟适配器或 CI 结果替代。
