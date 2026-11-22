@@ -268,7 +268,7 @@ test('plugin disposal aborts and drains active Agent Loop requests before comple
     assert.deepEqual(cancelCause, { kind: 'user' });
     assert.equal(disposed, true);
     assert.equal(res.writableEnded, true);
-    assert.match(res.body, /event: error\\ndata:/);
+    assert.match(res.body, /event: error\ndata:/);
     assert.equal(req.listenerCount('aborted'), 0);
     assert.equal(res.listenerCount('close'), 0);
   } finally {
