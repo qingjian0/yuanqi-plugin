@@ -89,13 +89,20 @@ function requestAbortScope(req, res, activeRequests) {
   req.on?.('aborted', abort);
   res.on?.('close', onResponseClose);
   if (req.aborted || res.destroyed) abort();
+  let resolveDone;
+  const done = new Promise(resolve => { resolveDone = resolve; });
+  let disposed = false;
   const scope = {
     signal: controller.signal,
+    done,
     abort,
     dispose() {
+      if (disposed) return;
+      disposed = true;
       req.off?.('aborted', abort);
       res.off?.('close', onResponseClose);
       activeRequests?.delete(scope);
+      resolveDone();
     },
   };
   activeRequests?.add(scope);
@@ -190,7 +197,7 @@ export function registerYuanQiWeb(webServer, store, runtime = {}) {
         const requestScope = requestAbortScope(req, res, activeRequests);
         return (async () => {
           try {
-            const body = await readJsonBody(req);
+            const body = await readJsonBody(req, 128 * 1024, requestScope.signal);
             assertRequestNotAborted(requestScope.signal);
             const input = normalizeChatInput(body);
             const token = body.chat_token;
@@ -295,8 +302,12 @@ export function registerYuanQiWeb(webServer, store, runtime = {}) {
   return async () => {
     closing = true;
     chatSessions.clear();
-    for (const request of activeRequests) request.abort();
+    const requests = [...activeRequests];
+    for (const request of requests) request.abort();
     dispose?.();
+    // Drain every admitted chat HTTP handler, including requests still
+    // consuming a body and requests that have not reached Agent creation.
+    await Promise.allSettled(requests.map(request => request.done));
     await Promise.allSettled([...activeChats]);
   };
 }

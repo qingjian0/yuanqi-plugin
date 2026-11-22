@@ -8,15 +8,27 @@ function httpError(status, code, message) {
   return error;
 }
 
-export async function readJsonBody(req, maxBytes = 128 * 1024) {
+export async function readJsonBody(req, maxBytes = 128 * 1024, signal) {
   const type = String(req.headers['content-type'] ?? '').split(';', 1)[0].trim().toLowerCase();
   if (type !== 'application/json') throw httpError(415, 'unsupported_media_type', 'Content-Type must be application/json');
+  if (signal?.aborted) throw httpError(499, 'request_aborted', 'The HTTP client disconnected before the request completed');
+  const onAbort = () => {
+    // IncomingMessage.destroy() interrupts a pending async iterator read so
+    // plugin teardown can drain requests that never reached Agent creation.
+    if (!req.destroyed) req.destroy?.(signal.reason instanceof Error ? signal.reason : new Error('HTTP request aborted'));
+  };
+  signal?.addEventListener('abort', onAbort, { once: true });
   const chunks = [];
   let size = 0;
-  for await (const chunk of req) {
-    size += chunk.length;
-    if (size > maxBytes) throw httpError(413, 'request_too_large', 'Request body exceeds the configured limit');
-    chunks.push(chunk);
+  try {
+    for await (const chunk of req) {
+      if (signal?.aborted) throw httpError(499, 'request_aborted', 'The HTTP client disconnected before the request completed');
+      size += chunk.length;
+      if (size > maxBytes) throw httpError(413, 'request_too_large', 'Request body exceeds the configured limit');
+      chunks.push(chunk);
+    }
+  } finally {
+    signal?.removeEventListener('abort', onAbort);
   }
   let value;
   try { value = JSON.parse(Buffer.concat(chunks).toString('utf8')); }
