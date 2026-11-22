@@ -92,4 +92,4 @@
 
 ## 9. 当前自动化验证边界
 
-2026-11-22 合并到 dev 的提交 a178b086710f1d774e6f3ecb6bafa54c85335264 已通过 GitHub Actions：Node.js 检查、DSH peer/API 导出检查、自动化测试、npm pack 和安装包归档上传均成功。此结果验证的是仓库代码与打包流程；本清单中的真实 Android DSH 宿主、真实 Storage Domain 后端和真实模型供应商端到端步骤仍待执行。
+2026-11-22 合并到 dev 的提交 c200aef5ddf44c2a532bd7d42e7f4388a348fe5e 已通过 GitHub Actions：Node.js 检查、DSH peer/API 导出检查、自动化测试、npm pack 和安装包归档上传均成功。此结果验证的是仓库代码与打包流程；本清单中的真实 Android DSH 宿主、真实 Storage Domain 后端和真实模型供应商端到端步骤仍待执行。

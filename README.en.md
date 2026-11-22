@@ -18,10 +18,10 @@ YuanQi is a DSH-hosted life-context and digital-personality evolution plugin. DS
 
 ## Validation
 
-Current `dev` commit `8bb4032f4dcc734ba01616cd9bc3b7f3c18ecf38` passed GitHub Actions on 2026-11-22: **120 tests passed, 0 failed** on Node.js 24.9.0, including DSH peer/API export checks. The package workflow also created and uploaded an installable npm archive.
+Current `dev` commit `c200aef5ddf44c2a532bd7d42e7f4388a348fe5e` passed GitHub Actions on 2026-11-22: **120 tests passed, 0 failed** on Node.js 24.9.0, including DSH peer/API export checks. The package workflow also created and uploaded an installable npm archive.
 
-- [CI test run](https://github.com/qingjian0/yuanqi-plugin/actions/runs/44986253588)
-- [Package build and artifact upload](https://github.com/qingjian0/yuanqi-plugin/actions/runs/44986253603)
+- [CI test run](https://github.com/qingjian0/yuanqi-plugin/actions/runs/44986320115)
+- [Package build and artifact upload](https://github.com/qingjian0/yuanqi-plugin/actions/runs/44986320111)
 
 These checks validate the repository snapshot and packaging pipeline. Real Android DSH host installation, unload/reload, production Storage Domain behavior, and live model-provider end-to-end acceptance remain pending.
 
