@@ -212,7 +212,7 @@ test('aborting an OpenAI SSE request cancels the active DSH Agent request', asyn
     assert.deepEqual(cancelCause, { kind: 'user' });
     assert.equal(disposed, true);
     assert.equal(res.writableEnded, true);
-    assert.match(res.body, /event: error\\ndata:/);
+    assert.match(res.body, /event: error\ndata:/);
     assert.equal(req.listenerCount('aborted'), 0);
   } finally {
     if (oldKey === undefined) delete process.env.YUANQI_API_KEY; else process.env.YUANQI_API_KEY = oldKey;
