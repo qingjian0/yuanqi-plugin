@@ -92,4 +92,4 @@
 
 ## 9. 当前自动化验证边界
 
-2026-11-22 的开发代码提交 `04329a2c31bd75afc15fc36f8140c15363339692` 已通过 GitHub Actions：122 项测试全部通过（[CI #44987512082](https://github.com/qingjian0/yuanqi-plugin/actions/runs/44987512082)）。相同运行时代码的 npm 打包工作流成功，制品 79,314 bytes（[Package #44987405291](https://github.com/qingjian0/yuanqi-plugin/actions/runs/44987682664)；打包提交 `6d5d319147b2ed5b5b589c43a360a608b18cfe06`，后续差异仅为测试断言）。此结果验证仓库代码与打包流程；本清单中的真实 Android DSH 宿主、真实 Storage Domain 后端和真实模型供应商端到端步骤仍待执行。
+2026-11-22 的开发代码提交 `fe9d681a26c31d4ce35f7da723fc09bc37845fd8` 已通过 GitHub Actions：123 项测试全部通过（[CI #45002651811](https://github.com/qingjian0/yuanqi-plugin/actions/runs/45002651811)）。新增回归覆盖插件卸载时终止活动 Web/Agent 请求、等待 Agent 结束并释放句柄。当前快照的 npm 打包由本轮 Package workflow 单独复验；本清单中的真实 Android DSH 宿主、真实 Storage Domain 后端和真实模型供应商端到端步骤仍待执行。
