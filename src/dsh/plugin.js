@@ -2021,7 +2021,7 @@ export async function apply(ctx) {
       } catch (error) {
         errors.push(error);
       }
-      if (errors.length) throw new AggregateError(errors, 'YuanQi resources failed during plugin teardown');
+      if (errors.length) throw new AggregateError(errors, 'YuanQi session writes failed during plugin teardown');
     }, 'yuanqi-ordered-teardown');
   } catch (error) {
     try { failStartup?.(error); } catch {}
