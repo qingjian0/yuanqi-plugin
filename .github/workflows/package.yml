@@ -16,6 +16,19 @@ on:
       - "cordis.patch.yml"
       - ".github/workflows/package.yml"
 
+  pull_request:
+    branches:
+      - dev
+      - 'work/**'
+    paths:
+      - "README.md"
+      - "docs/**"
+      - "package.json"
+      - "package-lock.json"
+      - "index.js"
+      - "src/**"
+      - "cordis.patch.yml"
+      - ".github/workflows/package.yml"
 permissions:
   contents: read
 

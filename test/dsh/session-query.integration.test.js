@@ -100,6 +100,8 @@ function pluginContext(host, storageDomain) {
   let disposer;
   return {
     storageDomain,
+    webServer: { register() { return () => {}; } },
+    tools: { register() {} },
     sessionQuery: host.sessionQuery,
     sessionPersistence: host.sessionPersistence,
     on: (...args) => host.on(...args),
