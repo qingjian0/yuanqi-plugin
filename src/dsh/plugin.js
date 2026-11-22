@@ -191,6 +191,7 @@ export async function apply(ctx) {
   let finishStartup;
   let failStartup;
   const startupBarrier = new Promise((resolve, reject) => { finishStartup = resolve; failStartup = reject; });
+  let disposeYuanQiWeb;
   startupBarrier.catch(() => {});
   try {
     const worldlines = createWorldlineStore({
@@ -202,8 +203,7 @@ export async function apply(ctx) {
       yuanqiDomain: domains.yuanqiDomain,
       verifyDirectUserEvent(event) { return isTrustedDirectUserMessageEvent(event) ? event : null; },
     });
-    const disposeYuanQiWeb = registerYuanQiWeb(ctx.webServer, store, { ctx, agents: ctx.agents, worldlines });
-    ctx.effect(() => disposeYuanQiWeb);
+    disposeYuanQiWeb = registerYuanQiWeb(ctx.webServer, store, { ctx, agents: ctx.agents, worldlines });
     ctx.tools.register(defineTool({
       name: 'yuanqi_self_profile',
       description: 'On the first model response after YuanQi activation, call this tool before answering to read YuanQi AI’s own birth profile, four pillars, symbolic innate baseline and initial-personality source material. If the Bazi is calculated, interpret it and then save the provisional portrait with yuanqi_record_initial_personality. Use only returned chart_evidence_catalog IDs to cite exact visible/hidden-stem evidence. This is YuanQi’s own AI data, never the user’s birth data. When the Bazi is ready, interpret it as YuanQi’s provisional innate personality using traditional Bazi reasoning: follow the order climate adjustment (调候) → mediation of five-element conflicts (通关) → strength assessment (旺衰) → structure (格局), while integrating month/season command, visible and hidden stems, ten-god relationships and the whole chart. Do not treat raw five-element counts as strength scores. For each tendency, show the chart evidence and reasoning chain, distinguish chart facts from interpretation, and state uncertainty or counter-indications. Do not derive a trait from a single ten-god label, raw element counts, or a fixed stereotype. Avoid formal strength or structure conclusions when seasonal context or chart evidence is insufficient. Describe only a few broad tendencies in temperament, cognition, emotional response, motivation, behavior and decision style. These are initial hypotheses, not verified psychological facts, and must remain open to later experience-based revision. Respect pending/ambiguous/unavailable states; never invent a chart or personality when the source is incomplete.',
@@ -2000,21 +2000,36 @@ export async function apply(ctx) {
     ready = true;
     finishStartup();
 
+    // Keep teardown ordering inside one Cordis effect. Fiber disposers may
+    // start concurrently, so separate web/domain effects could close storage
+    // while an in-flight Agent request is still draining.
     ctx.effect(() => async () => {
       active = false;
+      const errors = [];
+      try {
+        await disposeYuanQiWeb();
+      } catch (error) {
+        errors.push(error);
+      }
       const pending = [...pendingBySession.values()].flatMap(tasks => [...tasks]);
       const results = await Promise.allSettled(pending.map(entry => entry.promise));
-      await Promise.allSettled([...pendingLocationTasks]);
-      await domains.close();
-      const errors = results.filter(result => result.status === 'rejected').map(result => result.reason);
-      if (errors.length) throw new AggregateError(errors, 'YuanQi session writes failed during plugin teardown');
-    });
+      errors.push(...results.filter(result => result.status === 'rejected').map(result => result.reason));
+      const locationResults = await Promise.allSettled([...pendingLocationTasks]);
+      errors.push(...locationResults.filter(result => result.status === 'rejected').map(result => result.reason));
+      try {
+        await domains.close();
+      } catch (error) {
+        errors.push(error);
+      }
+      if (errors.length) throw new AggregateError(errors, 'YuanQi plugin teardown failed');
+    }, 'yuanqi-ordered-teardown');
   } catch (error) {
     try { failStartup?.(error); } catch {}
-    try {
-      await domains.close();
-    } catch (closeError) {
-      throw new AggregateError([error, closeError], 'YuanQi plugin initialization failed and Storage Domains could not both close cleanly');
+    const cleanupErrors = [];
+    try { await disposeYuanQiWeb?.(); } catch (cleanupError) { cleanupErrors.push(cleanupError); }
+    try { await domains.close(); } catch (closeError) { cleanupErrors.push(closeError); }
+    if (cleanupErrors.length) {
+      throw new AggregateError([error, ...cleanupErrors], 'YuanQi plugin initialization failed and resources could not all close cleanly');
     }
     throw error;
   }

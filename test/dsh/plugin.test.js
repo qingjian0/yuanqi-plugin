@@ -62,7 +62,7 @@ function dshEvent(text, id, seq, time) {
   return { type: 'user/message', seq, time, data: { id, role: 'user', source: { kind: 'user' }, content: [{ type: 'text', text }] } };
 }
 function context(storageDomain, options = {}) {
-  let listener, flushListener, disposer;
+  let listener, flushListener, disposer, effectCount = 0;
   const warnings = [];
   const registeredTools = [];
   const tools = {
@@ -87,10 +87,11 @@ function context(storageDomain, options = {}) {
     warnings,
     logger: { warn(message) { warnings.push(message); } },
     on(name, callback) { if (name === 'session/event') listener = callback; else if (name === 'session/flush') flushListener = callback; else throw new Error('unexpected event ' + name); },
-    effect(register) { disposer = register(); },
+    effect(register) { effectCount += 1; disposer = register(); },
     get listener() { return listener; },
     get flushListener() { return flushListener; },
     get disposer() { return disposer; },
+    get effectCount() { return effectCount; },
   };
 }
 
@@ -121,6 +122,7 @@ test('plugin startup rejects an incomplete SessionPersistence provider before op
 test('model-facing self-profile tool exposes only YuanQi-owned birth data after wake', async () => {
   const storage = fakeStorageDomain(), ctx = context(storage);
   await apply(ctx);
+  assert.equal(ctx.effectCount, 1, 'plugin teardown must be one ordered async effect');
   const registration = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_self_profile');
   assert.ok(registration);
   assert.equal(await registration.registrationOptions.when(), false);

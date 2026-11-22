@@ -17,7 +17,7 @@ the existing Storage Domain; it does not create a second database or listener.
 - The console and `/yuanqi/api/*` routes require an authenticated DSH Peer.
   `/yuanqi/v1/*` uses WebServer anonymous admission plus a constant-time checked
   bearer API key; Connection's Host/Origin source fence still applies.
-- Route registration is disposed with the plugin. Unload drains active model requests before completing.
+- Route registration is disposed with the plugin. Its cleanup is sequenced in the same Cordis effect as Storage Domain shutdown: the plugin first closes admission and drains active model requests, then waits for pending Session and location work, and only then closes the domains. This is required because separate asynchronous Cordis disposers may begin concurrently.
 
 ## Model gateway boundary
 
