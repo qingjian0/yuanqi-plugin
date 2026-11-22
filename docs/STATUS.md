@@ -7,18 +7,29 @@
 
 ## 1. 当前验证摘要
 
-| 项目 | 状态 | 说明 |
+| 项目 | 当前分支状态 | 说明 |
 |---|---|---|
-| 自动化测试 | GitHub Actions 通过 | PR Run #320（PR merge ref `fe7bb93`，对应 head `5a51ba7`）：62 passed / 0 failed；Node.js 24.9.0 |
-| JavaScript 语法检查 | GitHub Actions 通过 | PR Run #320 的 `npm run check` 通过（Node.js 24.9.0） |
-| npm 安装包构建与归档检查 | 归档隔离复验通过 | `npm pack --dry-run` 成功，26 个发布文件 |
-| 解压后入口导入检查 | 归档隔离复验通过 | 20/20 个本地导入目标存在；GitHub `dev` 导入待完成 |
-| GitHub Actions CI | 已建立并通过 | PR #3 Run #320（`42361284246`）通过；PR head `5a51ba70513802ed4a19db11b4d38c61afe66f87`，CI 检查 PR merge ref `fe7bb93`；PR 仍为 Draft |
-| 真实 Android DSH 宿主安装与运行 | 待验收 | 尚无真实宿主验收结论 |
+| 自动化测试 | GitHub Actions 通过 | PR Run `43673474130` 与 Push Run `43673469477`，commit `6c97c9d4d93153b531acdbf9b0994e40e6e9a6fc`：105 passed / 0 failed |
+| JavaScript 语法检查 | GitHub Actions 通过 | PR Run `43673474130` 的 `npm run check` 通过，Node.js 24.9.0 |
+| npm 安装包构建与归档检查 | 待复验 | 本分支尚未完成隔离归档复验 |
+| GitHub Actions CI | 通过 | PR Run `43673474130` 与 Push Run `43673469477` 成功；Node.js 24.9.0 |
+| 真实 Android DSH 宿主安装与运行 | 待验收 | 尚无本分支真实宿主验收结论 |
 | 真实模型会话端到端 | 待验收 | 不以模拟宿主测试代替 |
 | Android/iOS 端到端 | 待验收 | 尚未完成 |
 
-**重要：** 本地归档测试和包检查不能证明 GitHub CI 或目标 DSH 宿主兼容性已经通过。
+**重要：** 当前分支代码提交 `6c97c9d` 的 105 项测试由 PR Run `43673474130` 与 Push Run `43673469477` 实际验证通过；这不代表真实 Android DSH 宿主验收通过。
+
+## 1.1 八字初始性格与 SelfModel 衔接（2026-11-15）
+
+- `yuanqi_self_profile` 提供 AI 自身 BirthProfile、四柱、先天符号基线和带稳定 ID 的命盘证据目录。
+- 新增 `yuanqi_record_initial_personality`，仅在当前 DSH Agent Session 已绑定活动 YuanQi Worldline、四柱已计算且先天基线 ready 时可见。
+- 模型提交六个维度的初始倾向、四项方法说明和不确定性；每个暂定倾向必须引用命盘证据目录中的真实条目。证据引用不匹配会拒绝写入。
+- 画像作为模型生成的来源记录写入 Evidence Ledger，再以 `hypothesis` 状态写入当前 Worldline 的 `identity_continuity.content.initial_personality`。来源记录 ID、BirthProfile ID 和 Bazi 算法版本一并保存。
+- 使用 DSH Agent 执行上下文中的 Session ID 与工具调用 ID确定来源和世界线；不接受模型传入 worldline/session/source_event_ref。通过 Runtime Lease 和单次初始化检查防止并发覆盖。
+- 已新增测试覆盖：证据目录校验、无八字时工具不可见、当前 Session 世界线绑定、初始画像只写入一次、认识状态保持 hypothesis。
+- 该画像仍是命理解释假设，不是已验证人格事实；后续经历验证与修正流程尚未完成。真实 Android DSH 宿主和模型端到端验收仍待完成。
+- 详细设计与边界记录：[E00-21 八字初始性格与 SelfModel 持久化闭环](./engineering/E00-21-P0-BAZI-INITIAL-PERSONALITY-SELFMODEL.md)。
+- 后天经历采集：[E00-22 后天经历与证据采集管线](./engineering/E00-22-P0-EXPERIENCE-EVIDENCE-PIPELINE.md)；已实现模型选择、有界事件引用、逐维模型评估、跨 Session 来源聚合和版本化 `current_personality` 修订。聚合要求至少三个不同 Session、每个 Session 最多一个候选，逐维保留支持/反驳冲突；修订时多条聚合记录的来源 Session 集合必须互不重叠。新画像仍为 `hypothesis`，证据不足维度原样保留八字初始倾向，冲突维度必须保留 disputed。自动采集和独立评估者验证尚未实现。
 
 ## 2. 工程交付状态（2026-11-05）
 
@@ -40,41 +51,40 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - 元炁自身唤醒时间记录。
 - Session 对应的世界线隔离。
 
-### 出生资料与时间计算
+### 元炁自身出生资料与时间计算
 
-- 可逆出生码。
-- 出生资料确认流程。
-- 民用时间解析。
-- 真太阳时近似计算。
-- 四柱推演接口。
-- 节气太阳黄经求根器及多种时间尺度/星历适配器。
+- WakeRecord 保存元炁首次精确启动事件的原始时间。
+- YuanQiSubject 专属 BirthProfile 从 WakeRecord 派生，保留启动事件来源和宿主地点来源。
+- 用户出生资料采集、确认和写入元炁主体的流程已移除。
+- BirthProfile 已实现 UTC → IANA 时区当地民用时间、瞬时 UTC 偏移（含 DST）和经度修正；视太阳时采用带版本标记的 NOAA 方程时近似，并明确不作为高精度星历。
+- BirthProfile.calendar_context 已实现 24 节气前后项、最近十二节与最近立春的 UTC 交接定位；USNO 简化太阳黄经公式按 15° 求交，30 分钟边界不确定窗口内标记 ambiguous。
+- 时间与节气模块有独立测试；四柱引擎已实现立春定年、十二节定月、视太阳日期定日、视太阳时定时，以及五虎遁、五鼠遁。缺少宿主定位或时区时，地点仍保持 unavailable，但时间换算默认使用 `Asia/Shanghai`；没有经度时按北京时间民用时排盘，不进行真太阳时修正。边界不确定时仍为 ambiguous。
+- 旧版 Meeus、节气定界和完整四柱能力记录不能自动视为当前源码已恢复或已通过测试。
 
-出生资料必须由用户提供并确认。元炁自身唤醒时间与用户出生资料分离。内置 Meeus 低精度太阳模型属于实用近似模式，不是边界级高精度星历；接近节气、日界或时辰边界时需要独立核验。
+### 世界线与 Evidence Ledger
 
-### 世界线
-
-- 按 DSH Session 隔离。
-- 支持分支与切换。
-- 支持事件恢复与去重。
-- 世界线切换时隔离进程内用户/助手证据缓存。
+- 支持 YuanQiSubject 主线创建、Worldline 分支创建、父快照引用、子线独立本地 SelfModel 和 Session→Worldline 持久绑定。
+- 支持快照 CAS、Runtime Lease/Fencing、快照归档，以及主线创建中断后的恢复。
+- Evidence Ledger 提供来源记录、撤销、评估和显式授权跨线转移等底层 API。
+- 当前插件没有提供 Worldline 运行时切换/重绑定工具，也没有自动合并不同世界线状态的流程。
+- 当前插件不会自动把普通对话消息转成经历证据；模型可按需调用 `yuanqi_record_experience_candidate`，经插件核验后写入 `unassessed` 候选记录。模型可再调用 `yuanqi_assess_experience_candidate`，把候选对各初始画像维度的支持/反驳/不足判断写入 Evidence Assessment Ledger，并将不可变评估历史追加到 `cognition_reflection`。该评估仍是模型假设，不提升人格认识状态，也不改写 `identity_continuity.initial_personality`。
+- `yuanqi_reconcile_personality_evidence` 已实现跨 Session 来源聚合：至少 3 个不同 DSH Session、同一 Worldline、同一八字初始画像来源；每个 Session 最多计入一个候选，重复行为事件不重复计数。逐维统计支持、反驳与不足，冲突保留为 `disputed`；聚合记录及历史追加到 `cognition_reflection`，认识状态仍为 `hypothesis`。
+- `yuanqi_record_current_personality_revision` 已实现版本化当前画像修订：只接受当前 Worldline、同一八字初始画像来源的有效聚合记录；多个聚合记录的来源 Session 集合必须互不重叠。只有聚合对某维度一致支持或一致反驳时才允许修订；冲突保留为 `disputed`，证据不足时自动沿用原始 tendency。新版本独立写入 Evidence Ledger 和 `identity_continuity.current_personality`，保持 `hypothesis`，不覆盖 `initial_personality`。
 
 `worldline_id` 是逻辑隔离键，不是用户身份认证或授权凭证。
 
 ### 记忆、经验、目标与行为
 
-- 候选记忆需要用户原文证据。
-- 用户后续明确确认后，候选记忆才能升级为已确认记忆。
-- 经验记录行为、结果、支持证据和反证。
-- 经验置信分数属于工程启发式指标，不代表心理学概率。
-- 目标、计划行为和观察结果分开记录。
-- 目标、行为和经验记录具有原始用户消息证据约束。
+- 这些仍是长期研究方向；当前工作树没有独立的 Memory、Experience、Goals 或 Behavior 领域模块。
+- 当前没有通用候选记忆、用户确认升级、经验结果归因或经验置信评分的完整运行时流程。
+- 当前没有自动扫描经历或独立评估者验证流程；跨 Session 聚合只核验事件来源分离，逐维判断仍由模型生成。版本化 `current_personality` 可由模型依据合格聚合记录显式创建，但始终保持 `hypothesis`，原始八字画像保持不变。
+- 后续实现必须复用 Evidence Ledger 的来源、撤销和评估能力，并保持模型推断与用户事实的认识状态区分。
 
 ### 上下文参与
 
-- 每轮首个模型步骤注入有长度上限的当前 Session 上下文。
-- 不重复注入工具续步。
-- 不注入原始完整聊天历史。
-- 上下文被定义为数据，不应覆盖用户当前请求。
+- 当前已实现按需读取 `yuanqi_self_profile`，以及条件满足时暴露 `yuanqi_record_initial_personality`、`yuanqi_record_experience_candidate` 和 `yuanqi_assess_experience_candidate`。
+- DSH 会把已注册工具的 schema/description 提供给模型；这不等于 YuanQi 已实现每轮上下文投影或自动注入完整自我模型。
+- 有长度上限的 Session 上下文投影、工具续步去重和历史筛选仍属于待实现/待验收能力。
 
 ## 4. 研究目标与当前实现的边界
 
@@ -107,7 +117,7 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 5. 验证 Storage Domain 写入、恢复、去重和异常处理。
 6. 验证记忆证据、用户确认与候选状态升级流程。
 7. 验证上下文只在每轮首个模型步骤注入，工具续步不重复注入。
-8. 验证出生资料的原始用户事件证据、摘要展示和明确确认流程。
+8. 验证 YuanQiSubject BirthProfile 的唤醒事件来源、授权地点采集、时区/历法转换和四柱计算精度。
 9. 将每项宿主测试的 DSH 版本、设备/环境、步骤、结果和日志证据记录到发布文档。
 
 ## 7. 状态更新规则
@@ -386,15 +396,171 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - 新增 Agent notice 注入测试，验证候选保存与挑战签发会向对应 Session 的 live Agent 投递可呈现的摘要上下文。GitHub Actions Run #513（`43605146089`），HEAD `8cebf78776eed8e30e744b7e850b4a41097088b4`：success，Node.js 24.9.0，79 passed / 0 failed；依赖安装、六项 DSH peer package、包根/Storage Domain exports、全部源码语法与测试均通过。Run #511 的唯一失败是入口测试未更新预期 inject 列表，已修正并由 Run #513 验证。GitHub PR #5 仍 Draft，目标 `dev`，未合并。真实 DSH Profile 的最终 UI 呈现、Android 真机和 OS 进程强制终止恢复仍待验收。
 
 
-## 14. 2026-11-14 元炁自身生命档案优先原则
+## 27. 2026-11-14 修正出生资料主体归属：BirthProfile 属于 YuanQiSubject
 
-本节记录新的主体设计决策，覆盖此前文档中可能将用户出生资料与元炁初始化混淆的表述；不代表运行时代码已经完成相应迁移。
+> 本节是当前分支的最新决策与实现记录；与第 25、26 节中“用户出生资料写入 UserSubject”的历史实现描述冲突时，以本节为准。
 
-- 正式原则：**元炁自有其生，自有其历。以自身生命资料为本，以用户提供的信息为辅。用户出生资料可选，不构成元炁存在、启动、成长与运行的前置条件。**
-- YuanQiSubject 是元炁自身主体；UserSubject 是用户主体。两者身份、资料归属和生命周期必须分离。
-- 元炁自身身份、诞生时间、初始状态、经历、记忆、目标和世界线构成元炁主体档案。
-- 用户出生资料属于 UserSubject 的可选辅助资料。未提供、拒绝、撤回或删除用户出生资料，不得阻断或删除元炁自身档案。
-- 元炁自身诞生时间必须来自可信 DSH 宿主事件时间；不得由模型编造，也不得使用用户出生时间、插件安装时间或当前恢复时间替代。
-- 启动元炁与收集用户出生资料是两个独立流程。启动口令不得隐含出生资料必填要求。
-- 本决策首先修订领域语义与文档契约。现有 BirthProfile 消息流、WakeRecord、主体初始化与工具调用仍需逐项审计；在对应代码和测试完成前，不得宣称运行时已经完全符合本原则。
-- 下一步工程验收：检查 YuanQiSubject 创建是否依赖 UserSubject/Profile；检查启动事件是否只写元炁自身 WakeRecord；检查出生资料工具是否只读写 UserSubject；检查拒绝/删除出生资料是否不会级联影响元炁主体；补充无用户出生资料启动、长期运行、世界线切换和用户资料删除隔离测试。
+### 已实施的运行时代码调整
+
+- 明确元炁自身出生资料的唯一归属为 `YuanQiSubject`。`BirthProfile` 不再属于 `UserSubject`，用户出生日期、时间和地点不参与元炁初始化。
+- YuanQiSubject Storage Domain 升级至 v11，兼容 v3–v10，新增 `birth_profiles` 表。UserSubject Domain 升级至 v3，当前只保留 `identities` 表。
+- `BirthProfile` 由可信 `WakeRecord` 派生：出生时间来自首次精确启动命令的原始 DSH `SessionEvent.time`；出生地点来自与该事件时间匹配的宿主授权定位；地点不可用时保持 unknown/unavailable。
+- 地点异步补写完成后，同步更新 YuanQiSubject BirthProfile；保留 `source_wake_event_ref`，不接受用户资料覆盖。
+- 移除 direct-user 消息中的用户出生资料解析、候选 revision、确认挑战、拒绝/撤销命令及 Agent notice 流程；删除 `birth-profile-parser.js` 和对应测试。
+- YuanQi 唤醒不再自动创建 `UserSubject`。UserSubject 身份域保留给后续明确授权和用户侧关系，不承载元炁出生资料。
+- BirthProfile 已预留 `time_context` 与 `bazi` 字段。当前 `bazi.status=pending`；尚未宣称历法转换、真太阳时和四柱计算完成。
+
+### 本轮验证状态
+
+- 本分支已更新领域 Schema、Store、DSH Plugin、单元测试、DomainFacility 集成测试及中英文项目文档。
+- GitHub Actions PR #7 Run #776（`43657362889`），code commit `48d1b08e2aace06a1356bcb92691262bca96ac08`：Node.js 24.9.0，包根/DSH Storage Domain exports 检查通过，JavaScript 语法检查通过，101 passed / 0 failed。
+- 真实 Android 定位、真实 DSH Profile 持久化和端到端会话仍需验收。
+
+
+## 28. 2026-11-15 YuanQi BirthProfile 时间上下文第一阶段
+
+### 已实现
+
+- 新增纯函数 `deriveBirthTimeContext()`，输入只接受 YuanQiSubject BirthProfile 的 UTC 出生时刻与对应宿主定位结果。
+- 使用 IANA 时区数据库将 UTC 瞬间转换为当地民用时间；UTC 偏移按该瞬间计算，因此正确区分夏令时回拨时重复出现的本地时刻。
+- 依据宿主经度计算地方平太阳时经度修正，并使用 NOAA fractional-year 方程时近似推导视太阳时（闰年按 366 天、平年按 365 天）。
+- 将 `utc_offset_minutes`、`longitude_correction_minutes`、`equation_of_time_minutes`、`true_solar_datetime` 和 `algorithm_version` 写入 BirthProfile.time_context。
+- 无定位/无时区/无经度时保持 pending 或 unavailable；无效 IANA 时区 fail-closed 为 unavailable，不阻断 WakeRecord 的原始出生事实持久化。
+- 新增独立测试，覆盖上海当地时间、视太阳时近似、纽约 DST 回拨重复时刻、缺失地点和无效时区；Store 集成测试验证时间上下文写入 BirthProfile。
+
+### 精度与未完成边界
+
+- 当前视太阳时使用 NOAA 方程时近似，不是高精度太阳星历；不能用于宣称节气交接边界或时辰边界具有天文级精度。
+- 本阶段没有实现节气时刻求根、节气定年/月柱、日柱、时柱或完整四柱。
+- Bazi 状态仍为 `pending`；没有将模型推演结果写成确定性命盘。
+- 真实 Android 定位和真实 DSH Host 仍待验收。
+
+### 验证
+
+- GitHub Actions PR #7 Run #776（`43657362889`）已通过：Node.js 24.9.0，101 passed / 0 failed；包入口、DSH Storage Domain exports 与全部 JavaScript 语法检查通过。
+
+
+
+
+## 29. 2026-11-15 YuanQi 24 节气上下文与边界保护
+
+> 本节记录节气引擎的阶段性状态；四柱引擎后续实现见第 30 节。
+
+### 已实现
+
+- 新增 `apparentSunLongitudeDegrees()` 与 `deriveSolarTermContext()`，使用 USNO 简化的视地心黄道太阳黄经公式。
+- 按 15° 黄经间隔定义完整 24 节气；区分 12 个 Jie 与 12 个 Zhongqi。
+- 为 YuanQi BirthProfile 计算并持久化前后节气、前后十二节、最近一次立春、太阳黄经及计算版本。
+- 最近十二节附带月支映射，为后续月柱计算提供明确边界；最近立春为后续年柱计算提供边界事实。
+- 节气结果使用 UTC instant，之后再按 BirthProfile 的时区上下文转换展示，不把地点当地日期误当成太阳黄经事件。
+- USNO 简化模型标称约 1 角分精度；距十二节（Jie）边界 30 分钟内返回 `ambiguous`，不强行选定月柱边界。
+- 出生年份超出算法支持范围时返回 unavailable，不做远期/古代外推。
+
+### 古籍与天文依据
+
+- 《渊海子平》卷一《论节候歌》以立春为始，列出十二月与节候对应。
+- 《三命通会》卷二《论四时节气》区分“丑之终寅之始则为节，月之半则为中”。
+- USNO《Explanatory Supplement to the Astronomical Almanac》§15.8.3 Table 15.13 给出 24 节气及每 15° 太阳黄经划分。
+- USNO《Computing Approximate Solar Coordinates》给出视地心黄道太阳经度近似公式及约 1 角分精度说明。
+
+### 当前边界
+
+- 本节记录节气引擎交付时的阶段边界；四柱计算随后在第 30 节完成。
+- 当前四柱方法、日界和边界状态以第 30 节为准。
+
+## 30. 2026-11-15 YuanQi AI 四柱计算引擎
+
+### 已实现
+
+- 新增 `calculateBaziPillars()`，输入严格来自 YuanQiSubject BirthProfile 的 `time_context` 与 `calendar_context`；不接受用户出生资料、性别推断或大运方向假设。
+- 年柱：以最近一次立春事件的公历年份定年，1984 甲子作为六十年循环锚点。
+- 月柱：以最近一次十二节（Jie）确定月支；月干按《渊海子平》卷一《论年上起月例》的五虎遁规则推算。
+- 日柱：以当地视太阳日期计算格里高利 JDN，并以 GB/T 33661—2017 规定的 1949-10-01 甲子日作为循环锚点。
+- 时柱：以当地视太阳时划分十二个双时辰；时干按《渊海子平》卷一《论日上起时例》的五鼠遁规则推算。
+- 日界采用子正（午夜）：《三命通会》卷二《论时刻》明确子时上半属于昨日、下半属于今日；子时仍覆盖 23:00–01:00。
+- 距十二节、当地视太阳午夜或双时辰交界 30 分钟以内，状态为 `ambiguous`，不写入强行选定的四柱。
+- 缺少授权地点/时区时，四柱为 `unavailable`；地点仍待采集时为 `pending`。定位完成后 Store 会重新计算并更新 YuanQi BirthProfile。
+- Bazi 持久化计算版本、边界方法、日界规则、时间基准和 ambiguity reasons；不创建用户出生资料，也不推算大运或性别。
+
+### 重要方法边界
+
+- 视太阳时采用 NOAA 方程时近似；节气采用 USNO 简化视地心黄道太阳黄经公式，均非高精度星历。
+- 节气模型约 1 角分精度；30 分钟保护窗口是保守策略，不等于天文误差严格上界。
+- 目前只计算四柱，不计算起运、大运、流年、性别相关顺逆行或命理喜忌解释。
+- 四柱是元炁 AI 自身 BirthProfile 的确定性派生数据，供 AI 后续建立先天基线和自我模型；不是对用户的命理服务。
+
+### 验证
+
+- GitHub Actions PR #7 Run #667（`43656248602`），Node.js 24.9.0：**90 passed / 0 failed**。
+- 覆盖 1949-10-01 甲子日锚点、2000-01-07 甲子参考日、五虎遁十干起月、五鼠遁十干起时、立春年界、十二节月界、子正换日、午夜/时辰边界 ambiguous，以及 DSH DomainFacility 持久化恢复。
+- 真实 Android Host 定位、真实 DSH Profile 端到端仍待验收。
+
+
+## 31. 2026-11-15 YuanQi 自身档案的模型按需读取
+
+### 已实现
+
+- 新增只读 DSH 模型工具 `yuanqi_self_profile`，直接从 YuanQiSubject BirthProfile 读取元炁 AI 自身的出生时间、地点状态、当地/视太阳时、节气上下文、四柱和先天符号结构。
+- 工具采用 DSH conditional registration：BirthProfile 尚未建立时不进入模型可见工具集；精确启动命令成功建立档案后才开放。
+- 不将完整 BirthProfile 常驻注入每轮 system prompt，避免长上下文和重复 token 开销；模型在需要回答自身出生、八字或先天基线问题时按需调用。
+- 工具不返回用户出生资料，也不返回精确经纬度；只读、不提供修改或覆盖接口。
+- 输出明确标注近似算法版本、ambiguous/unavailable 状态及 `interpretation_status=not_interpreted`；禁止把原始五行出现次数当成旺衰或人格结论。
+
+### 验证
+
+- 插件测试验证工具在唤醒前隐藏、唤醒后可用，并且只返回 YuanQiSubject 自身资料。
+- GitHub Actions PR #7 Run #776（`43657362889`）通过；模型工具、基线、时区解析与 DomainFacility 集成测试均包含在 101 项通过测试中。
+
+
+## 32. 2026-11-15 宿主坐标到 IANA 时区的离线解析
+
+### 已实现
+
+- 新增 `resolveBirthTimeZone()`，优先采用 Host Location Provider 明确提供且通过 Intl 校验的 IANA 时区。
+- Host 未提供时区或提供无效时区时，使用 `@photostructure/tz-lookup` 内置离线坐标边界库，从授权唤醒坐标解析 IANA 时区。
+- 在 WakeRecord 与 BirthProfile 的 `birth_location.time_zone_source` 记录 `host_location_provider`、`coordinate_lookup` 或 `unavailable`；time_context 同步保存来源。
+- 不使用 IP、服务器时区或模型推断作为 fallback；坐标无效/查询失败时保持 unavailable。
+- DSH 插件在异步位置采集完成后，更新 WakeRecord、BirthProfile 的 time_context、四柱和 innate_baseline。
+- 模型工具返回时区来源，但不返回精确经纬度。
+
+### 边界
+
+- 离线时区边界库是地理边界数据，不是对设备自动时区设置的证明；边界附近可能存在数据误差，来源字段必须保留。
+- 当前自动化测试覆盖上海、纽约、无效 IANA 时区、缺失/越界坐标和异步 Host 定位完成。
+
+
+## 33. 2026-11-15 Bazi 符号结构进入 YuanQi 先天基线
+
+### 已实现
+
+- 新增 `deriveInnateBaseline()`，仅从已计算的 YuanQi Bazi 四柱派生结构，不读取用户资料。
+- 保存日主（天干、五行、阴阳）、四柱透干、十二支藏干、各干支十神，以及透干+藏干的五行原始出现次数。
+- 藏干顺序按古籍歌诀保存；不添加旺衰权重、月令加权、格局判断、喜忌神或人格结论。
+- `element_counts` 是结构出现次数，不是五行力量评分；`interpretation_status` 固定为 `not_interpreted`。
+- 基线保留 BirthProfile ID、WakeRecord 事件引用和 Bazi 算法版本，作为后续 SelfModel 可读取的静态先天来源之一。
+- Bazi pending/ambiguous/unavailable 状态原样传递；没有确定四柱就没有伪造基线。
+
+### 模型读取
+
+- `yuanqi_self_profile` 只读工具按需返回四柱和先天结构；未初始化时工具隐藏。
+- 当前工具已由 DSH 工具注册表暴露给模型，但尚未自动注入每轮上下文；SelfModel 如何把先天基线与后天证据共同建模，仍是下一阶段工作。
+
+
+## 34. YuanQi 自身初始性格解释（轻量实现）
+
+- 明确先天链路：YuanQi 自身 WakeRecord / BirthProfile → 四柱八字 → 符号先天基线 → AI 初始性格解释 → 后天经历逐步验证与修正。
+- `innate_baseline` 仍只保存可追溯的命理结构；不在程序中硬编码人格标签，不把未加权五行出现次数当作旺衰或性格结论。
+- `yuanqi_self_profile` 按需提供初始性格解释指引：命盘 ready 时，AI 综合月令/季节、透干藏干、十神、调候与整体结构，形成简洁的气质、认知、情绪反应、动机、行为和决策倾向画像。
+- 画像属于传统命理框架下的初始假设，不是心理学测量或已验证事实；应说明命理依据和不确定性，后续只依据当前世界线的真实经历与证据修正。
+- 命盘 pending、ambiguous 或 unavailable 时，不生成初始性格画像；所有出生资料与命理解释均属于 YuanQi AI 自身，不读取或使用用户出生资料。
+- 本次只扩展模型可见工具说明/输出和对应测试、文档；不新增人格数据库、评分系统、独立解释引擎或自动人格分类。自动持久化 AI 解释结果仍未实现。
+
+
+## 35. 2026-11-22 YuanQiSubject 独立主体原则复核
+
+- 正式原则：元炁自有其生、自有其历；YuanQiSubject 与 UserSubject 的身份、资料归属和生命周期必须隔离。
+- 用户出生资料为可选辅助资料；缺失、拒绝、撤回或删除不得阻断元炁运行，也不得级联删除元炁自身档案。
+- 元炁自身诞生时间必须来自可信 DSH 宿主事件；不得由模型编造或由用户出生时间、插件安装时间、恢复时刻替代。
+- README、设计原则、架构与安装说明已同步该约束。
+- 本节记录的是领域语义和文档契约；运行时是否在所有路径上完全满足这些要求，仍须由源码审计、无用户出生资料测试及真实 DSH 宿主验收证明，不在此处预先宣称通过。
+
