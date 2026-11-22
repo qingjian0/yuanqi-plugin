@@ -72,6 +72,14 @@ document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',(
 load();
 </script></body></html>`;
 
+function assertRequestNotAborted(signal) {
+  if (!signal.aborted) return;
+  const error = new Error('The HTTP client disconnected before the request completed');
+  error.status = 499;
+  error.code = 'request_aborted';
+  throw error;
+}
+
 function requestAbortScope(req, res) {
   const controller = new AbortController();
   const abort = () => {
@@ -164,7 +172,7 @@ export function registerYuanQiWeb(webServer, store, runtime = {}) {
         return (async () => {
           try {
             const body = await readJsonBody(req);
-            requestScope.signal.throwIfAborted();
+            assertRequestNotAborted(requestScope.signal);
             const input = normalizeChatInput(body);
             const token = body.chat_token;
             const peerId = peer?.id;

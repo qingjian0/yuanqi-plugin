@@ -101,12 +101,12 @@ export async function runYuanQiChat({ ctx, agents, input, model, maxTokens = 409
       throw error;
     }
   };
-  signal?.addEventListener('abort', cancelForAbort, { once: true });
   const stop = ctx.on('agent/assistant-stream', ({ agent, frame }) => {
     if (agent.id !== sessionId || frame.type !== 'chunk' || frame.chunk?.type !== 'text-delta' || signal?.aborted) return;
     output += frame.chunk.text;
     onText?.(frame.chunk.text, { id: completionId, created, model: selectedModel });
   });
+  signal?.addEventListener('abort', cancelForAbort, { once: true });
   try {
     throwIfAborted();
     const agentOptions = { provider, model: selectedModel, maxTokens };

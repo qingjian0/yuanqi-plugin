@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { EventEmitter } from 'node:events';
 import { registerYuanQiWeb } from '../src/web/index.js';
 
 test('registers one authenticated YuanQi route and releases it', () => {
@@ -157,6 +158,61 @@ test('OpenAI chat completions streams text deltas and a terminal marker', async 
     assert.match(res.body, /streamed/);
     assert.match(res.body, /data: \[DONE\]/);
     assert.equal(res.ended, true);
+  } finally {
+    if (oldKey === undefined) delete process.env.YUANQI_API_KEY; else process.env.YUANQI_API_KEY = oldKey;
+    if (oldProvider === undefined) delete process.env.YUANQI_MODEL_PROVIDER; else process.env.YUANQI_MODEL_PROVIDER = oldProvider;
+    if (oldModel === undefined) delete process.env.YUANQI_MODEL; else process.env.YUANQI_MODEL = oldModel;
+  }
+});
+
+
+test('disconnecting an OpenAI HTTP response cancels the active DSH Agent request', async () => {
+  const oldKey = process.env.YUANQI_API_KEY, oldProvider = process.env.YUANQI_MODEL_PROVIDER, oldModel = process.env.YUANQI_MODEL;
+  process.env.YUANQI_API_KEY = 'yuanqi-test-api-key-with-more-than-24-chars';
+  process.env.YUANQI_MODEL_PROVIDER = 'test-provider';
+  process.env.YUANQI_MODEL = 'test-model';
+  let route, cancelCause, disposed = false, startedResolve, idleResolve;
+  const started = new Promise(resolve => { startedResolve = resolve; });
+  const idle = new Promise(resolve => { idleResolve = resolve; });
+  const runtime = {
+    ctx: { on() { return () => {}; } },
+    agents: {
+      async create(options) {
+        options.setup({ tools: { schemas: () => [], restrict() {} } });
+        const events = [];
+        const agent = {
+          id: options.sessionId, session: { snapshotEvents: () => events }, inject() {},
+          followup() { startedResolve(); },
+          cancel(cause) { cancelCause = cause; idleResolve(); },
+          async whenIdle() { await idle; },
+        };
+        return { agent, async dispose() { disposed = true; } };
+      },
+    },
+  };
+  const req = new EventEmitter();
+  Object.assign(req, {
+    method: 'POST', url: '/yuanqi/v1/chat/completions',
+    headers: { authorization: 'Bearer ' + process.env.YUANQI_API_KEY, 'content-type': 'application/json' },
+    async *[Symbol.asyncIterator]() { yield Buffer.from(JSON.stringify({ model: 'test-model', messages: [{ role: 'user', content: 'hello' }] })); },
+  });
+  const res = new EventEmitter();
+  Object.assign(res, {
+    status: 0, headers: {}, body: '', destroyed: false, writableEnded: false, headersSent: false,
+    writeHead(status, headers) { this.status = status; this.headers = headers; this.headersSent = true; },
+    write(chunk) { this.body += chunk; },
+    end(chunk = '') { this.body += chunk; this.writableEnded = true; },
+  });
+  try {
+    registerYuanQiWeb({ register(value) { route = value; return () => {}; } }, { getYuanQiBirthProfile() { return null; } }, runtime);
+    const pending = route.handler(req, res);
+    await started;
+    res.destroyed = true;
+    res.emit('close');
+    await pending;
+    assert.deepEqual(cancelCause, { kind: 'user' });
+    assert.equal(disposed, true);
+    assert.equal(res.writableEnded, false);
   } finally {
     if (oldKey === undefined) delete process.env.YUANQI_API_KEY; else process.env.YUANQI_API_KEY = oldKey;
     if (oldProvider === undefined) delete process.env.YUANQI_MODEL_PROVIDER; else process.env.YUANQI_MODEL_PROVIDER = oldProvider;
