@@ -253,7 +253,7 @@ export function registerYuanQiWeb(webServer, store, runtime = {}) {
             if (res.destroyed || res.writableEnded) return;
             if (requestScope.signal.aborted) {
               if (streaming && res.headersSent) {
-                res.write('event: error\\ndata: ' + JSON.stringify({ error: { code: 'request_aborted', message: 'The HTTP client disconnected before the request completed' } }) + '\\n\\n');
+                res.write('event: error\ndata: ' + JSON.stringify({ error: { code: 'request_aborted', message: 'The HTTP client disconnected before the request completed' } }) + '\n\n');
                 res.end();
               } else {
                 send(res, 499, 'application/json; charset=utf-8', JSON.stringify({ error: { code: 'request_aborted', message: 'The HTTP client disconnected before the request completed' } }));
