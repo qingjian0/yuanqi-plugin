@@ -32,11 +32,11 @@
 | 运行环境 | DeepSeek Harness（DSH） |
 | Node.js | `>=24.9.0` |
 | 持久化 | DSH Storage Domain |
-| 本地测试记录 | alpha.9 历史发布记录：96 项通过，0 项失败；当前快照不可复核 |
+| 当前开发分支 CI | 120 项通过，0 项失败（2026-11-22，Node.js 24.9.0） |
 | 许可证 | GNU GPL-3.0-only |
 | 默认文档语言 | 简体中文（zh-CN） |
 
-**验证边界：** alpha.9 发布记录记载本地自动化测试 96 项通过、0 项失败；但当前远端 Git Tree 缺少测试源码，因此本次审计无法独立复核该数字，也没有在当前快照上重新运行测试或 CI。真实 Android DSH 宿主安装与运行、真实模型会话及 Android/iOS 端到端验收尚未完成。新增 Web 控制台和模型网关目前仅完成 CI 与模拟接口测试，仍待真实 Android 宿主验证。历史本地测试记录不等于当前快照可复现，也不等于真实宿主验收通过。
+**当前验证（2026-11-22）：** `dev` 提交 `8e722f97f150d7dad4d0fb0a847d1aaf51628e5b` 的 GitHub Actions CI 已通过：120 tests passed / 0 failed；Node.js 24.9.0、DSH peer/API 导出检查通过。npm 打包工作流也成功创建并上传安装包制品。详见 [CI 测试记录](https://github.com/qingjian0/yuanqi-plugin/actions/runs/44985647780) 与 [打包记录](https://github.com/qingjian0/yuanqi-plugin/actions/runs/44985647823)。这些结果验证仓库自动化测试与打包流程；真实 Android DSH 宿主安装/卸载/重启、真实 Storage Domain 后端和真实模型供应商端到端仍待验收，Android/iOS 端到端也未完成。
 
 ## 核心理念
 

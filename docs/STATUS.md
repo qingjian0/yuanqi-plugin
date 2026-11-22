@@ -1,23 +1,17 @@
-# 元炁项目状态
+## 1. 当前验证摘要（2026-11-22，权威快照）
 
-> 当前版本：`1.1.0-alpha.9`  
-> 项目阶段：Developer Preview  
-> 许可证：GNU GPL-3.0-only  
-> 默认文档语言：简体中文（zh-CN）
-
-## 1. 当前验证摘要
-
-| 项目 | 当前分支状态 | 说明 |
+| 项目 | 当前状态 | 证据 |
 |---|---|---|
-| 自动化测试 | GitHub Actions 通过 | PR Run `43673474130` 与 Push Run `43673469477`，commit `6c97c9d4d93153b531acdbf9b0994e40e6e9a6fc`：105 passed / 0 failed |
-| JavaScript 语法检查 | GitHub Actions 通过 | PR Run `43673474130` 的 `npm run check` 通过，Node.js 24.9.0 |
-| npm 安装包构建与归档检查 | 待复验 | 本分支尚未完成隔离归档复验 |
-| GitHub Actions CI | 通过 | PR Run `43673474130` 与 Push Run `43673469477` 成功；Node.js 24.9.0 |
-| 真实 Android DSH 宿主安装与运行 | 待验收 | 尚无本分支真实宿主验收结论 |
-| 真实模型会话端到端 | 待验收 | 不以模拟宿主测试代替 |
+| 当前集成分支 | `dev` | commit `8e722f97f150d7dad4d0fb0a847d1aaf51628e5` |
+| 自动化测试 | 通过：120 passed / 0 failed | [GitHub Actions #44985647780](https://github.com/qingjian0/yuanqi-plugin/actions/runs/44985647780) |
+| Node.js / DSH API | 通过 | Node.js 24.9.0；peer package 解析、包根入口及 Storage Domain 导出检查成功 |
+| npm 安装包 | 通过 | [Package workflow #44985647823](https://github.com/qingjian0/yuanqi-plugin/actions/runs/44985647823)，制品上传成功 |
+| Web 控制台与模型网关 | CI / 模拟接口测试通过 | 真实模型供应商与宿主网络端到端仍待验收 |
+| 真实 Android DSH 宿主 | 待验收 | 安装、加载、卸载、重启和真实后端恢复尚未执行 |
+| 真实模型会话端到端 | 待验收 | 不以模拟 Agent Loop 代替 |
 | Android/iOS 端到端 | 待验收 | 尚未完成 |
 
-**重要：** 当前分支代码提交 `6c97c9d` 的 105 项测试由 PR Run `43673474130` 与 Push Run `43673469477` 实际验证通过；这不代表真实 Android DSH 宿主验收通过。
+**验收边界：** 120 项是当前 `dev` 快照在 GitHub Actions 中实际通过的自动化测试，不是历史 alpha.9 本地记录，也不等于真实 Android DSH 宿主验收。打包工作流成功只证明 npm 归档生成与上传成功，不证明已在真实设备安装运行。稳定分支 `main` 未被本轮修改。
 
 ## 1.1 八字初始性格与 SelfModel 衔接（2026-11-15）
 
