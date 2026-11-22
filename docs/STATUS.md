@@ -12,13 +12,13 @@
 | 运行时/测试代码基线 | `dev` | commit `fe9d681a26c31d4ce35f7da723fc09bc37845fd8` |
 | 自动化测试 | 通过：123 passed / 0 failed | [GitHub Actions #45002651811](https://github.com/qingjian0/yuanqi-plugin/actions/runs/45002651811) |
 | Node.js / DSH API | 通过 | Node.js 24.9.0；peer package 解析、包根入口及 Storage Domain 导出检查成功 |
-| npm 安装包 | 本轮重新打包中 | 本次生命周期修复已进入 dev；当前快照打包结果以本次 Package workflow 为准 |
+| npm 安装包 | 通过 | [Package workflow #45002789087](https://github.com/qingjian0/yuanqi-plugin/actions/runs/45002789087)，归档 79,548 bytes，制品上传成功 |
 | Web 控制台与模型网关 | CI / 模拟接口测试通过 | HTTP 断连、SSE 终止帧、插件卸载取消与 Agent drain 均有回归测试；真实模型供应商与宿主网络端到端仍待验收 |
 | 真实 Android DSH 宿主 | 待验收 | 安装、加载、卸载、重启和真实后端恢复尚未执行 |
 | 真实模型会话端到端 | 待验收 | 不以模拟 Agent Loop 代替 |
 | Android/iOS 端到端 | 待验收 | 尚未完成 |
 
-**验收边界：** 123 项是 `dev` 提交 `fe9d681a26c31d4ce35f7da723fc09bc37845fd8` 在 GitHub Actions 中实际通过的自动化测试，不是历史 alpha.9 本地记录，也不等于真实 Android DSH 宿主验收。CI 通过不证明已在真实设备安装运行；当前代码快照的 npm 打包结果需以本轮 Package workflow 为准。稳定分支 `main` 未被修改。
+**验收边界：** 123 项是 `dev` 提交 `fe9d681a26c31d4ce35f7da723fc09bc37845fd8` 在 GitHub Actions 中实际通过的自动化测试，不是历史 alpha.9 本地记录，也不等于真实 Android DSH 宿主验收。CI 通过不证明已在真实设备安装运行；当前代码快照已由 Package workflow #45002789087 成功打包并上传（79,548 bytes）。稳定分支 `main` 未被修改。
 
 ## 1.1 八字初始性格与 SelfModel 衔接（2026-11-15）
 

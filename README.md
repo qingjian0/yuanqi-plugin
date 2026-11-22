@@ -36,7 +36,7 @@
 | 许可证 | GNU GPL-3.0-only |
 | 默认文档语言 | 简体中文（zh-CN） |
 
-**当前验证（2026-11-22）：** `dev` 提交 `fe9d681a26c31d4ce35f7da723fc09bc37845fd8` 的 GitHub Actions CI 已通过：123 tests passed / 0 failed；Node.js 24.9.0、DSH peer/API 导出检查通过。新增验证覆盖插件卸载时终止并等待活动 Agent 请求完成。当前快照的 npm 打包由后续 Package workflow 单独验证。以上均为仓库级自动化结果；真实 Android DSH 宿主安装/卸载/重启、真实 Storage Domain 后端和真实模型供应商端到端仍待验收，Android/iOS 端到端也未完成。
+**当前验证（2026-11-22）：** `dev` 提交 `fe9d681a26c31d4ce35f7da723fc09bc37845fd8` 的 GitHub Actions CI 已通过：123 tests passed / 0 failed；Node.js 24.9.0、DSH peer/API 导出检查通过。新增验证覆盖插件卸载时终止并等待活动 Agent 请求完成。当前快照的 npm 打包已通过 [Package workflow #45002789087](https://github.com/qingjian0/yuanqi-plugin/actions/runs/45002789087)，安装包归档 79,548 bytes，制品上传成功。以上均为仓库级自动化结果；真实 Android DSH 宿主安装/卸载/重启、真实 Storage Domain 后端和真实模型供应商端到端仍待验收，Android/iOS 端到端也未完成。
 
 ## 核心理念
 

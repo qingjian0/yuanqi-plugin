@@ -18,7 +18,7 @@ YuanQi is a DSH-hosted life-context and digital-personality evolution plugin. DS
 
 ## Validation
 
-Current `dev` runtime/test baseline commit `fe9d681a26c31d4ce35f7da723fc09bc37845fd8` passed GitHub Actions on 2026-11-22: **123 tests passed, 0 failed** on Node.js 24.9.0, including DSH peer/API export checks. Regression coverage includes aborting active Agent requests and draining them during plugin unload. The current snapshot's npm package is being revalidated by the Package workflow.
+Current `dev` runtime/test baseline commit `fe9d681a26c31d4ce35f7da723fc09bc37845fd8` passed GitHub Actions on 2026-11-22: **123 tests passed, 0 failed** on Node.js 24.9.0, including DSH peer/API export checks. Regression coverage includes aborting active Agent requests and draining them during plugin unload. The current snapshot also passed [Package workflow #45002789087](https://github.com/qingjian0/yuanqi-plugin/actions/runs/45002789087), which created and uploaded a 79,548-byte npm archive.
 
 - [CI test run](https://github.com/qingjian0/yuanqi-plugin/actions/runs/45002651811)
 
