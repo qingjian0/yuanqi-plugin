@@ -166,7 +166,7 @@ test('OpenAI chat completions streams text deltas and a terminal marker', async 
 });
 
 
-test('disconnecting an OpenAI HTTP response cancels the active DSH Agent request', async () => {
+test('aborting an OpenAI SSE request cancels the active DSH Agent request', async () => {
   const oldKey = process.env.YUANQI_API_KEY, oldProvider = process.env.YUANQI_MODEL_PROVIDER, oldModel = process.env.YUANQI_MODEL;
   process.env.YUANQI_API_KEY = 'yuanqi-test-api-key-with-more-than-24-chars';
   process.env.YUANQI_MODEL_PROVIDER = 'test-provider';
@@ -194,7 +194,7 @@ test('disconnecting an OpenAI HTTP response cancels the active DSH Agent request
   Object.assign(req, {
     method: 'POST', url: '/yuanqi/v1/chat/completions',
     headers: { authorization: 'Bearer ' + process.env.YUANQI_API_KEY, 'content-type': 'application/json' },
-    async *[Symbol.asyncIterator]() { yield Buffer.from(JSON.stringify({ model: 'test-model', messages: [{ role: 'user', content: 'hello' }] })); },
+    async *[Symbol.asyncIterator]() { yield Buffer.from(JSON.stringify({ model: 'test-model', stream: true, messages: [{ role: 'user', content: 'hello' }] })); },
   });
   const res = new EventEmitter();
   Object.assign(res, {
@@ -207,12 +207,13 @@ test('disconnecting an OpenAI HTTP response cancels the active DSH Agent request
     registerYuanQiWeb({ register(value) { route = value; return () => {}; } }, { getYuanQiBirthProfile() { return null; } }, runtime);
     const pending = route.handler(req, res);
     await started;
-    res.destroyed = true;
-    res.emit('close');
+    req.emit('aborted');
     await pending;
     assert.deepEqual(cancelCause, { kind: 'user' });
     assert.equal(disposed, true);
-    assert.equal(res.writableEnded, false);
+    assert.equal(res.writableEnded, true);
+    assert.match(res.body, /event: error\\ndata:/);
+    assert.equal(req.listenerCount('aborted'), 0);
   } finally {
     if (oldKey === undefined) delete process.env.YUANQI_API_KEY; else process.env.YUANQI_API_KEY = oldKey;
     if (oldProvider === undefined) delete process.env.YUANQI_MODEL_PROVIDER; else process.env.YUANQI_MODEL_PROVIDER = oldProvider;
