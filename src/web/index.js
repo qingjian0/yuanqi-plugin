@@ -80,7 +80,7 @@ function assertRequestNotAborted(signal) {
   throw error;
 }
 
-function requestAbortScope(req, res) {
+function requestAbortScope(req, res, activeRequests) {
   const controller = new AbortController();
   const abort = () => {
     if (!controller.signal.aborted) controller.abort(new Error('HTTP client disconnected'));
@@ -89,13 +89,17 @@ function requestAbortScope(req, res) {
   req.on?.('aborted', abort);
   res.on?.('close', onResponseClose);
   if (req.aborted || res.destroyed) abort();
-  return {
+  const scope = {
     signal: controller.signal,
+    abort,
     dispose() {
       req.off?.('aborted', abort);
       res.off?.('close', onResponseClose);
+      activeRequests?.delete(scope);
     },
   };
+  activeRequests?.add(scope);
+  return scope;
 }
 
 function send(res, status, contentType, body) {
@@ -117,6 +121,21 @@ export function registerYuanQiWeb(webServer, store, runtime = {}) {
     throw new TypeError('YuanQi web console requires the live SubjectStore');
   }
   const chatSessions = new Map();
+  const activeRequests = new Set();
+  const activeChats = new Set();
+  let closing = false;
+  async function runTrackedChat(options) {
+    if (closing || options.signal?.aborted) {
+      const error = new Error('YuanQi Web Gateway is shutting down');
+      error.status = 499;
+      error.code = 'request_aborted';
+      throw error;
+    }
+    const task = runYuanQiChat(options);
+    activeChats.add(task);
+    try { return await task; }
+    finally { activeChats.delete(task); }
+  }
   const chatTokenTtlMs = 12 * 60 * 60 * 1000;
   const maxChatSessions = 256;
   const dispose = webServer.register({
@@ -168,7 +187,7 @@ export function registerYuanQiWeb(webServer, store, runtime = {}) {
         return;
       }
       if (url.pathname === '/yuanqi/api/chat' && req.method === 'POST') {
-        const requestScope = requestAbortScope(req, res);
+        const requestScope = requestAbortScope(req, res, activeRequests);
         return (async () => {
           try {
             const body = await readJsonBody(req);
@@ -182,7 +201,7 @@ export function registerYuanQiWeb(webServer, store, runtime = {}) {
               if (typeof token === 'string') chatSessions.delete(token);
               throw Object.assign(new Error('chat_token is invalid, expired or belongs to another Peer'), { status: 404, code: 'invalid_chat_token' });
             }
-            const result = await runYuanQiChat({ ctx: runtime.ctx, agents: runtime.agents, input, sessionId: previous?.sessionId, signal: requestScope.signal });
+            const result = await runTrackedChat({ ctx: runtime.ctx, agents: runtime.agents, input, sessionId: previous?.sessionId, signal: requestScope.signal });
             const chatToken = token || randomUUID();
             if (!token && chatSessions.size >= maxChatSessions) chatSessions.delete(chatSessions.keys().next().value);
             chatSessions.set(chatToken, { sessionId: result.session_id, peerId, expiresAt: Date.now() + chatTokenTtlMs });
@@ -215,7 +234,7 @@ export function registerYuanQiWeb(webServer, store, runtime = {}) {
         return;
       }
       if (url.pathname === '/yuanqi/v1/chat/completions' && req.method === 'POST') {
-        const requestScope = requestAbortScope(req, res);
+        const requestScope = requestAbortScope(req, res, activeRequests);
         return (async () => {
           let streaming = false;
           try {
@@ -236,7 +255,7 @@ export function registerYuanQiWeb(webServer, store, runtime = {}) {
               res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache, no-store', connection: 'keep-alive', 'x-accel-buffering': 'no' });
               res.flushHeaders?.();
             }
-            const result = await runYuanQiChat({ ctx: runtime.ctx, agents: runtime.agents, input, model: body.model, maxTokens: body.max_tokens ?? body.max_completion_tokens ?? 4096, onText, signal: requestScope.signal });
+            const result = await runTrackedChat({ ctx: runtime.ctx, agents: runtime.agents, input, model: body.model, maxTokens: body.max_tokens ?? body.max_completion_tokens ?? 4096, onText, signal: requestScope.signal });
             if (streaming) {
               if (!res.destroyed) {
                 res.write('data: ' + JSON.stringify({ id: result.id, object: 'chat.completion.chunk', created: result.created, model: result.model, choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] }) + '\n\n');
@@ -273,8 +292,11 @@ export function registerYuanQiWeb(webServer, store, runtime = {}) {
       send(res, 404, 'application/json; charset=utf-8', '{"error":"not_found"}');
     },
   });
-  return () => {
+  return async () => {
+    closing = true;
     chatSessions.clear();
+    for (const request of activeRequests) request.abort();
     dispose?.();
+    await Promise.allSettled([...activeChats]);
   };
 }

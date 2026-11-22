@@ -13,7 +13,7 @@ test('registers one authenticated YuanQi route and releases it', () => {
   assert.equal(route.path, '/yuanqi');
   assert.equal(route.auth({ url: new URL('http://localhost/yuanqi') }), 'required');
   assert.equal(route.auth({ url: new URL('http://localhost/yuanqi/v1/chat/completions') }), 'anonymous');
-  dispose();
+  await dispose();
   assert.equal(disposed, true);
 });
 
@@ -214,6 +214,63 @@ test('aborting an OpenAI SSE request cancels the active DSH Agent request', asyn
     assert.equal(res.writableEnded, true);
     assert.match(res.body, /event: error\ndata:/);
     assert.equal(req.listenerCount('aborted'), 0);
+  } finally {
+    if (oldKey === undefined) delete process.env.YUANQI_API_KEY; else process.env.YUANQI_API_KEY = oldKey;
+    if (oldProvider === undefined) delete process.env.YUANQI_MODEL_PROVIDER; else process.env.YUANQI_MODEL_PROVIDER = oldProvider;
+    if (oldModel === undefined) delete process.env.YUANQI_MODEL; else process.env.YUANQI_MODEL = oldModel;
+  }
+});
+
+
+test('plugin disposal aborts and drains active Agent Loop requests before completing', async () => {
+  const oldKey = process.env.YUANQI_API_KEY, oldProvider = process.env.YUANQI_MODEL_PROVIDER, oldModel = process.env.YUANQI_MODEL;
+  process.env.YUANQI_API_KEY = 'yuanqi-test-api-key-with-more-than-24-chars';
+  process.env.YUANQI_MODEL_PROVIDER = 'test-provider';
+  process.env.YUANQI_MODEL = 'test-model';
+  let route, cancelCause, disposed = false, startedResolve, idleResolve;
+  const started = new Promise(resolve => { startedResolve = resolve; });
+  const idle = new Promise(resolve => { idleResolve = resolve; });
+  const runtime = {
+    ctx: { on() { return () => {}; } },
+    agents: {
+      async create(options) {
+        options.setup({ tools: { schemas: () => [], restrict() {} } });
+        const events = [];
+        const agent = {
+          id: options.sessionId, session: { snapshotEvents: () => events }, inject() {},
+          followup() { startedResolve(); },
+          cancel(cause) { cancelCause = cause; idleResolve(); },
+          async whenIdle() { await idle; },
+        };
+        return { agent, async dispose() { disposed = true; } };
+      },
+    },
+  };
+  const req = new EventEmitter();
+  Object.assign(req, {
+    method: 'POST', url: '/yuanqi/v1/chat/completions',
+    headers: { authorization: 'Bearer ' + process.env.YUANQI_API_KEY, 'content-type': 'application/json' },
+    async *[Symbol.asyncIterator]() { yield Buffer.from(JSON.stringify({ model: 'test-model', stream: true, messages: [{ role: 'user', content: 'hello' }] })); },
+  });
+  const res = new EventEmitter();
+  Object.assign(res, {
+    status: 0, headers: {}, body: '', destroyed: false, writableEnded: false, headersSent: false,
+    writeHead(status, headers) { this.status = status; this.headers = headers; this.headersSent = true; },
+    write(chunk) { this.body += chunk; },
+    end(chunk = '') { this.body += chunk; this.writableEnded = true; },
+  });
+  try {
+    const dispose = registerYuanQiWeb({ register(value) { route = value; return () => {}; } }, { getYuanQiBirthProfile() { return null; } }, runtime);
+    const pendingRequest = route.handler(req, res);
+    await started;
+    await dispose();
+    await pendingRequest;
+    assert.deepEqual(cancelCause, { kind: 'user' });
+    assert.equal(disposed, true);
+    assert.equal(res.writableEnded, true);
+    assert.match(res.body, /event: error\\ndata:/);
+    assert.equal(req.listenerCount('aborted'), 0);
+    assert.equal(res.listenerCount('close'), 0);
   } finally {
     if (oldKey === undefined) delete process.env.YUANQI_API_KEY; else process.env.YUANQI_API_KEY = oldKey;
     if (oldProvider === undefined) delete process.env.YUANQI_MODEL_PROVIDER; else process.env.YUANQI_MODEL_PROVIDER = oldProvider;
