@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
+import { PassThrough } from 'node:stream';
 import { registerYuanQiWeb } from '../src/web/index.js';
 
 test('registers one authenticated YuanQi route and releases it', async () => {
@@ -376,6 +377,46 @@ test('plugin disposal aborts and drains an OpenAI request stalled while reading 
     assert.equal(req.listenerCount('aborted'), 0);
     assert.equal(res.listenerCount('close'), 0);
   } finally {
+    if (oldKey === undefined) delete process.env.YUANQI_API_KEY;
+    else process.env.YUANQI_API_KEY = oldKey;
+  }
+});
+
+
+test('plugin disposal drains a real Node request stream stalled during OpenAI body parsing', async () => {
+  const oldKey = process.env.YUANQI_API_KEY;
+  process.env.YUANQI_API_KEY = 'yuanqi-test-api-key-with-more-than-24-chars';
+  let route, routeDisposed = false;
+  const req = new PassThrough();
+  Object.assign(req, {
+    method: 'POST',
+    url: '/yuanqi/v1/chat/completions',
+    headers: { authorization: 'Bearer ' + process.env.YUANQI_API_KEY, 'content-type': 'application/json' },
+  });
+  const res = new EventEmitter();
+  Object.assign(res, {
+    status: 0, headers: {}, body: '', destroyed: false, writableEnded: false,
+    writeHead(status, headers) { this.status = status; this.headers = headers; },
+    end(body = '') { this.body += body; this.writableEnded = true; },
+  });
+  try {
+    const dispose = registerYuanQiWeb(
+      { register(value) { route = value; return () => { routeDisposed = true; }; } },
+      { getYuanQiBirthProfile() { return null; } },
+      {},
+    );
+    const pendingRequest = route.handler(req, res);
+    await Promise.resolve();
+    const pendingDispose = dispose();
+    await pendingDispose;
+    await pendingRequest;
+    assert.equal(req.destroyed, true);
+    assert.equal(routeDisposed, true);
+    assert.equal(res.status, 499);
+    assert.equal(req.listenerCount('aborted'), 0);
+    assert.equal(res.listenerCount('close'), 0);
+  } finally {
+    req.destroy();
     if (oldKey === undefined) delete process.env.YUANQI_API_KEY;
     else process.env.YUANQI_API_KEY = oldKey;
   }
