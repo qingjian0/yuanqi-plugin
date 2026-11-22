@@ -22,8 +22,11 @@ the existing Storage Domain; it does not create a second database or listener.
 ## Model gateway boundary
 
 The model gateway uses `ctx.agents.create()` and `Agent.followup()` / `whenIdle()`;
-each request owns a fresh durable Session and disposes its AgentHandle after
-completion. Conversation history is carried as bounded, quoted context into the
+each request owns a durable Session and disposes its AgentHandle after
+completion. Both HTTP chat routes observe request aborts and premature response
+closure; they cancel the owned Agent with `Agent.cancel({ kind: 'user' })`, wait
+for the Agent to settle, and dispose the handle instead of leaving generation
+running after the client disconnects. Conversation history is carried as bounded, quoted context into the
 new request Session. Global inherited tools are masked for this external text-only API.
 The endpoint is available only when the host environment supplies a sufficiently
 long `YUANQI_API_KEY`, `YUANQI_MODEL_PROVIDER`, and `YUANQI_MODEL`. The web

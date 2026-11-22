@@ -188,7 +188,12 @@ export function registerYuanQiWeb(webServer, store, runtime = {}) {
             chatSessions.set(chatToken, { sessionId: result.session_id, peerId, expiresAt: Date.now() + chatTokenTtlMs });
             send(res, 200, 'application/json; charset=utf-8', JSON.stringify({ text: result.text, model: result.model, chat_token: chatToken }));
           } catch (error) {
-            if (!res.destroyed && !res.writableEnded) send(res, error.status || 500, 'application/json; charset=utf-8', JSON.stringify({ error: error.code || 'internal_error', message: error.message || String(error) }));
+            if (res.destroyed || res.writableEnded) return;
+            if (requestScope.signal.aborted) {
+              send(res, 499, 'application/json; charset=utf-8', JSON.stringify({ error: 'request_aborted', message: 'The HTTP client disconnected before the request completed' }));
+              return;
+            }
+            send(res, error.status || 500, 'application/json; charset=utf-8', JSON.stringify({ error: error.code || 'internal_error', message: error.message || String(error) }));
           } finally {
             requestScope.dispose();
           }
@@ -246,6 +251,15 @@ export function registerYuanQiWeb(webServer, store, runtime = {}) {
             }
           } catch (error) {
             if (res.destroyed || res.writableEnded) return;
+            if (requestScope.signal.aborted) {
+              if (streaming && res.headersSent) {
+                res.write('event: error\\ndata: ' + JSON.stringify({ error: { code: 'request_aborted', message: 'The HTTP client disconnected before the request completed' } }) + '\\n\\n');
+                res.end();
+              } else {
+                send(res, 499, 'application/json; charset=utf-8', JSON.stringify({ error: { code: 'request_aborted', message: 'The HTTP client disconnected before the request completed' } }));
+              }
+              return;
+            }
             if (streaming && res.headersSent) {
               if (!res.destroyed) { res.write('event: error\ndata: ' + JSON.stringify({ error: { code: error.code || 'internal_error', message: error.message || String(error) } }) + '\n\n'); res.end(); }
             } else {
