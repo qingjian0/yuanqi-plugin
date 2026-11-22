@@ -9,10 +9,10 @@
 
 | 项目 | 当前状态 | 证据 |
 |---|---|---|
-| 当前集成分支 | `dev` | commit `fc0dde51f2490b882b2799b2dd0321a3e3b0cc1e` |
-| 自动化测试 | 通过：120 passed / 0 failed | [GitHub Actions #44985861919](https://github.com/qingjian0/yuanqi-plugin/actions/runs/44985861919) |
+| 当前集成分支 | `dev` | commit `1f7bad782f01fc52c6a80c06cd6474aba62ccb7c` |
+| 自动化测试 | 通过：120 passed / 0 failed | [GitHub Actions #44986018394](https://github.com/qingjian0/yuanqi-plugin/actions/runs/44986018394) |
 | Node.js / DSH API | 通过 | Node.js 24.9.0；peer package 解析、包根入口及 Storage Domain 导出检查成功 |
-| npm 安装包 | 通过 | [Package workflow #44985861965](https://github.com/qingjian0/yuanqi-plugin/actions/runs/44985861965)，制品上传成功 |
+| npm 安装包 | 通过 | [Package workflow #44986018383](https://github.com/qingjian0/yuanqi-plugin/actions/runs/44986018383)，制品上传成功 |
 | Web 控制台与模型网关 | CI / 模拟接口测试通过 | 真实模型供应商与宿主网络端到端仍待验收 |
 | 真实 Android DSH 宿主 | 待验收 | 安装、加载、卸载、重启和真实后端恢复尚未执行 |
 | 真实模型会话端到端 | 待验收 | 不以模拟 Agent Loop 代替 |
