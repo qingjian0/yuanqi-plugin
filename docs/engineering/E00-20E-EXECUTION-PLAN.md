@@ -9,12 +9,12 @@
 ## 1. 当前权威基线
 
 - 仓库：`qingjian0/yuanqi-plugin`
-- 本文档所在快照：`8c6ab09ca09124845ec588b19d57189933653721`
+- 本文档最近一次内容更新：`fda168f0f5294993cdf918f43d8a05191220201b`
 - 运行时与测试代码验证提交：`04329a2c31bd75afc15fc36f8140c15363339692`
 - CI：122 passed / 0 failed，Node.js 24.9.0，DSH peer/API 导出检查通过。
   - [GitHub Actions CI](https://github.com/qingjian0/yuanqi-plugin/actions/runs/44987512082)
 - 当前快照打包：npm pack 成功，归档制品 79,316 bytes。
-  - [Package workflow](https://github.com/qingjian0/yuanqi-plugin/actions/runs/44987599807)
+  - [Package workflow](https://github.com/qingjian0/yuanqi-plugin/actions/runs/44987682664)
 - 依赖基线：DSH peer package 声明兼容范围 `>=0.2.2-rc.1 <0.3.0-0`；Node.js `>=24.9.0`。兼容范围不是对范围内每个版本均已完成宿主验收的声明。
 
 **重要边界：** CI、模拟 DSH 服务和 npm 归档只验证仓库自动化与打包流程；它们不等于真实 Android DSH 宿主、生产 Storage Domain 后端或真实模型供应商端到端验收。
