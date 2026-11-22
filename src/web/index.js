@@ -248,7 +248,7 @@ export function registerYuanQiWeb(webServer, store, runtime = {}) {
             const expectedKey = process.env.YUANQI_API_KEY;
             if (!expectedKey || expectedKey.length < 24) throw Object.assign(new Error('OpenAI-compatible API is not configured'), { status: 503, code: 'api_not_configured' });
             if (!hasValidBearer(req, expectedKey)) throw Object.assign(new Error('Invalid bearer token'), { status: 401, code: 'invalid_api_key' });
-            const body = await readJsonBody(req);
+            const body = await readJsonBody(req, 128 * 1024, requestScope.signal);
             requestScope.signal.throwIfAborted();
             const input = normalizeChatInput(body, { openAi: true });
             streaming = body.stream === true;

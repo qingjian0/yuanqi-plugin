@@ -323,3 +323,60 @@ test('plugin disposal aborts and drains a chat request stalled while reading its
   assert.equal(req.listenerCount('aborted'), 0);
   assert.equal(res.listenerCount('close'), 0);
 });
+
+
+test('plugin disposal aborts and drains an OpenAI request stalled while reading its body', async () => {
+  const oldKey = process.env.YUANQI_API_KEY;
+  process.env.YUANQI_API_KEY = 'yuanqi-test-api-key-with-more-than-24-chars';
+  let route, routeDisposed = false, requestDestroyed = false;
+  const req = new EventEmitter();
+  Object.assign(req, {
+    method: 'POST',
+    url: '/yuanqi/v1/chat/completions',
+    headers: { authorization: 'Bearer ' + process.env.YUANQI_API_KEY, 'content-type': 'application/json' },
+    destroyed: false,
+    [Symbol.asyncIterator]() {
+      return {
+        next() {
+          return new Promise((_resolve, reject) => { req.rejectPendingRead = reject; });
+        },
+      };
+    },
+    destroy(error) {
+      if (this.destroyed) return this;
+      this.destroyed = true;
+      requestDestroyed = true;
+      this.emit('aborted');
+      this.rejectPendingRead?.(error);
+      return this;
+    },
+  });
+  const res = new EventEmitter();
+  Object.assign(res, {
+    status: 0, headers: {}, body: '', destroyed: false, writableEnded: false,
+    writeHead(status, headers) { this.status = status; this.headers = headers; },
+    end(body = '') { this.body += body; this.writableEnded = true; },
+  });
+  try {
+    const dispose = registerYuanQiWeb(
+      { register(value) { route = value; return () => { routeDisposed = true; }; } },
+      { getYuanQiBirthProfile() { return null; } },
+      {},
+    );
+    const pendingRequest = route.handler(req, res);
+    await Promise.resolve();
+    let disposeSettled = false;
+    const pendingDispose = dispose().then(() => { disposeSettled = true; });
+    await pendingDispose;
+    await pendingRequest;
+    assert.equal(requestDestroyed, true);
+    assert.equal(routeDisposed, true);
+    assert.equal(disposeSettled, true);
+    assert.equal(res.status, 499);
+    assert.equal(req.listenerCount('aborted'), 0);
+    assert.equal(res.listenerCount('close'), 0);
+  } finally {
+    if (oldKey === undefined) delete process.env.YUANQI_API_KEY;
+    else process.env.YUANQI_API_KEY = oldKey;
+  }
+});
