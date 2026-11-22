@@ -72,6 +72,24 @@ document.querySelectorAll('[data-page]').forEach(b=>b.addEventListener('click',(
 load();
 </script></body></html>`;
 
+function requestAbortScope(req, res) {
+  const controller = new AbortController();
+  const abort = () => {
+    if (!controller.signal.aborted) controller.abort(new Error('HTTP client disconnected'));
+  };
+  const onResponseClose = () => { if (!res.writableEnded) abort(); };
+  req.on?.('aborted', abort);
+  res.on?.('close', onResponseClose);
+  if (req.aborted || res.destroyed) abort();
+  return {
+    signal: controller.signal,
+    dispose() {
+      req.off?.('aborted', abort);
+      res.off?.('close', onResponseClose);
+    },
+  };
+}
+
 function send(res, status, contentType, body) {
   res.writeHead(status, {
     'content-type': contentType,
@@ -142,9 +160,11 @@ export function registerYuanQiWeb(webServer, store, runtime = {}) {
         return;
       }
       if (url.pathname === '/yuanqi/api/chat' && req.method === 'POST') {
+        const requestScope = requestAbortScope(req, res);
         return (async () => {
           try {
             const body = await readJsonBody(req);
+            requestScope.signal.throwIfAborted();
             const input = normalizeChatInput(body);
             const token = body.chat_token;
             const peerId = peer?.id;
@@ -154,13 +174,15 @@ export function registerYuanQiWeb(webServer, store, runtime = {}) {
               if (typeof token === 'string') chatSessions.delete(token);
               throw Object.assign(new Error('chat_token is invalid, expired or belongs to another Peer'), { status: 404, code: 'invalid_chat_token' });
             }
-            const result = await runYuanQiChat({ ctx: runtime.ctx, agents: runtime.agents, input, sessionId: previous?.sessionId });
+            const result = await runYuanQiChat({ ctx: runtime.ctx, agents: runtime.agents, input, sessionId: previous?.sessionId, signal: requestScope.signal });
             const chatToken = token || randomUUID();
             if (!token && chatSessions.size >= maxChatSessions) chatSessions.delete(chatSessions.keys().next().value);
             chatSessions.set(chatToken, { sessionId: result.session_id, peerId, expiresAt: Date.now() + chatTokenTtlMs });
             send(res, 200, 'application/json; charset=utf-8', JSON.stringify({ text: result.text, model: result.model, chat_token: chatToken }));
           } catch (error) {
-            send(res, error.status || 500, 'application/json; charset=utf-8', JSON.stringify({ error: error.code || 'internal_error', message: error.message || String(error) }));
+            if (!res.destroyed && !res.writableEnded) send(res, error.status || 500, 'application/json; charset=utf-8', JSON.stringify({ error: error.code || 'internal_error', message: error.message || String(error) }));
+          } finally {
+            requestScope.dispose();
           }
         })();
       }
@@ -180,6 +202,7 @@ export function registerYuanQiWeb(webServer, store, runtime = {}) {
         return;
       }
       if (url.pathname === '/yuanqi/v1/chat/completions' && req.method === 'POST') {
+        const requestScope = requestAbortScope(req, res);
         return (async () => {
           let streaming = false;
           try {
@@ -187,6 +210,7 @@ export function registerYuanQiWeb(webServer, store, runtime = {}) {
             if (!expectedKey || expectedKey.length < 24) throw Object.assign(new Error('OpenAI-compatible API is not configured'), { status: 503, code: 'api_not_configured' });
             if (!hasValidBearer(req, expectedKey)) throw Object.assign(new Error('Invalid bearer token'), { status: 401, code: 'invalid_api_key' });
             const body = await readJsonBody(req);
+            requestScope.signal.throwIfAborted();
             const input = normalizeChatInput(body, { openAi: true });
             streaming = body.stream === true;
             const onText = streaming ? (delta, info) => {
@@ -199,7 +223,7 @@ export function registerYuanQiWeb(webServer, store, runtime = {}) {
               res.writeHead(200, { 'content-type': 'text/event-stream; charset=utf-8', 'cache-control': 'no-cache, no-store', connection: 'keep-alive', 'x-accel-buffering': 'no' });
               res.flushHeaders?.();
             }
-            const result = await runYuanQiChat({ ctx: runtime.ctx, agents: runtime.agents, input, model: body.model, maxTokens: body.max_tokens ?? body.max_completion_tokens ?? 4096, onText });
+            const result = await runYuanQiChat({ ctx: runtime.ctx, agents: runtime.agents, input, model: body.model, maxTokens: body.max_tokens ?? body.max_completion_tokens ?? 4096, onText, signal: requestScope.signal });
             if (streaming) {
               if (!res.destroyed) {
                 res.write('data: ' + JSON.stringify({ id: result.id, object: 'chat.completion.chunk', created: result.created, model: result.model, choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] }) + '\n\n');
@@ -213,11 +237,14 @@ export function registerYuanQiWeb(webServer, store, runtime = {}) {
               }));
             }
           } catch (error) {
+            if (res.destroyed || res.writableEnded) return;
             if (streaming && res.headersSent) {
               if (!res.destroyed) { res.write('event: error\ndata: ' + JSON.stringify({ error: { code: error.code || 'internal_error', message: error.message || String(error) } }) + '\n\n'); res.end(); }
             } else {
               send(res, error.status || 500, 'application/json; charset=utf-8', JSON.stringify({ error: { code: error.code || 'internal_error', message: error.message || String(error) } }));
             }
+          } finally {
+            requestScope.dispose();
           }
         })();
       }

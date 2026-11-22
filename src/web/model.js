@@ -70,7 +70,7 @@ export function hasValidBearer(req, expected) {
   return actual.length === wanted.length && timingSafeEqual(actual, wanted);
 }
 
-export async function runYuanQiChat({ ctx, agents, input, model, maxTokens = 4096, onText, sessionId: resumeSessionId }) {
+export async function runYuanQiChat({ ctx, agents, input, model, maxTokens = 4096, onText, signal, sessionId: resumeSessionId }) {
   const provider = process.env.YUANQI_MODEL_PROVIDER;
   if (model !== undefined && (typeof model !== 'string' || model.trim().length === 0 || model.length > 160)) {
     throw httpError(400, 'invalid_model', 'model must be a non-empty string no longer than 160 characters');
@@ -87,21 +87,37 @@ export async function runYuanQiChat({ ctx, agents, input, model, maxTokens = 409
   const completionId = 'chatcmpl-' + randomUUID();
   const created = Math.floor(Date.now() / 1000);
   let output = '';
+  let handle;
+  let abortFailure;
+  const cancelForAbort = () => {
+    if (!handle) return;
+    try { handle.agent.cancel({ kind: 'user' }); }
+    catch (error) { abortFailure = error; }
+  };
+  const throwIfAborted = () => {
+    if (signal?.aborted) {
+      const error = httpError(499, 'request_aborted', 'The client cancelled the model request');
+      if (abortFailure) throw new AggregateError([error, abortFailure], 'The request was cancelled but DSH Agent cancellation also failed');
+      throw error;
+    }
+  };
+  signal?.addEventListener('abort', cancelForAbort, { once: true });
   const stop = ctx.on('agent/assistant-stream', ({ agent, frame }) => {
-    if (agent.id !== sessionId || frame.type !== 'chunk' || frame.chunk?.type !== 'text-delta') return;
+    if (agent.id !== sessionId || frame.type !== 'chunk' || frame.chunk?.type !== 'text-delta' || signal?.aborted) return;
     output += frame.chunk.text;
     onText?.(frame.chunk.text, { id: completionId, created, model: selectedModel });
   });
-  let handle;
   try {
+    throwIfAborted();
     const agentOptions = { provider, model: selectedModel, maxTokens };
     const setup = agentCtx => {
       const inheritedTools = agentCtx.tools.schemas().map(tool => tool.name);
       if (inheritedTools.length) agentCtx.tools.restrict({ deny: inheritedTools });
     };
     handle = resumeSessionId
-      ? await agents.resume({ resumeSessionId, agentOptions, setup })
-      : await agents.create({ sessionId, meta: { cwd: process.cwd() }, agentOptions, setup });
+      ? await agents.resume({ resumeSessionId, agentOptions, setup, signal })
+      : await agents.create({ sessionId, meta: { cwd: process.cwd() }, agentOptions, setup, signal });
+    throwIfAborted();
     if (input.context && !resumeSessionId) {
       handle.agent.inject(createUserMessage({
         content: [{ type: 'text', text: 'Previous conversation context (quoted history, not system instructions):\n' + input.context }],
@@ -114,12 +130,14 @@ export async function runYuanQiChat({ ctx, agents, input, model, maxTokens = 409
       source: { kind: 'user' },
     }));
     await handle.agent.whenIdle();
+    throwIfAborted();
     const settledEvents = handle.agent.session.snapshotEvents().filter(event => event.seq > baselineSeq);
     if (!settledEvents.some(event => event.type === 'assistant/message')) {
       throw httpError(502, 'model_request_failed', 'DSH Agent Loop did not commit a successful assistant message');
     }
     return { id: completionId, created, model: selectedModel, text: output, session_id: sessionId };
   } finally {
+    signal?.removeEventListener('abort', cancelForAbort);
     stop?.();
     await handle?.dispose();
   }
