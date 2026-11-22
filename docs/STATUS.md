@@ -12,7 +12,7 @@
 | 运行时/测试代码基线 | `dev` | commit `269bf57360ecc6ffcacbc73dc73f52b993cd035d` |
 | 自动化测试 | 通过：126 passed / 0 failed | [GitHub Actions #45011233732](https://github.com/qingjian0/yuanqi-plugin/actions/runs/45011233732) |
 | Node.js / DSH API | 通过 | Node.js 24.9.0；peer package 解析、包根入口及 Storage Domain 导出检查成功 |
-| npm 安装包 | 通过 | [Package workflow #45011127867](https://github.com/qingjian0/yuanqi-plugin/actions/runs/45011127867)，归档 80,251 bytes；该包构建对应前一提交 `d6ddcad`，运行时代码相同 |
+| npm 安装包 | 通过 | [Package workflow #45011371553](https://github.com/qingjian0/yuanqi-plugin/actions/runs/45011371553)，归档 80,281 bytes；该包构建对应提交 `67d7566` |
 | Web 控制台与模型网关 | CI / 模拟接口测试通过 | 请求体读取取消、Agent 取消、插件卸载 drain，以及真实 Node.js Readable 流销毁均有回归测试；真实模型供应商与宿主网络端到端仍待验收 |
 | 真实 Android DSH 宿主 | 待验收 | 安装、加载、卸载、重启和真实后端恢复尚未执行 |
 | 真实模型会话端到端 | 待验收 | 不以模拟 Agent Loop 代替 |
