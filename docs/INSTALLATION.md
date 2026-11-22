@@ -32,7 +32,7 @@ npm run check
 npm pack
 ```
 
-`npm run check` 会执行入口和源码 JavaScript 语法检查及自动化测试。alpha.9 发布记录包含 96 项测试通过、0 项失败，以及语法检查和安装包归档检查通过的记录。
+`npm run check` 会执行入口和源码 JavaScript 语法检查及自动化测试。当前 `dev` 开发快照（commit `1f7bad782f01fc52c6a80c06cd6474aba62ccb7c`）已在 Node.js 24.9.0 的 GitHub Actions 中通过 **120 项测试，0 项失败**；DSH peer/API 导出检查通过。npm 安装包构建、归档检查与制品上传也已通过。详见 [CI 测试记录](https://github.com/qingjian0/yuanqi-plugin/actions/runs/44986018394) 和 [安装包构建记录](https://github.com/qingjian0/yuanqi-plugin/actions/runs/44986018383)。这些结果不替代真实 Android DSH 宿主验收。
 
 ## 3. 安装到 DSH Profile
 
