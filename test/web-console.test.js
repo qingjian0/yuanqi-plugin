@@ -284,7 +284,7 @@ test('plugin disposal aborts and drains a chat request stalled while reading its
   const req = new EventEmitter();
   Object.assign(req, {
     method: 'POST',
-    url: '/yuanqi/v1/chat/completions',
+    url: '/yuanqi/api/chat',
     headers: { authorization: 'Bearer yuanqi-test-api-key-with-more-than-24-chars', 'content-type': 'application/json' },
     destroyed: false,
     [Symbol.asyncIterator]() {
@@ -310,7 +310,7 @@ test('plugin disposal aborts and drains a chat request stalled while reading its
     end(body = '') { this.body += body; this.writableEnded = true; },
   });
   const dispose = registerYuanQiWeb({ register(value) { route = value; return () => { routeDisposed = true; }; } }, { getYuanQiBirthProfile() { return null; } }, {});
-  const pendingRequest = route.handler(req, res);
+  const pendingRequest = route.handler(req, res, { id: 'peer-test' });
   await Promise.resolve();
   let disposeSettled = false;
   const pendingDispose = dispose().then(() => { disposeSettled = true; });
