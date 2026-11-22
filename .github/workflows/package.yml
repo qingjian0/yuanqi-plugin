@@ -5,7 +5,10 @@ on:
   push:
     branches:
       - dev
+      - 'work/**'
     paths:
+      - "README.md"
+      - "docs/**"
       - "package.json"
       - "package-lock.json"
       - "index.js"
