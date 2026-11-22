@@ -92,4 +92,4 @@
 
 ## 9. 当前自动化验证边界
 
-2026-11-22 的开发代码提交 `78c85ff0c37f37c5539b21fc19bd6590fc358376` 已通过 GitHub Actions：125 项测试全部通过（[CI #45010969332](https://github.com/qingjian0/yuanqi-plugin/actions/runs/45010969332)）。新增回归覆盖 Web Chat 与 OpenAI 兼容接口在请求体读取阶段被插件卸载中断时，均能销毁请求流、结束 Handler 并释放监听器；活动 Agent 请求取消与 drain 也有测试。当前代码快照的 npm 打包已通过 [Package #45010969310](https://github.com/qingjian0/yuanqi-plugin/actions/runs/45010969310)，归档 80,119 bytes 并成功上传；本清单中的真实 Android DSH 宿主、真实 Storage Domain 后端和真实模型供应商端到端步骤仍待执行。
+2026-11-22 的开发代码提交 `269bf57360ecc6ffcacbc73dc73f52b993cd035d` 已通过 GitHub Actions：126 项测试全部通过（[CI #45011233732](https://github.com/qingjian0/yuanqi-plugin/actions/runs/45011233732)）。回归覆盖 Web Chat 与 OpenAI 兼容接口在请求体读取阶段被插件卸载中断、Agent 请求取消与 drain，并使用真实 Node.js `PassThrough` 流验证请求体迭代可被销毁打断。最近一次 npm 包构建 [Package #45011127867](https://github.com/qingjian0/yuanqi-plugin/actions/runs/45011127867) 归档 80,251 bytes，构建提交为 `d6ddcad`，与本次测试提交的运行时代码相同；本清单中的真实 Android DSH 宿主、真实 Storage Domain 后端和真实模型供应商端到端步骤仍待执行。

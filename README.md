@@ -32,11 +32,11 @@
 | 运行环境 | DeepSeek Harness（DSH） |
 | Node.js | `>=24.9.0` |
 | 持久化 | DSH Storage Domain |
-| 当前开发分支 CI | 125 项通过，0 项失败（2026-11-22，Node.js 24.9.0；提交 `78c85ff`） |
+| 当前开发分支 CI | 126 项通过，0 项失败（2026-11-22，Node.js 24.9.0；提交 `269bf57`） |
 | 许可证 | GNU GPL-3.0-only |
 | 默认文档语言 | 简体中文（zh-CN） |
 
-**当前验证（2026-11-22）：** `dev` 提交 `78c85ff0c37f37c5539b21fc19bd6590fc358376` 的 GitHub Actions CI 已通过：125 tests passed / 0 failed；Node.js 24.9.0、DSH peer/API 导出检查通过。新增回归验证覆盖 Web Chat 与 OpenAI 兼容接口在请求体读取阶段被插件卸载中断时，均能销毁请求流、结束 Handler 并释放监听器。当前代码快照的 npm 打包已通过 [Package workflow #45010969310](https://github.com/qingjian0/yuanqi-plugin/actions/runs/45010969310)，制品大小 80,119 bytes，上传成功。以上均为仓库级自动化结果；真实 Android DSH 宿主安装/卸载/重启、真实 Storage Domain 后端和真实模型供应商端到端仍待验收，Android/iOS 端到端也未完成。
+**当前验证（2026-11-22）：** `dev` 提交 `269bf57360ecc6ffcacbc73dc73f52b993cd035d` 的 GitHub Actions CI 已通过：126 tests passed / 0 failed；Node.js 24.9.0、DSH peer/API 导出检查通过。新增回归覆盖 OpenAI 兼容接口在请求体读取阶段被插件卸载中断，以及真实 Node.js `PassThrough` 请求流的销毁和 Handler drain。当前可安装代码快照的 npm 打包已通过 [Package workflow #45011127867](https://github.com/qingjian0/yuanqi-plugin/actions/runs/45011127867)，制品大小 80,251 bytes；该包构建对应提交 `d6ddcad`，与本次测试提交的运行时代码相同。以上均为仓库级自动化结果；真实 Android DSH 宿主安装/卸载/重启、真实 Storage Domain 后端和真实模型供应商端到端仍待验收，Android/iOS 端到端也未完成。
 
 ## 核心理念
 
