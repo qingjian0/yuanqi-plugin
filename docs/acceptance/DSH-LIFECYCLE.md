@@ -92,4 +92,4 @@
 
 ## 9. 当前自动化验证边界
 
-2026-11-22 合并到 dev 的提交 c200aef5ddf44c2a532bd7d42e7f4388a348fe5e 已通过 GitHub Actions：Node.js 检查、DSH peer/API 导出检查、自动化测试、npm pack 和安装包归档上传均成功。此结果验证的是仓库代码与打包流程；本清单中的真实 Android DSH 宿主、真实 Storage Domain 后端和真实模型供应商端到端步骤仍待执行。
+2026-11-22 的开发代码提交 `04329a2c31bd75afc15fc36f8140c15363339692` 已通过 GitHub Actions：122 项测试全部通过（[CI #44987512082](https://github.com/qingjian0/yuanqi-plugin/actions/runs/44987512082)）。相同运行时代码的 npm 打包工作流成功，制品 79,314 bytes（[Package #44987405291](https://github.com/qingjian0/yuanqi-plugin/actions/runs/44987405291)；打包提交 `6d5d319147b2ed5b5b589c43a360a608b18cfe06`，后续差异仅为测试断言）。此结果验证仓库代码与打包流程；本清单中的真实 Android DSH 宿主、真实 Storage Domain 后端和真实模型供应商端到端步骤仍待执行。

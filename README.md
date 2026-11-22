@@ -32,11 +32,11 @@
 | 运行环境 | DeepSeek Harness（DSH） |
 | Node.js | `>=24.9.0` |
 | 持久化 | DSH Storage Domain |
-| 当前开发分支 CI | 120 项通过，0 项失败（2026-11-22，Node.js 24.9.0） |
+| 当前开发分支 CI | 122 项通过，0 项失败（2026-11-22，Node.js 24.9.0） |
 | 许可证 | GNU GPL-3.0-only |
 | 默认文档语言 | 简体中文（zh-CN） |
 
-**当前验证（2026-11-22）：** `dev` 提交 `c200aef5ddf44c2a532bd7d42e7f4388a348fe5e` 的 GitHub Actions CI 已通过：120 tests passed / 0 failed；Node.js 24.9.0、DSH peer/API 导出检查通过。npm 打包工作流也成功创建并上传安装包制品。详见 [CI 测试记录](https://github.com/qingjian0/yuanqi-plugin/actions/runs/44986320115) 与 [打包记录](https://github.com/qingjian0/yuanqi-plugin/actions/runs/44986320111)。这些结果验证仓库自动化测试与打包流程；真实 Android DSH 宿主安装/卸载/重启、真实 Storage Domain 后端和真实模型供应商端到端仍待验收，Android/iOS 端到端也未完成。
+**当前验证（2026-11-22）：** `dev` 提交 `04329a2c31bd75afc15fc36f8140c15363339692` 的 GitHub Actions CI 已通过：120 tests passed / 0 failed；Node.js 24.9.0、DSH peer/API 导出检查通过。npm 打包工作流也成功创建并上传安装包制品。详见 [CI 测试记录](https://github.com/qingjian0/yuanqi-plugin/actions/runs/44987512082) 与 [打包记录](https://github.com/qingjian0/yuanqi-plugin/actions/runs/44987405291)。这些结果验证仓库自动化测试与打包流程；真实 Android DSH 宿主安装/卸载/重启、真实 Storage Domain 后端和真实模型供应商端到端仍待验收，Android/iOS 端到端也未完成。
 
 ## 核心理念
 
