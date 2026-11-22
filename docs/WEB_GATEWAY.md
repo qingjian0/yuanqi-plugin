@@ -24,11 +24,14 @@ the existing Storage Domain; it does not create a second database or listener.
 The model gateway uses `ctx.agents.create()` and `Agent.followup()` / `whenIdle()`;
 each request owns a durable Session and disposes its AgentHandle after
 completion. Both HTTP chat routes observe request aborts and premature response
-closure; they cancel the owned Agent with `Agent.cancel({ kind: 'user' })`, wait
-for the Agent to settle, and dispose the handle instead of leaving generation
-running after the client disconnects. Plugin unload also closes admission,
-invalidates peer-bound chat tokens, aborts every active chat request, and waits
-for owned Agent runs to settle before the Web registration disposer completes. Conversation history is carried as bounded, quoted context into the
+closure; request-body parsing is also abortable, and plugin unload destroys a
+stalled incoming body stream so it cannot keep teardown pending. The gateway
+cancels the owned Agent with `Agent.cancel({ kind: 'user' })`, waits for the
+Agent to settle, and disposes the handle instead of leaving generation running
+after the client disconnects. Plugin unload closes admission, invalidates
+peer-bound chat tokens, aborts every admitted chat request, drains the complete
+HTTP handler (including body parsing and Agent execution), and only then allows
+Storage Domain shutdown. Conversation history is carried as bounded, quoted context into the
 new request Session. Global inherited tools are masked for this external text-only API.
 The endpoint is available only when the host environment supplies a sufficiently
 long `YUANQI_API_KEY`, `YUANQI_MODEL_PROVIDER`, and `YUANQI_MODEL`. The web
