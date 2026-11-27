@@ -80,7 +80,7 @@ function addWallMinutes(parts, minutes) {
  * Derive local civil time and approximate apparent solar time for YuanQi's
  * own WakeRecord instant. No user birth data or inferred location is accepted.
  *
- * The IANA time zone must come from the authorized host location result.
+ * The IANA time zone must come from a host location result or be explicitly marked as IP-geolocation-derived.
  * True-solar time is a NOAA equation-of-time approximation; solar-term and
  * Four-Pillars calculations are deliberately outside this function.
  */
@@ -102,7 +102,7 @@ export function deriveBirthTimeContext({ birth_time, birth_location } = {}) {
   const suppliedZone = typeof location.time_zone_id === 'string' ? location.time_zone_id : null;
   let timeZone = suppliedZone;
   let formatter;
-  let timeZoneSource = ['host_location_provider', 'coordinate_lookup'].includes(location.time_zone_source)
+  let timeZoneSource = ['host_location_provider', 'coordinate_lookup', 'ip_geolocation'].includes(location.time_zone_source)
     ? location.time_zone_source : 'host_location_provider';
   if (!timeZone) {
     timeZone = 'Asia/Shanghai';
