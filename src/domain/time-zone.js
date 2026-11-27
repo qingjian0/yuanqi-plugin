@@ -1,6 +1,6 @@
 import tzLookup from '@photostructure/tz-lookup';
 
-const VALID_SOURCES = new Set(['host_location_provider', 'coordinate_lookup', 'default_beijing', 'unavailable']);
+const VALID_SOURCES = new Set(['host_location_provider', 'coordinate_lookup', 'ip_geolocation', 'default_beijing', 'unavailable']);
 export const DEFAULT_BIRTH_TIME_ZONE = 'Asia/Shanghai';
 
 function isIanaTimeZone(value) {

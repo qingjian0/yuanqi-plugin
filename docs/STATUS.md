@@ -572,3 +572,16 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - 新增 [DSH 真实宿主生命周期与端到端验收](./acceptance/DSH-LIFECYCLE.md)，覆盖安装/卸载、首条消息与精确唤醒、Session flush、冷启动恢复、故障关闭、双主体隔离、Worldline/Evidence、Web 控制台与 OpenAI 网关。
 - 当前仓库 GitHub Actions 已通过 Node.js/DSH API 检查、自动化测试、npm pack 和包归档上传。
 - **真实 Android DSH 宿主、生产 Storage Domain 后端、真实模型供应商端到端仍未验收。** 未实际执行的项目必须标记“未执行”，不得用模拟适配器或 CI 结果替代。
+
+
+## 11. 2026-11-28 YuanQi 自动出生资料初始化与 IP 定位降级
+
+- 用户无需填写个人出生日期、出生时刻、地点、经纬度或时区；YuanQi 的 BirthProfile 是 YuanQiSubject 自身的诞生记录，不是 UserSubject 的个人出生档案。
+- `src/initialization/onboarding.js` 已移除必填字段与人工确认状态机，改为自动环境初始化；缺失地点不阻断初始化。
+- 首次精确唤醒事件仍作为当前 WakeRecord 的可信出生时间来源；地点采集由 Host/GPS 优先，失败后自动 IP 地理定位降级。冷历史事件不使用当前 IP 位置冒充历史位置。
+- IP 位置的来源标记为 `ip_geolocation`，不填写虚假的米级精度；城市/区域/国家标签和 IANA 时区仅在服务返回时记录。原始公网 IP 不持久化。
+- IP 地理定位默认使用 `https://ipwho.is/`；这会向该服务发出网络请求并暴露请求出口 IP。若用户/部署方不允许外部 IP 地理定位，可通过注入 `ctx.yuanqiIpLocationProvider` 提供受控实现；无可用结果时地点仍为 unavailable。
+- YuanQiSubject Storage Domain schema 升级到 v12，兼容 v3–v11，扩展 WakeRecord/BirthProfile 的位置来源枚举。
+- GitHub Actions CI Run #1142（commit `6b910f257dcf91ccfa08f0bdbda4ce5c6d67db02`）通过：Node.js 24.9.0，132 passed / 0 failed；另一次 CI Run #1141 同一提交也通过。
+- GitHub Actions Package Run #61 通过，生成可安装 npm 包制品 `yuanqi-plugin-c109718b8a4f5ff1fd8ae14d7f5ed639d4ba11c7`，大小 80,657 bytes；制品 SHA-256：`8291c390abb81266d5beb0dfdbd989e2f36a16fcce9e9fccd900ed8339f746ea`。
+- 自动化测试与打包已通过；真实 Android DSH 宿主定位授权、外部 IP 服务网络可达性、IP 城市级误差和完整真实模型初始化仍待设备验收。

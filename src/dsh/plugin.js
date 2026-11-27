@@ -148,6 +148,44 @@ function createAndroidLocationProvider() {
   };
 }
 
+function createIpLocationProvider() {
+  return {
+    async getCurrentPosition() {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8_000);
+      try {
+        // IP geolocation is an explicit low-precision fallback after host/GPS
+        // location. The provider sees the public egress IP; raw IP is not stored.
+        const response = await fetch('https://ipwho.is/', {
+          method: 'GET',
+          headers: { Accept: 'application/json' },
+          signal: controller.signal,
+        });
+        if (!response.ok) throw new Error('IP geolocation returned HTTP ' + response.status);
+        const value = await response.json();
+        if (value?.success !== true ||
+            !Number.isFinite(value.latitude) || value.latitude < -90 || value.latitude > 90 ||
+            !Number.isFinite(value.longitude) || value.longitude < -180 || value.longitude > 180) {
+          throw new Error('IP geolocation returned no usable coordinates');
+        }
+        const timezone = value.timezone?.id;
+        return {
+          latitude: value.latitude,
+          longitude: value.longitude,
+          accuracy_meters: null,
+          place_label: [value.city, value.region, value.country].filter(item => typeof item === 'string' && item.trim()).join(', ') || null,
+          time_zone_id: typeof timezone === 'string' ? timezone : null,
+          time_zone_source: typeof timezone === 'string' ? 'ip_geolocation' : undefined,
+          captured_at: new Date().toISOString(),
+          source: 'ip_geolocation',
+        };
+      } finally {
+        clearTimeout(timeout);
+      }
+    },
+  };
+}
+
 function chooseFirstCandidate(candidates) {
   const unique = new Map();
   for (const candidate of candidates) unique.set(candidateKey(candidate), candidate);
@@ -1730,53 +1768,67 @@ export async function apply(ctx) {
     }
 
     async function captureBirthLocation(eventTime) {
-      const provider = ctx.yuanqiLocationProvider ?? createAndroidLocationProvider();
-      if (!provider || typeof provider.getCurrentPosition !== 'function') {
-        return { status: 'unavailable', latitude: null, longitude: null, accuracy_meters: null, place_label: null, time_zone_id: null, time_zone_source: 'unavailable', source: 'unavailable', captured_at: null };
+      const hostProvider = ctx.yuanqiLocationProvider ?? createAndroidLocationProvider();
+      const ipProvider = ctx.yuanqiIpLocationProvider ?? createIpLocationProvider();
+      const providers = [
+        { provider: hostProvider, fallback: false },
+        { provider: ipProvider, fallback: true },
+      ];
+      const failures = [];
+      for (const candidate of providers) {
+        const provider = candidate.provider;
+        if (!provider || typeof provider.getCurrentPosition !== 'function') continue;
+        let timeout;
+        try {
+          const timeoutPromise = new Promise((_, reject) => {
+            timeout = setTimeout(() => reject(new Error('location provider exceeded the bounded capture window')), LOCATION_PROVIDER_TIMEOUT_MS);
+          });
+          const value = await Promise.race([provider.getCurrentPosition(), timeoutPromise]);
+          const latitude = value?.latitude;
+          const longitude = value?.longitude;
+          if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 ||
+              !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+            throw new TypeError('location provider returned invalid coordinates');
+          }
+          const accuracy = value.accuracy_meters ?? null;
+          if (accuracy !== null && (!Number.isFinite(accuracy) || accuracy < 0)) {
+            throw new TypeError('location provider returned invalid accuracy');
+          }
+          const capturedAt = value.captured_at;
+          const capturedAtMs = typeof capturedAt === 'string' ? Date.parse(capturedAt) : NaN;
+          if (!Number.isFinite(capturedAtMs)) {
+            throw new TypeError('location provider must supply its capture timestamp');
+          }
+          if (Number.isFinite(eventTime) && Math.abs(capturedAtMs - eventTime) > 60_000) {
+            throw new TypeError('location result is not close enough to the YuanQi wake event time');
+          }
+          const source = value.source === 'ip_geolocation'
+            ? 'ip_geolocation'
+            : value.source === 'android_location_bridge'
+              ? 'android_location_bridge'
+              : 'host_location_provider';
+          const timeZone = resolveBirthTimeZone({
+            time_zone_id: typeof value.time_zone_id === 'string' ? value.time_zone_id : null,
+            time_zone_source: value.time_zone_source ?? (source === 'ip_geolocation' ? 'ip_geolocation' : undefined),
+            latitude,
+            longitude,
+          });
+          return {
+            status: 'captured', latitude, longitude, accuracy_meters: accuracy,
+            place_label: typeof value.place_label === 'string' ? value.place_label : null,
+            ...timeZone,
+            source,
+            captured_at: new Date(capturedAtMs).toISOString(),
+          };
+        } catch (error) {
+          failures.push((candidate.fallback ? 'IP fallback: ' : 'Host/GPS: ') + String(error));
+        } finally {
+          clearTimeout(timeout);
+        }
       }
-      let timeout;
-      try {
-        const timeoutPromise = new Promise((_, reject) => {
-          timeout = setTimeout(() => reject(new Error('location provider exceeded the bounded capture window')), LOCATION_PROVIDER_TIMEOUT_MS);
-        });
-        const value = await Promise.race([provider.getCurrentPosition(), timeoutPromise]);
-        const latitude = value?.latitude;
-        const longitude = value?.longitude;
-        if (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 ||
-            !Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
-          throw new TypeError('location provider returned invalid coordinates');
-        }
-        const accuracy = value.accuracy_meters ?? null;
-        if (accuracy !== null && (!Number.isFinite(accuracy) || accuracy < 0)) {
-          throw new TypeError('location provider returned invalid accuracy');
-        }
-        const capturedAt = value.captured_at;
-        const capturedAtMs = typeof capturedAt === 'string' ? Date.parse(capturedAt) : NaN;
-        if (!Number.isFinite(capturedAtMs)) {
-          throw new TypeError('location provider must supply its capture timestamp');
-        }
-        if (Number.isFinite(eventTime) && Math.abs(capturedAtMs - eventTime) > 60_000) {
-          throw new TypeError('location fix is not close enough to the wake event time');
-        }
-        const timeZone = resolveBirthTimeZone({
-          time_zone_id: typeof value.time_zone_id === 'string' ? value.time_zone_id : null,
-          time_zone_source: value.time_zone_source,
-          latitude,
-          longitude,
-        });
-        return {
-          status: 'captured', latitude, longitude, accuracy_meters: accuracy,
-          place_label: typeof value.place_label === 'string' ? value.place_label : null,
-          ...timeZone,
-          source: value.source === 'android_location_bridge' ? 'android_location_bridge' : 'host_location_provider',
-          captured_at: new Date(capturedAtMs).toISOString(),
-        };
-      } catch (error) {
-        warn('[yuanqi] birth location unavailable at wake: ' + String(error));
-        return { status: 'unavailable', latitude: null, longitude: null, accuracy_meters: null, place_label: null, time_zone_id: null, time_zone_source: 'unavailable', source: 'unavailable', captured_at: null };
-      } finally {
-        clearTimeout(timeout);
-      }
+      // Location is optional metadata; a failed best-effort lookup must not
+      // pollute Session write warnings or affect the initialization barrier.
+      return { status: 'unavailable', latitude: null, longitude: null, accuracy_meters: null, place_label: null, time_zone_id: null, time_zone_source: 'unavailable', source: 'unavailable', captured_at: null };
     }
 
     function scheduleBirthLocationCapture(eventTime) {

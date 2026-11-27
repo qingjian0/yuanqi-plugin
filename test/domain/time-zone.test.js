@@ -45,3 +45,14 @@ test('defaults to Beijing time when neither a valid host zone nor authorized coo
     time_zone_source: 'default_beijing',
   });
 });
+
+
+test('IP geolocation timezone provenance is retained', () => {
+  const resolved = resolveBirthTimeZone({
+    time_zone_id: 'Asia/Tokyo',
+    time_zone_source: 'ip_geolocation',
+    latitude: 35.6762,
+    longitude: 139.6503,
+  });
+  assert.deepEqual(resolved, { time_zone_id: 'Asia/Tokyo', time_zone_source: 'ip_geolocation' });
+});

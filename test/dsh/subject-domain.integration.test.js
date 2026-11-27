@@ -50,8 +50,8 @@ test('actual DSH DomainFacility opens both YuanQi subject schemas, validates rec
   const storageDomain = createStorageDomain();
   assert.equal(userSubjectDomainSpec.version, 3);
   assert.deepEqual(userSubjectDomainSpec.compatibleVersions, [1, 2]);
-  assert.equal(yuanqiSubjectDomainSpec.version, 11);
-  assert.deepEqual(yuanqiSubjectDomainSpec.compatibleVersions, [3, 4, 5, 6, 7, 8, 9, 10]);
+  assert.equal(yuanqiSubjectDomainSpec.version, 12);
+  assert.deepEqual(yuanqiSubjectDomainSpec.compatibleVersions, [3, 4, 5, 6, 7, 8, 9, 10, 11]);
 
   const first = await openSubjectDomains(storageDomain);
   await first.userDomain.table('identities').put('user:primary', {
@@ -173,5 +173,41 @@ test('actual DSH DomainFacility atomically completes a pending WakeRecord locati
   await store.completeInitialWakeLocation({ subject_id: 'yuanqi:primary', birth_location: captured });
   assert.deepEqual(store.getWakeRecord('yuanqi:primary').birth_location, captured);
   assert.deepEqual(store.getYuanQiBirthProfile('yuanqi:primary').birth_location, captured);
+  await domains.close();
+});
+
+
+test('actual DSH DomainFacility accepts IP-geolocation provenance in WakeRecord and BirthProfile', async () => {
+  const storageDomain = createStorageDomain();
+  const domains = await openSubjectDomains(storageDomain);
+  const store = createSubjectStore({
+    userDomain: domains.userDomain,
+    yuanqiDomain: domains.yuanqiDomain,
+    verifyDirectUserEvent: event => event?.verified === true ? event : null,
+  });
+  await store.createYuanQiSubject({ subject_id: 'yuanqi:primary', created_from_event_ref: 'ip-wake-event' });
+  const eventTime = 1794048000100;
+  const ipLocation = {
+    status: 'captured', latitude: 35.6762, longitude: 139.6503,
+    accuracy_meters: null, place_label: 'Tokyo, Tokyo, Japan',
+    time_zone_id: 'Asia/Tokyo', time_zone_source: 'ip_geolocation',
+    source: 'ip_geolocation', captured_at: new Date(eventTime).toISOString(),
+  };
+  await store.recordInitialWake({
+    subject_id: 'yuanqi:primary',
+    direct_user_event: {
+      verified: true, event_type: 'user/message', source_kind: 'user',
+      session_id: 'session:ip-wake', event_id: 'ip-wake-event', event_seq: 0,
+      event_time: eventTime, text: '启动元炁',
+    },
+    birth_location: ipLocation,
+  });
+  const wake = store.getWakeRecord('yuanqi:primary');
+  const profile = store.getYuanQiBirthProfile('yuanqi:primary');
+  assert.equal(wake.birth_location.source, 'ip_geolocation');
+  assert.equal(wake.birth_location.accuracy_meters, null);
+  assert.equal(profile.birth_location.source, 'ip_geolocation');
+  assert.equal(profile.time_context.time_zone_id, 'Asia/Tokyo');
+  assert.equal(profile.time_context.time_zone_source, 'ip_geolocation');
   await domains.close();
 });
