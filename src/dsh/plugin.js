@@ -1826,7 +1826,8 @@ export async function apply(ctx) {
           clearTimeout(timeout);
         }
       }
-      warn('[yuanqi] birth location unavailable after host/GPS and IP fallback: ' + failures.join('; '));
+      // Location is optional metadata; a failed best-effort lookup must not
+      // pollute Session write warnings or affect the initialization barrier.
       return { status: 'unavailable', latitude: null, longitude: null, accuracy_meters: null, place_label: null, time_zone_id: null, time_zone_source: 'unavailable', source: 'unavailable', captured_at: null };
     }
 
