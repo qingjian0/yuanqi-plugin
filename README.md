@@ -36,7 +36,7 @@
 | 许可证 | GNU GPL-3.0-only |
 | 默认文档语言 | 简体中文（zh-CN） |
 
-**当前验证（2026-11-22）：** `dev` 提交 `269bf57360ecc6ffcacbc73dc73f52b993cd035d` 的 GitHub Actions CI 已通过：126 tests passed / 0 failed；Node.js 24.9.0、DSH peer/API 导出检查通过。新增回归覆盖 OpenAI 兼容接口在请求体读取阶段被插件卸载中断，以及真实 Node.js `PassThrough` 请求流的销毁和 Handler drain。当前可安装代码快照的 npm 打包已通过 [Package workflow #45011371553](https://github.com/qingjian0/yuanqi-plugin/actions/runs/45011371553)，制品大小 80,281 bytes；该包构建对应提交 `d6ddcad`，与本次测试提交的运行时代码相同。以上均为仓库级自动化结果；真实 Android DSH 宿主安装/卸载/重启、真实 Storage Domain 后端和真实模型供应商端到端仍待验收，Android/iOS 端到端也未完成。
+**当前验证（2026-11-28）：** `dev` 提交 `1710343bf78309e27524c60c2e2414cb961dfd31` 的 GitHub Actions CI 已通过：**132 tests passed / 0 failed**；Node.js 24.9.0、DSH peer/API 导出检查通过。合并后的 Package Run #64 成功生成可安装 npm 包制品，大小 **80,657 bytes**；[CI Run #1145](https://github.com/qingjian0/yuanqi-plugin/actions/runs/46079781797)、[Package Run #64](https://github.com/qingjian0/yuanqi-plugin/actions/runs/46079781687)。制品 SHA-256：`fd2832a3a550cae081f9ab659ab7d157e9d3437b5e7393908956587006ea07c0`。以上是仓库级自动化验证；真实 Android DSH 宿主定位授权、IP 服务可达性/误差及真实模型端到端仍待设备验收。
 
 ## 核心理念
 
