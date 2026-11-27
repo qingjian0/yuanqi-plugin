@@ -50,8 +50,8 @@ test('actual DSH DomainFacility opens both YuanQi subject schemas, validates rec
   const storageDomain = createStorageDomain();
   assert.equal(userSubjectDomainSpec.version, 3);
   assert.deepEqual(userSubjectDomainSpec.compatibleVersions, [1, 2]);
-  assert.equal(yuanqiSubjectDomainSpec.version, 11);
-  assert.deepEqual(yuanqiSubjectDomainSpec.compatibleVersions, [3, 4, 5, 6, 7, 8, 9, 10]);
+  assert.equal(yuanqiSubjectDomainSpec.version, 12);
+  assert.deepEqual(yuanqiSubjectDomainSpec.compatibleVersions, [3, 4, 5, 6, 7, 8, 9, 10, 11]);
 
   const first = await openSubjectDomains(storageDomain);
   await first.userDomain.table('identities').put('user:primary', {
