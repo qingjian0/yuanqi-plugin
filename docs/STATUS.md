@@ -582,4 +582,6 @@ E00-20E-02 已找到 alpha.9 历史源码归档，并在隔离 Node.js v22.16.0 
 - IP 位置的来源标记为 `ip_geolocation`，不填写虚假的米级精度；城市/区域/国家标签和 IANA 时区仅在服务返回时记录。原始公网 IP 不持久化。
 - IP 地理定位默认使用 `https://ipwho.is/`；这会向该服务发出网络请求并暴露请求出口 IP。若用户/部署方不允许外部 IP 地理定位，可通过注入 `ctx.yuanqiIpLocationProvider` 提供受控实现；无可用结果时地点仍为 unavailable。
 - YuanQiSubject Storage Domain schema 升级到 v12，兼容 v3–v11，扩展 WakeRecord/BirthProfile 的位置来源枚举。
-- 本节是代码变更记录；自动化测试和打包必须以该分支后续 GitHub Actions 结果为准。真实 Android DSH 宿主与 IP 服务网络可达性仍待设备验收。
+- GitHub Actions CI Run #1136（commit `0b5fef3b870695e85d86def9d9dd0ea4b0b8f698`）通过：Node.js 24.9.0，131 passed / 0 failed；另一次 CI Run #1135 同一提交也通过。
+- GitHub Actions Package Run #56 通过，生成可安装 npm 包制品 `yuanqi-plugin-a4cdae81db89d53520fcd48c679fe2a771d07f39`，大小 80,632 bytes；制品 SHA-256：`595970f2ae01410b5ed3cba1bba844f7358ec914460dcf2d8e7dc8a029c6b6b6`。
+- 自动化测试与打包已通过；真实 Android DSH 宿主定位授权、外部 IP 服务网络可达性、IP 城市级误差和完整真实模型初始化仍待设备验收。
