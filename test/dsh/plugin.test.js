@@ -96,6 +96,52 @@ function context(storageDomain, options = {}) {
   };
 }
 
+test('strict Cordis contexts without optional location-provider injection fall back to IP safely', async () => {
+  const storage = fakeStorageDomain();
+  const ctx = context(storage);
+  const previousToken = process.env.DSH_BRIDGE_TOKEN;
+  const previousFetch = globalThis.fetch;
+  const eventTime = Date.now();
+  delete process.env.DSH_BRIDGE_TOKEN;
+  globalThis.fetch = async (url) => {
+    assert.equal(url, 'https://ipwho.is/');
+    return {
+      ok: true,
+      status: 200,
+      async json() {
+        return {
+          success: true, latitude: 31.2304, longitude: 121.4737,
+          city: 'Shanghai', region: 'Shanghai', country: 'China',
+          timezone: { id: 'Asia/Shanghai' },
+        };
+      },
+    };
+  };
+  const strictContext = new Proxy(ctx, {
+    get(target, key, receiver) {
+      if (key === 'yuanqiLocationProvider' || key === 'yuanqiIpLocationProvider') {
+        throw new Error('cannot get property "' + String(key) + '" without inject');
+      }
+      return Reflect.get(target, key, receiver);
+    },
+  });
+  try {
+    await apply(strictContext);
+    await ctx.listener({ id: 'strict-location-session' }, dshEvent('启动元炁', 'strict-location-wake', 0, eventTime));
+    await ctx.flushListener({ id: 'strict-location-session' });
+    await ctx.disposer();
+    const wake = storage.opened.get('yuanqi_subject').tables.get('wake_records').get('yuanqi:primary');
+    assert.equal(wake.birth_location.status, 'captured');
+    assert.equal(wake.birth_location.source, 'ip_geolocation');
+    assert.equal(wake.birth_location.confidence, 'low');
+    assert.equal(wake.birth_location.time_zone_id, 'Asia/Shanghai');
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousToken === undefined) delete process.env.DSH_BRIDGE_TOKEN;
+    else process.env.DSH_BRIDGE_TOKEN = previousToken;
+  }
+});
+
 test('plugin startup requires the DSH model tools registry before opening Domains', async () => {
   const storage = fakeStorageDomain();
   await assert.rejects(apply({ ...context(storage), tools: undefined }), /official DSH tools service/);
@@ -718,6 +764,7 @@ test('IP geolocation is used automatically when the authorized host/GPS provider
   const wake = storage.opened.get('yuanqi_subject').tables.get('wake_records').get('yuanqi:primary');
   assert.equal(wake.birth_location.status, 'captured');
   assert.equal(wake.birth_location.source, 'ip_geolocation');
+  assert.equal(wake.birth_location.confidence, 'low');
   assert.equal(wake.birth_location.latitude, 35.6762);
   assert.equal(wake.birth_location.longitude, 139.6503);
   assert.equal(wake.birth_location.accuracy_meters, null);
@@ -778,6 +825,7 @@ test('Android host location bridge captures a fresh fix with the DSH bridge toke
     const wake = storage.opened.get('yuanqi_subject').tables.get('wake_records').get('yuanqi:primary');
     assert.equal(wake.birth_location.status, 'captured');
     assert.equal(wake.birth_location.source, 'android_location_bridge');
+    assert.equal(wake.birth_location.confidence, 'high');
     assert.equal(wake.birth_location.latitude, 31.2304);
     assert.equal(wake.birth_location.longitude, 121.4737);
     assert.equal(wake.birth_location.accuracy_meters, 12);
