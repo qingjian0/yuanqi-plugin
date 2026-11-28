@@ -96,6 +96,16 @@ function context(storageDomain, options = {}) {
   };
 }
 
+async function waitForBirthLocationCapture(storage, timeoutMs = 2000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const wake = storage.opened.get('yuanqi_subject')?.tables.get('wake_records')?.get('yuanqi:primary');
+    if (wake?.birth_location && wake.birth_location.status !== 'pending') return wake.birth_location;
+    await new Promise(resolve => setTimeout(resolve, 5));
+  }
+  throw new Error('timed out waiting for deferred YuanQi birth-location capture');
+}
+
 test('strict Cordis contexts without optional location-provider injection fall back to IP safely', async () => {
   const storage = fakeStorageDomain();
   const ctx = context(storage);
@@ -262,6 +272,7 @@ test('model-generated Bazi initial personality is saved once as a hypothesis in 
   const eventTime = Date.UTC(2026, 10, 6, 12, 0, 0);
   await ctx.listener({ id: sessionId }, dshEvent('启动元炁', 'initial-personality-wake', 0, eventTime));
   await ctx.flushListener({ id: sessionId });
+  await waitForBirthLocationCapture(storage);
   assert.equal(await writeTool.registrationOptions.when({ agent }), true);
 
   const profile = JSON.parse(await readTool.definition.execute({}, { signal: new AbortController().signal }));
@@ -392,6 +403,7 @@ test('YuanQi BirthProfile is created from YuanQi wake data, never from user birt
   const session = { id: 'yuanqi-birth-session' };
   await ctx.listener(session, dshEvent('启动元炁', 'yuanqi-wake', 0, 1793966400000));
   await ctx.flushListener(session);
+  await waitForBirthLocationCapture(storage);
   await ctx.listener(session, dshEvent('出生日期：1998年4月21日10:31，出生地：云南昆明安宁', 'unrelated-user-birth', 1, 1793966401000));
   await ctx.flushListener(session);
   const userTables = storage.opened.get('yuanqi_user_subject').tables;
@@ -923,6 +935,7 @@ test('experience candidate tool records bounded behavior evidence without copyin
   const agent = { id: 'agent-experience', session: { id: sessionId } };
   await ctx.listener({ id: sessionId }, dshEvent('启动元炁', 'experience-wake', 0, 1793966400000));
   await ctx.flushListener({ id: sessionId });
+  await waitForBirthLocationCapture(storage);
   const initialTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_record_initial_personality');
   const profileTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_self_profile');
   const profile = JSON.parse(await profileTool.definition.execute({}, { signal: new AbortController().signal }));
@@ -1066,6 +1079,7 @@ test('experience candidate tool rejects injected user context and unpaired tool 
   const agent = { id: 'agent-experience-reject', session: { id: sessionId } };
   await ctx.listener({ id: sessionId }, dshEvent('启动元炁', 'experience-reject-wake', 0, 1793966400000));
   await ctx.flushListener({ id: sessionId });
+  await waitForBirthLocationCapture(storage);
   const profileTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_self_profile');
   const initialTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_record_initial_personality');
   const profile = JSON.parse(await profileTool.definition.execute({}, { signal: new AbortController().signal }));
@@ -1144,6 +1158,7 @@ test('experience reconciliation counts distinct Session evidence, preserves conf
     await ctx.flushListener({ id: sessionId });
   }
 
+  await waitForBirthLocationCapture(storage);
   const profileTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_self_profile');
   const initialTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_record_initial_personality');
   const profile = JSON.parse(await profileTool.definition.execute({}, { signal: new AbortController().signal }));
@@ -1320,6 +1335,7 @@ test('Bazi-unavailable startup can save only a six-dimension awaiting-Bazi place
 
   await ctx.listener({ id: sessionId }, dshEvent('启动元炁', 'bazi-placeholder-wake', 0, eventTime));
   await ctx.flushListener({ id: sessionId });
+  await waitForBirthLocationCapture(storage);
 
   const profile = JSON.parse(await readTool.definition.execute({}, { signal: new AbortController().signal }));
   assert.equal(profile.bazi.status, 'unavailable');
@@ -1369,6 +1385,7 @@ test('Bazi-unavailable startup can save only a six-dimension awaiting-Bazi place
   const readyEventTime = Date.UTC(2026, 10, 6, 12, 0, 0);
   await readyCtx.listener({ id: 'session-ready-chart' }, dshEvent('启动元炁', 'ready-chart-wake', 0, readyEventTime));
   await readyCtx.flushListener({ id: 'session-ready-chart' });
+  await waitForBirthLocationCapture(readyStorage);
   const readyProfile = JSON.parse(await readyReadTool.definition.execute({}, { signal: new AbortController().signal }));
   assert.equal(readyProfile.bazi.status, 'calculated');
   assert.ok(readyProfile.chart_evidence_catalog.length > 0);
