@@ -11,6 +11,12 @@ export const name = 'dsh-yuanqi-plugin';
 // required because live SessionStore state alone cannot recover after restart.
 export const inject = ['storageDomain', 'sessions', 'sessionQuery', 'sessionPersistence', 'tools', 'webServer', 'agents'];
 
+// Location providers are optional Cordis services. Read them defensively: a strict
+// Cordis context throws when an optional service was not declared/registered.
+function readOptionalContextService(context, key) {
+  try { return context?.[key]; } catch { return undefined; }
+}
+
 const YUANQI_SUBJECT_ID = 'yuanqi:primary';
 const LOCATION_PROVIDER_TIMEOUT_MS = 11_000;
 const INITIAL_PERSONALITY_DIMENSIONS = Object.freeze([
@@ -266,6 +272,7 @@ export async function apply(ctx) {
           birth_time_utc: profile.birth_time,
           birth_location: {
             status: profile.birth_location.status,
+            confidence: profile.birth_location.confidence ?? (profile.birth_location.source === 'ip_geolocation' ? 'low' : 'unknown'),
             place_label: profile.birth_location.place_label,
             time_zone_id: profile.birth_location.time_zone_id,
             time_zone_source: profile.birth_location.time_zone_source,
@@ -1768,8 +1775,8 @@ export async function apply(ctx) {
     }
 
     async function captureBirthLocation(eventTime) {
-      const hostProvider = ctx.yuanqiLocationProvider ?? createAndroidLocationProvider();
-      const ipProvider = ctx.yuanqiIpLocationProvider ?? createIpLocationProvider();
+      const hostProvider = readOptionalContextService(ctx, 'yuanqiLocationProvider') ?? createAndroidLocationProvider();
+      const ipProvider = readOptionalContextService(ctx, 'yuanqiIpLocationProvider') ?? createIpLocationProvider();
       const providers = [
         { provider: hostProvider, fallback: false },
         { provider: ipProvider, fallback: true },
@@ -1815,6 +1822,7 @@ export async function apply(ctx) {
           });
           return {
             status: 'captured', latitude, longitude, accuracy_meters: accuracy,
+            confidence: source === 'ip_geolocation' ? 'low' : 'high',
             place_label: typeof value.place_label === 'string' ? value.place_label : null,
             ...timeZone,
             source,
@@ -1828,7 +1836,8 @@ export async function apply(ctx) {
       }
       // Location is optional metadata; a failed best-effort lookup must not
       // pollute Session write warnings or affect the initialization barrier.
-      return { status: 'unavailable', latitude: null, longitude: null, accuracy_meters: null, place_label: null, time_zone_id: null, time_zone_source: 'unavailable', source: 'unavailable', captured_at: null };
+      if (failures.length) warn('[yuanqi] birth-location providers exhausted: ' + failures.join(' | '));
+      return { status: 'unavailable', latitude: null, longitude: null, accuracy_meters: null, confidence: 'unknown', place_label: null, time_zone_id: null, time_zone_source: 'unavailable', source: 'unavailable', captured_at: null };
     }
 
     function scheduleBirthLocationCapture(eventTime) {
@@ -1872,7 +1881,7 @@ export async function apply(ctx) {
         subject_id: YUANQI_SUBJECT_ID,
         direct_user_event: direct,
         birth_location: shouldCaptureLocation ? {
-          status: 'pending', latitude: null, longitude: null, accuracy_meters: null,
+          status: 'pending', latitude: null, longitude: null, accuracy_meters: null, confidence: 'unknown',
           place_label: null, time_zone_id: null, time_zone_source: 'unavailable', source: 'unavailable', captured_at: null,
         } : undefined,
       });
