@@ -75,7 +75,9 @@ function context(storageDomain, options = {}) {
     webServer: options.webServer ?? { register() { return () => {}; } },
     tools,
     registeredTools,
-    yuanqiLocationProvider: options.yuanqiLocationProvider,
+    yuanqiLocationProvider: options.useAndroidLocationBridge
+      ? undefined
+      : options.yuanqiLocationProvider ?? { async getCurrentPosition() { throw new Error('device location disabled in isolated test'); } },
     yuanqiIpLocationProvider: options.yuanqiIpLocationProvider ?? { async getCurrentPosition() { throw new Error('IP fallback disabled in this isolated test'); } },
     agents: options.agents,
     sessionPersistence: options.sessionPersistence ?? {
@@ -820,7 +822,7 @@ test('missing host location capability records unknown place without fabricating
 
 test('Android host location bridge captures a fresh fix with the DSH bridge token', async () => {
   const storage = fakeStorageDomain();
-  const ctx = context(storage);
+  const ctx = context(storage, { useAndroidLocationBridge: true });
   const previousToken = process.env.DSH_BRIDGE_TOKEN;
   const previousFetch = globalThis.fetch;
   const now = Date.now();
@@ -868,7 +870,7 @@ test('Android host location bridge captures a fresh fix with the DSH bridge toke
 });
 
 test('Android host location bridge rejects a stale cached fix', async () => {
-  const storage = fakeStorageDomain(), ctx = context(storage);
+  const storage = fakeStorageDomain(), ctx = context(storage, { useAndroidLocationBridge: true });
   const previousToken = process.env.DSH_BRIDGE_TOKEN;
   const previousFetch = globalThis.fetch;
   const now = Date.now();
