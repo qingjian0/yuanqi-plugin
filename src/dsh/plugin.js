@@ -1837,7 +1837,6 @@ export async function apply(ctx) {
       }
       // Location is optional metadata; a failed best-effort lookup must not
       // pollute Session write warnings or affect the initialization barrier.
-      if (failures.length) warn('[yuanqi] birth-location providers exhausted: ' + failures.join(' | '));
       return { status: 'unavailable', latitude: null, longitude: null, accuracy_meters: null, confidence: 'unknown', place_label: null, time_zone_id: null, time_zone_source: 'unavailable', source: 'unavailable', captured_at: null };
     }
 
