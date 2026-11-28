@@ -1738,6 +1738,7 @@ export async function apply(ctx) {
     let storageUncertain = false;
     const pendingBySession = new Map();
     const pendingLocationTasks = new Set();
+    let locationRefreshAttempted = false;
     const startupBuffer = [];
 
     function warn(message) {
@@ -1774,12 +1775,12 @@ export async function apply(ctx) {
       return mainline;
     }
 
-    async function captureBirthLocation(eventTime) {
+    async function captureBirthLocation(eventTime, { deviceOnly = false } = {}) {
       const hostProvider = readOptionalContextService(ctx, 'yuanqiLocationProvider') ?? createAndroidLocationProvider();
       const ipProvider = readOptionalContextService(ctx, 'yuanqiIpLocationProvider') ?? createIpLocationProvider();
       const providers = [
         { provider: hostProvider, fallback: false },
-        { provider: ipProvider, fallback: true },
+        ...(!deviceOnly ? [{ provider: ipProvider, fallback: true }] : []),
       ];
       const failures = [];
       for (const candidate of providers) {
@@ -1840,11 +1841,13 @@ export async function apply(ctx) {
       return { status: 'unavailable', latitude: null, longitude: null, accuracy_meters: null, confidence: 'unknown', place_label: null, time_zone_id: null, time_zone_source: 'unavailable', source: 'unavailable', captured_at: null };
     }
 
-    function scheduleBirthLocationCapture(eventTime) {
+    function scheduleBirthLocationCapture(eventTime, { deviceOnly = false, allowLowConfidenceUpgrade = false } = {}) {
       const pending = store.getWakeRecord(YUANQI_SUBJECT_ID);
-      if (!pending || pending.birth_location?.status !== 'pending') return;
+      const isPending = pending?.birth_location?.status === 'pending';
+      const canUpgrade = allowLowConfidenceUpgrade && pending?.birth_location?.confidence === 'low';
+      if (!pending || (!isPending && !canUpgrade)) return;
       const task = Promise.resolve()
-        .then(() => captureBirthLocation(eventTime))
+        .then(() => captureBirthLocation(eventTime, { deviceOnly }))
         .then(birth_location => store.completeInitialWakeLocation({
           subject_id: YUANQI_SUBJECT_ID,
           birth_location,
@@ -1873,6 +1876,14 @@ export async function apply(ctx) {
         subject_id: YUANQI_SUBJECT_ID,
         created_from_event_ref: direct.event_id,
       });
+
+      const existingWake = store.getWakeRecord(YUANQI_SUBJECT_ID);
+      if (captureLocation && existingWake?.birth_location?.confidence === 'low' && !locationRefreshAttempted) {
+        locationRefreshAttempted = true;
+        // A later authorized device fix may correct the low-confidence IP estimate.
+        // Do not repeat IP lookup here or replace the estimate with another egress guess.
+        scheduleBirthLocationCapture(undefined, { deviceOnly: true, allowLowConfidenceUpgrade: true });
+      }
 
       const isWakeCommand = direct.text === '启动元气' || direct.text === '启动元炁';
       const shouldCaptureLocation = captureLocation && isWakeCommand &&
