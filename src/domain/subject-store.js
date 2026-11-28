@@ -210,7 +210,7 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
             throw new TypeError('YuanQi BirthProfile location completion requires DSH Domain table.update');
           }
           await birthProfiles.update(subject_id, current =>
-            current?.birth_location?.status === 'pending' || current?.time_context?.status === 'pending'
+            current?.birth_location?.status === 'pending' || current?.birth_location?.confidence === 'low' && location.confidence === 'high' || current?.time_context?.status === 'pending'
               ? { ...current, birth_location: location, time_context: profile.time_context, bazi: profile.bazi, innate_baseline: profile.innate_baseline }
               : current);
           return clone(birthProfiles.get(subject_id));
