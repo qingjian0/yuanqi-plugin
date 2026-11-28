@@ -11,6 +11,12 @@ export const name = 'dsh-yuanqi-plugin';
 // required because live SessionStore state alone cannot recover after restart.
 export const inject = ['storageDomain', 'sessions', 'sessionQuery', 'sessionPersistence', 'tools', 'webServer', 'agents'];
 
+// Location providers are optional Cordis services. Read them defensively: a strict
+// Cordis context throws when an optional service was not declared/registered.
+function readOptionalContextService(context, key) {
+  try { return context?.[key]; } catch { return undefined; }
+}
+
 const YUANQI_SUBJECT_ID = 'yuanqi:primary';
 const LOCATION_PROVIDER_TIMEOUT_MS = 11_000;
 const INITIAL_PERSONALITY_DIMENSIONS = Object.freeze([
@@ -266,6 +272,7 @@ export async function apply(ctx) {
           birth_time_utc: profile.birth_time,
           birth_location: {
             status: profile.birth_location.status,
+            confidence: profile.birth_location.confidence ?? (profile.birth_location.source === 'ip_geolocation' ? 'low' : 'unknown'),
             place_label: profile.birth_location.place_label,
             time_zone_id: profile.birth_location.time_zone_id,
             time_zone_source: profile.birth_location.time_zone_source,
@@ -1731,6 +1738,7 @@ export async function apply(ctx) {
     let storageUncertain = false;
     const pendingBySession = new Map();
     const pendingLocationTasks = new Set();
+    let locationRefreshAttempted = false;
     const startupBuffer = [];
 
     function warn(message) {
@@ -1767,12 +1775,12 @@ export async function apply(ctx) {
       return mainline;
     }
 
-    async function captureBirthLocation(eventTime) {
-      const hostProvider = ctx.yuanqiLocationProvider ?? createAndroidLocationProvider();
-      const ipProvider = ctx.yuanqiIpLocationProvider ?? createIpLocationProvider();
+    async function captureBirthLocation(eventTime, { deviceOnly = false } = {}) {
+      const hostProvider = readOptionalContextService(ctx, 'yuanqiLocationProvider') ?? createAndroidLocationProvider();
+      const ipProvider = readOptionalContextService(ctx, 'yuanqiIpLocationProvider') ?? createIpLocationProvider();
       const providers = [
         { provider: hostProvider, fallback: false },
-        { provider: ipProvider, fallback: true },
+        ...(!deviceOnly ? [{ provider: ipProvider, fallback: true }] : []),
       ];
       const failures = [];
       for (const candidate of providers) {
@@ -1815,6 +1823,7 @@ export async function apply(ctx) {
           });
           return {
             status: 'captured', latitude, longitude, accuracy_meters: accuracy,
+            confidence: source === 'ip_geolocation' ? 'low' : 'high',
             place_label: typeof value.place_label === 'string' ? value.place_label : null,
             ...timeZone,
             source,
@@ -1828,14 +1837,16 @@ export async function apply(ctx) {
       }
       // Location is optional metadata; a failed best-effort lookup must not
       // pollute Session write warnings or affect the initialization barrier.
-      return { status: 'unavailable', latitude: null, longitude: null, accuracy_meters: null, place_label: null, time_zone_id: null, time_zone_source: 'unavailable', source: 'unavailable', captured_at: null };
+      return { status: 'unavailable', latitude: null, longitude: null, accuracy_meters: null, confidence: 'unknown', place_label: null, time_zone_id: null, time_zone_source: 'unavailable', source: 'unavailable', captured_at: null };
     }
 
-    function scheduleBirthLocationCapture(eventTime) {
+    function scheduleBirthLocationCapture(eventTime, { deviceOnly = false, allowLowConfidenceUpgrade = false } = {}) {
       const pending = store.getWakeRecord(YUANQI_SUBJECT_ID);
-      if (!pending || pending.birth_location?.status !== 'pending') return;
+      const isPending = pending?.birth_location?.status === 'pending';
+      const canUpgrade = allowLowConfidenceUpgrade && pending?.birth_location?.confidence === 'low';
+      if (!pending || (!isPending && !canUpgrade)) return;
       const task = Promise.resolve()
-        .then(() => captureBirthLocation(eventTime))
+        .then(() => captureBirthLocation(eventTime, { deviceOnly }))
         .then(birth_location => store.completeInitialWakeLocation({
           subject_id: YUANQI_SUBJECT_ID,
           birth_location,
@@ -1865,6 +1876,14 @@ export async function apply(ctx) {
         created_from_event_ref: direct.event_id,
       });
 
+      const existingWake = store.getWakeRecord(YUANQI_SUBJECT_ID);
+      if (captureLocation && existingWake?.birth_location?.confidence === 'low' && !locationRefreshAttempted) {
+        locationRefreshAttempted = true;
+        // A later authorized device fix may correct the low-confidence IP estimate.
+        // Do not repeat IP lookup here or replace the estimate with another egress guess.
+        scheduleBirthLocationCapture(undefined, { deviceOnly: true, allowLowConfidenceUpgrade: true });
+      }
+
       const isWakeCommand = direct.text === '启动元气' || direct.text === '启动元炁';
       const shouldCaptureLocation = captureLocation && isWakeCommand &&
         !store.getWakeRecord(YUANQI_SUBJECT_ID);
@@ -1872,7 +1891,7 @@ export async function apply(ctx) {
         subject_id: YUANQI_SUBJECT_ID,
         direct_user_event: direct,
         birth_location: shouldCaptureLocation ? {
-          status: 'pending', latitude: null, longitude: null, accuracy_meters: null,
+          status: 'pending', latitude: null, longitude: null, accuracy_meters: null, confidence: 'unknown',
           place_label: null, time_zone_id: null, time_zone_source: 'unavailable', source: 'unavailable', captured_at: null,
         } : undefined,
       });

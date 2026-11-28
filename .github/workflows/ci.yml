@@ -12,12 +12,17 @@ permissions:
   contents: read
 jobs:
   node-check:
+    name: Node.js ${{ matrix.node-version }}
+    strategy:
+      fail-fast: false
+      matrix:
+        node-version: [24.9.0, 24.x]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24.9.0
+          node-version: ${{ matrix.node-version }}
           package-manager-cache: false
       - name: Install declared runtime dependencies
         run: npm install --ignore-scripts --no-package-lock

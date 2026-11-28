@@ -32,7 +32,7 @@ npm run check
 npm pack
 ```
 
-`npm run check` 会执行入口和源码 JavaScript 语法检查及自动化测试。当前 `dev` 运行时/测试代码基线（commit `f7f22519772bb398403bea59cc5eb0215a4a5a58`）已在 Node.js 24.9.0 的 GitHub Actions 中通过 **122 项测试，0 项失败**；DSH peer/API 导出检查通过。npm 安装包构建、归档检查与制品上传也已通过；本次归档制品为 79,323 bytes。详见 [CI 测试记录](https://github.com/qingjian0/yuanqi-plugin/actions/runs/44987813021) 和 [安装包构建记录](https://github.com/qingjian0/yuanqi-plugin/actions/runs/44987813020)。这些结果不替代真实 Android DSH 宿主验收。
+`npm run check` 会执行入口和源码 JavaScript 语法检查及自动化测试。CI 在 Node.js 24.9.0（最低声明版本）与当前 Node.js 24.x 上执行语法检查、测试和 DSH peer/API 导出检查。测试数量、结果与 npm 归档大小均以对应 commit 的 GitHub Actions 运行记录和制品为准，不在文档中固定易过期的数字。CI 通过不替代真实 Android DSH 宿主验收。
 
 ## 3. 安装到 DSH Profile
 
@@ -69,7 +69,7 @@ dsh plugin --profile web add ./dist/dsh-yuanqi-plugin-1.1.0-alpha.9.tgz
 
 当前实现的唤醒条件：安装后可以先有普通 direct-user 消息；元炁会等待首次满足以下条件的事件：DSH `user/message` 来源为真实 direct user（`source.kind === 'user'`），消息内容数组恰好包含一个文本块，且该文本完整精确等于“启动元气”或“启动元炁”。前后空格、换行、引号、标点、附加文字、多文本块、助手输出和注入上下文均不触发。普通首条消息只记录首次消息事实，不消耗启动资格，也不会创建唤醒记录、主线 Worldline 或 Session 绑定。首次精确启动命令的唤醒时间必须使用该 DSH `SessionEvent.time`。冷历史恢复会排除安装边界之前和 Fork 继承前缀中的事件；若启动命令只在冷历史中发现，不会用当前设备位置冒充历史地点。详见 [E00-21 P0 唤醒出生资料与地点采集](./engineering/E00-21-P0-YUANQI-BIRTH-RECORD-LOCATION.md)。
 
-元炁出生时间取自精确唤醒事件；出生地点取自启动时经过授权且时间匹配的 Host 定位。不可用时保持未知，不得使用用户出生资料、IP、服务器所在地或模型推断补全。
+元炁出生时间取自精确唤醒事件；出生地点按设备定位优先、IP 地理定位降级的顺序采集：有可用且获授权、时间匹配的设备定位时使用设备定位；设备定位未授权、不可用或获取失败时，立即尝试 IP 地理定位。设备定位标记为高置信度，IP 定位必须标记为低置信度（`confidence: low`、`source: ip_geolocation`），不得伪装成设备定位。IP 结果反映网络出口位置，代理或 VPN 可能造成跨城市、跨国偏差；低置信度地点仅作为临时估计，后续获得有效设备定位时允许以高置信度结果纠正。不得使用用户出生资料、服务器所在地或模型推断补全。
 
 `BirthProfile.innate_baseline` 保存从元炁自身四柱派生的符号结构（透干、藏干、十神、未加权五行出现次数），状态和算法版本均可追溯。它不是人格画像或旺衰结论；模型通过 `yuanqi_self_profile` 按需读取。当前 SelfModel 尚未自动融合这份静态结构与后天证据。
 

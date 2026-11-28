@@ -75,7 +75,9 @@ function context(storageDomain, options = {}) {
     webServer: options.webServer ?? { register() { return () => {}; } },
     tools,
     registeredTools,
-    yuanqiLocationProvider: options.yuanqiLocationProvider,
+    yuanqiLocationProvider: options.useAndroidLocationBridge
+      ? undefined
+      : options.yuanqiLocationProvider ?? { async getCurrentPosition() { throw new Error('device location disabled in isolated test'); } },
     yuanqiIpLocationProvider: options.yuanqiIpLocationProvider ?? { async getCurrentPosition() { throw new Error('IP fallback disabled in this isolated test'); } },
     agents: options.agents,
     sessionPersistence: options.sessionPersistence ?? {
@@ -95,6 +97,62 @@ function context(storageDomain, options = {}) {
     get effectCount() { return effectCount; },
   };
 }
+
+async function waitForBirthLocationCapture(storage, timeoutMs = 2000) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
+    const wake = storage.opened.get('yuanqi_subject')?.tables.get('wake_records')?.get('yuanqi:primary');
+    if (wake?.birth_location && wake.birth_location.status !== 'pending') return wake.birth_location;
+    await new Promise(resolve => setTimeout(resolve, 5));
+  }
+  throw new Error('timed out waiting for deferred YuanQi birth-location capture');
+}
+
+test('strict Cordis contexts without optional location-provider injection fall back to IP safely', async () => {
+  const storage = fakeStorageDomain();
+  const ctx = context(storage);
+  const previousToken = process.env.DSH_BRIDGE_TOKEN;
+  const previousFetch = globalThis.fetch;
+  const eventTime = Date.now();
+  delete process.env.DSH_BRIDGE_TOKEN;
+  globalThis.fetch = async (url) => {
+    assert.equal(url, 'https://ipwho.is/');
+    return {
+      ok: true,
+      status: 200,
+      async json() {
+        return {
+          success: true, latitude: 31.2304, longitude: 121.4737,
+          city: 'Shanghai', region: 'Shanghai', country: 'China',
+          timezone: { id: 'Asia/Shanghai' },
+        };
+      },
+    };
+  };
+  const strictContext = new Proxy(ctx, {
+    get(target, key, receiver) {
+      if (key === 'yuanqiLocationProvider' || key === 'yuanqiIpLocationProvider') {
+        throw new Error('cannot get property "' + String(key) + '" without inject');
+      }
+      return Reflect.get(target, key, receiver);
+    },
+  });
+  try {
+    await apply(strictContext);
+    await ctx.listener({ id: 'strict-location-session' }, dshEvent('启动元炁', 'strict-location-wake', 0, eventTime));
+    await ctx.flushListener({ id: 'strict-location-session' });
+    await ctx.disposer();
+    const wake = storage.opened.get('yuanqi_subject').tables.get('wake_records').get('yuanqi:primary');
+    assert.equal(wake.birth_location.status, 'captured');
+    assert.equal(wake.birth_location.source, 'ip_geolocation');
+    assert.equal(wake.birth_location.confidence, 'low');
+    assert.equal(wake.birth_location.time_zone_id, 'Asia/Shanghai');
+  } finally {
+    globalThis.fetch = previousFetch;
+    if (previousToken === undefined) delete process.env.DSH_BRIDGE_TOKEN;
+    else process.env.DSH_BRIDGE_TOKEN = previousToken;
+  }
+});
 
 test('plugin startup requires the DSH model tools registry before opening Domains', async () => {
   const storage = fakeStorageDomain();
@@ -216,6 +274,7 @@ test('model-generated Bazi initial personality is saved once as a hypothesis in 
   const eventTime = Date.UTC(2026, 10, 6, 12, 0, 0);
   await ctx.listener({ id: sessionId }, dshEvent('启动元炁', 'initial-personality-wake', 0, eventTime));
   await ctx.flushListener({ id: sessionId });
+  await waitForBirthLocationCapture(storage);
   assert.equal(await writeTool.registrationOptions.when({ agent }), true);
 
   const profile = JSON.parse(await readTool.definition.execute({}, { signal: new AbortController().signal }));
@@ -346,6 +405,7 @@ test('YuanQi BirthProfile is created from YuanQi wake data, never from user birt
   const session = { id: 'yuanqi-birth-session' };
   await ctx.listener(session, dshEvent('启动元炁', 'yuanqi-wake', 0, 1793966400000));
   await ctx.flushListener(session);
+  await waitForBirthLocationCapture(storage);
   await ctx.listener(session, dshEvent('出生日期：1998年4月21日10:31，出生地：云南昆明安宁', 'unrelated-user-birth', 1, 1793966401000));
   await ctx.flushListener(session);
   const userTables = storage.opened.get('yuanqi_user_subject').tables;
@@ -654,7 +714,7 @@ test('YuanQi birth time is the exact first startup event time and host location 
   assert.equal(wake.occurred_at, wake.birth_time);
   assert.deepEqual(wake.birth_location, {
     status: 'captured', latitude: 31.2304, longitude: 121.4737,
-    accuracy_meters: 18, place_label: 'Shanghai', time_zone_id: 'Asia/Shanghai', time_zone_source: 'host_location_provider',
+    accuracy_meters: 18, confidence: 'high', place_label: 'Shanghai', time_zone_id: 'Asia/Shanghai', time_zone_source: 'host_location_provider',
     source: 'host_location_provider', captured_at: '2026-11-14T11:23:47.000Z',
   });
   assert.equal(locationReads, 1);
@@ -698,8 +758,19 @@ test('wake event is durable and Session flush does not wait for a pending locati
 test('IP geolocation is used automatically when the authorized host/GPS provider is unavailable', async () => {
   const storage = fakeStorageDomain();
   const eventTime = Date.parse('2026-11-14T11:23:48.000Z');
+  let hostCalls = 0;
   const ctx = context(storage, {
-    yuanqiLocationProvider: { async getCurrentPosition() { throw new Error('location permission unavailable'); } },
+    yuanqiLocationProvider: {
+      async getCurrentPosition() {
+        hostCalls += 1;
+        if (hostCalls === 1) throw new Error('location permission unavailable');
+        return {
+          latitude: 31.27411, longitude: 121.64497, accuracy_meters: 37.6,
+          place_label: 'Shanghai, China', time_zone_id: 'Asia/Shanghai', time_zone_source: 'host_location_provider',
+          captured_at: new Date().toISOString(), source: 'android_location_bridge',
+        };
+      },
+    },
     yuanqiIpLocationProvider: {
       async getCurrentPosition() {
         return {
@@ -714,19 +785,26 @@ test('IP geolocation is used automatically when the authorized host/GPS provider
   await apply(ctx);
   await ctx.listener({ id: 'ip-fallback-session' }, dshEvent('启动元炁', 'ip-fallback-wake', 0, eventTime));
   await ctx.flushListener({ id: 'ip-fallback-session' });
+  await new Promise(resolve => setImmediate(resolve));
+  const estimated = storage.opened.get('yuanqi_subject').tables.get('wake_records').get('yuanqi:primary');
+  assert.equal(estimated.birth_location.confidence, 'low');
+  await ctx.listener({ id: 'ip-fallback-session' }, dshEvent('后续消息', 'ip-fallback-correction', 1, Date.now()));
+  await ctx.flushListener({ id: 'ip-fallback-session' });
   await ctx.disposer();
   const wake = storage.opened.get('yuanqi_subject').tables.get('wake_records').get('yuanqi:primary');
   assert.equal(wake.birth_location.status, 'captured');
-  assert.equal(wake.birth_location.source, 'ip_geolocation');
-  assert.equal(wake.birth_location.latitude, 35.6762);
-  assert.equal(wake.birth_location.longitude, 139.6503);
-  assert.equal(wake.birth_location.accuracy_meters, null);
-  assert.equal(wake.birth_location.time_zone_id, 'Asia/Tokyo');
-  assert.equal(wake.birth_location.time_zone_source, 'ip_geolocation');
-  assert.equal(wake.birth_location.captured_at, new Date(eventTime).toISOString());
+  assert.equal(wake.birth_location.source, 'android_location_bridge');
+  assert.equal(wake.birth_location.confidence, 'high');
+  assert.equal(wake.birth_location.latitude, 31.27411);
+  assert.equal(wake.birth_location.longitude, 121.64497);
+  assert.equal(wake.birth_location.accuracy_meters, 37.6);
+  assert.equal(wake.birth_location.time_zone_id, 'Asia/Shanghai');
+  assert.equal(wake.birth_location.time_zone_source, 'host_location_provider');
+  assert.ok(Number.isFinite(Date.parse(wake.birth_location.captured_at)));
   const profile = storage.opened.get('yuanqi_subject').tables.get('birth_profiles').get('yuanqi:primary');
-  assert.equal(profile.birth_location.source, 'ip_geolocation');
-  assert.equal(profile.time_context.time_zone_id, 'Asia/Tokyo');
+  assert.equal(profile.birth_location.source, 'android_location_bridge');
+  assert.equal(profile.birth_location.confidence, 'high');
+  assert.equal(profile.time_context.time_zone_id, 'Asia/Shanghai');
 });
 
 test('missing host location capability records unknown place without fabricating data', async () => {
@@ -744,7 +822,7 @@ test('missing host location capability records unknown place without fabricating
 
 test('Android host location bridge captures a fresh fix with the DSH bridge token', async () => {
   const storage = fakeStorageDomain();
-  const ctx = context(storage);
+  const ctx = context(storage, { useAndroidLocationBridge: true });
   const previousToken = process.env.DSH_BRIDGE_TOKEN;
   const previousFetch = globalThis.fetch;
   const now = Date.now();
@@ -778,6 +856,7 @@ test('Android host location bridge captures a fresh fix with the DSH bridge toke
     const wake = storage.opened.get('yuanqi_subject').tables.get('wake_records').get('yuanqi:primary');
     assert.equal(wake.birth_location.status, 'captured');
     assert.equal(wake.birth_location.source, 'android_location_bridge');
+    assert.equal(wake.birth_location.confidence, 'high');
     assert.equal(wake.birth_location.latitude, 31.2304);
     assert.equal(wake.birth_location.longitude, 121.4737);
     assert.equal(wake.birth_location.accuracy_meters, 12);
@@ -791,7 +870,7 @@ test('Android host location bridge captures a fresh fix with the DSH bridge toke
 });
 
 test('Android host location bridge rejects a stale cached fix', async () => {
-  const storage = fakeStorageDomain(), ctx = context(storage);
+  const storage = fakeStorageDomain(), ctx = context(storage, { useAndroidLocationBridge: true });
   const previousToken = process.env.DSH_BRIDGE_TOKEN;
   const previousFetch = globalThis.fetch;
   const now = Date.now();
@@ -858,6 +937,7 @@ test('experience candidate tool records bounded behavior evidence without copyin
   const agent = { id: 'agent-experience', session: { id: sessionId } };
   await ctx.listener({ id: sessionId }, dshEvent('启动元炁', 'experience-wake', 0, 1793966400000));
   await ctx.flushListener({ id: sessionId });
+  await waitForBirthLocationCapture(storage);
   const initialTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_record_initial_personality');
   const profileTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_self_profile');
   const profile = JSON.parse(await profileTool.definition.execute({}, { signal: new AbortController().signal }));
@@ -1001,6 +1081,7 @@ test('experience candidate tool rejects injected user context and unpaired tool 
   const agent = { id: 'agent-experience-reject', session: { id: sessionId } };
   await ctx.listener({ id: sessionId }, dshEvent('启动元炁', 'experience-reject-wake', 0, 1793966400000));
   await ctx.flushListener({ id: sessionId });
+  await waitForBirthLocationCapture(storage);
   const profileTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_self_profile');
   const initialTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_record_initial_personality');
   const profile = JSON.parse(await profileTool.definition.execute({}, { signal: new AbortController().signal }));
@@ -1079,6 +1160,7 @@ test('experience reconciliation counts distinct Session evidence, preserves conf
     await ctx.flushListener({ id: sessionId });
   }
 
+  await waitForBirthLocationCapture(storage);
   const profileTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_self_profile');
   const initialTool = ctx.registeredTools.find(item => item.definition.name === 'yuanqi_record_initial_personality');
   const profile = JSON.parse(await profileTool.definition.execute({}, { signal: new AbortController().signal }));
@@ -1255,6 +1337,7 @@ test('Bazi-unavailable startup can save only a six-dimension awaiting-Bazi place
 
   await ctx.listener({ id: sessionId }, dshEvent('启动元炁', 'bazi-placeholder-wake', 0, eventTime));
   await ctx.flushListener({ id: sessionId });
+  await waitForBirthLocationCapture(storage);
 
   const profile = JSON.parse(await readTool.definition.execute({}, { signal: new AbortController().signal }));
   assert.equal(profile.bazi.status, 'unavailable');
@@ -1304,6 +1387,7 @@ test('Bazi-unavailable startup can save only a six-dimension awaiting-Bazi place
   const readyEventTime = Date.UTC(2026, 10, 6, 12, 0, 0);
   await readyCtx.listener({ id: 'session-ready-chart' }, dshEvent('启动元炁', 'ready-chart-wake', 0, readyEventTime));
   await readyCtx.flushListener({ id: 'session-ready-chart' });
+  await waitForBirthLocationCapture(readyStorage);
   const readyProfile = JSON.parse(await readyReadTool.definition.execute({}, { signal: new AbortController().signal }));
   assert.equal(readyProfile.bazi.status, 'calculated');
   assert.ok(readyProfile.chart_evidence_catalog.length > 0);

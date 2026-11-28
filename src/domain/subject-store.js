@@ -73,7 +73,7 @@ function wakeFields(event) {
 }
 function unavailableLocation() {
   return {
-    status: 'unavailable', latitude: null, longitude: null, accuracy_meters: null,
+    status: 'unavailable', latitude: null, longitude: null, accuracy_meters: null, confidence: 'unknown',
     place_label: null, time_zone_id: null, time_zone_source: 'unavailable', source: 'unavailable', captured_at: null,
   };
 }
@@ -204,12 +204,13 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
           throw new Error('YuanQi BirthProfile source conflict');
         }
         if ((existing.birth_location?.status === 'pending' && location.status !== 'pending') ||
+            (existing.birth_location?.confidence === 'low' && location.confidence === 'high') ||
             (existing.time_context?.status === 'pending' && profile.time_context.status !== 'pending')) {
           if (typeof birthProfiles.update !== 'function') {
             throw new TypeError('YuanQi BirthProfile location completion requires DSH Domain table.update');
           }
           await birthProfiles.update(subject_id, current =>
-            current?.birth_location?.status === 'pending' || current?.time_context?.status === 'pending'
+            current?.birth_location?.status === 'pending' || current?.birth_location?.confidence === 'low' && location.confidence === 'high' || current?.time_context?.status === 'pending'
               ? { ...current, birth_location: location, time_context: profile.time_context, bazi: profile.bazi, innate_baseline: profile.innate_baseline }
               : current);
           return clone(birthProfiles.get(subject_id));
@@ -261,7 +262,9 @@ export function createSubjectStore({ userDomain, yuanqiDomain, verifyDirectUserE
         if (wakes.get(subject_id) === undefined) throw new Error('WakeRecord does not exist');
         await wakes.update(subject_id, current => {
           if (current === undefined) throw new Error('WakeRecord does not exist');
-          if (current.birth_location?.status !== 'pending') return current;
+          const pendingLocation = current.birth_location?.status === 'pending';
+          const confidenceUpgrade = current.birth_location?.confidence === 'low' && birth_location.confidence === 'high';
+          if (!pendingLocation && !confidenceUpgrade) return current;
           return { ...current, birth_location: clone(birth_location) };
         });
         await ensureYuanQiBirthProfile({ subject_id });
