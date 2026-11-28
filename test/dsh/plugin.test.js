@@ -744,8 +744,19 @@ test('wake event is durable and Session flush does not wait for a pending locati
 test('IP geolocation is used automatically when the authorized host/GPS provider is unavailable', async () => {
   const storage = fakeStorageDomain();
   const eventTime = Date.parse('2026-11-14T11:23:48.000Z');
+  let hostCalls = 0;
   const ctx = context(storage, {
-    yuanqiLocationProvider: { async getCurrentPosition() { throw new Error('location permission unavailable'); } },
+    yuanqiLocationProvider: {
+      async getCurrentPosition() {
+        hostCalls += 1;
+        if (hostCalls === 1) throw new Error('location permission unavailable');
+        return {
+          latitude: 31.27411, longitude: 121.64497, accuracy_meters: 37.6,
+          place_label: 'Shanghai, China', time_zone_id: 'Asia/Shanghai',
+          captured_at: new Date().toISOString(), source: 'android_location_bridge',
+        };
+      },
+    },
     yuanqiIpLocationProvider: {
       async getCurrentPosition() {
         return {
@@ -760,20 +771,26 @@ test('IP geolocation is used automatically when the authorized host/GPS provider
   await apply(ctx);
   await ctx.listener({ id: 'ip-fallback-session' }, dshEvent('启动元炁', 'ip-fallback-wake', 0, eventTime));
   await ctx.flushListener({ id: 'ip-fallback-session' });
+  await new Promise(resolve => setImmediate(resolve));
+  const estimated = storage.opened.get('yuanqi_subject').tables.get('wake_records').get('yuanqi:primary');
+  assert.equal(estimated.birth_location.confidence, 'low');
+  await ctx.listener({ id: 'ip-fallback-session' }, dshEvent('后续消息', 'ip-fallback-correction', 1, Date.now()));
+  await ctx.flushListener({ id: 'ip-fallback-session' });
   await ctx.disposer();
   const wake = storage.opened.get('yuanqi_subject').tables.get('wake_records').get('yuanqi:primary');
   assert.equal(wake.birth_location.status, 'captured');
-  assert.equal(wake.birth_location.source, 'ip_geolocation');
-  assert.equal(wake.birth_location.confidence, 'low');
-  assert.equal(wake.birth_location.latitude, 35.6762);
-  assert.equal(wake.birth_location.longitude, 139.6503);
+  assert.equal(wake.birth_location.source, 'android_location_bridge');
+  assert.equal(wake.birth_location.confidence, 'high');
+  assert.equal(wake.birth_location.latitude, 31.27411);
+  assert.equal(wake.birth_location.longitude, 121.64497);
   assert.equal(wake.birth_location.accuracy_meters, null);
   assert.equal(wake.birth_location.time_zone_id, 'Asia/Tokyo');
   assert.equal(wake.birth_location.time_zone_source, 'ip_geolocation');
   assert.equal(wake.birth_location.captured_at, new Date(eventTime).toISOString());
   const profile = storage.opened.get('yuanqi_subject').tables.get('birth_profiles').get('yuanqi:primary');
-  assert.equal(profile.birth_location.source, 'ip_geolocation');
-  assert.equal(profile.time_context.time_zone_id, 'Asia/Tokyo');
+  assert.equal(profile.birth_location.source, 'android_location_bridge');
+  assert.equal(profile.birth_location.confidence, 'high');
+  assert.equal(profile.time_context.time_zone_id, 'Asia/Shanghai');
 });
 
 test('missing host location capability records unknown place without fabricating data', async () => {
