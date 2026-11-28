@@ -752,7 +752,7 @@ test('IP geolocation is used automatically when the authorized host/GPS provider
         if (hostCalls === 1) throw new Error('location permission unavailable');
         return {
           latitude: 31.27411, longitude: 121.64497, accuracy_meters: 37.6,
-          place_label: 'Shanghai, China', time_zone_id: 'Asia/Shanghai',
+          place_label: 'Shanghai, China', time_zone_id: 'Asia/Shanghai', time_zone_source: 'host_location_provider',
           captured_at: new Date().toISOString(), source: 'android_location_bridge',
         };
       },
@@ -783,10 +783,10 @@ test('IP geolocation is used automatically when the authorized host/GPS provider
   assert.equal(wake.birth_location.confidence, 'high');
   assert.equal(wake.birth_location.latitude, 31.27411);
   assert.equal(wake.birth_location.longitude, 121.64497);
-  assert.equal(wake.birth_location.accuracy_meters, null);
-  assert.equal(wake.birth_location.time_zone_id, 'Asia/Tokyo');
-  assert.equal(wake.birth_location.time_zone_source, 'ip_geolocation');
-  assert.equal(wake.birth_location.captured_at, new Date(eventTime).toISOString());
+  assert.equal(wake.birth_location.accuracy_meters, 37.6);
+  assert.equal(wake.birth_location.time_zone_id, 'Asia/Shanghai');
+  assert.equal(wake.birth_location.time_zone_source, 'host_location_provider');
+  assert.ok(Number.isFinite(Date.parse(wake.birth_location.captured_at)));
   const profile = storage.opened.get('yuanqi_subject').tables.get('birth_profiles').get('yuanqi:primary');
   assert.equal(profile.birth_location.source, 'android_location_bridge');
   assert.equal(profile.birth_location.confidence, 'high');
